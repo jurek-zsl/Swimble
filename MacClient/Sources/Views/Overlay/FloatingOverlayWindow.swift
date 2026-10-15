@@ -194,6 +194,28 @@ public struct FloatingOverlayPillView: View {
         return "Root"
     }
 
+    private var dragGesture: some Gesture {
+        DragGesture(minimumDistance: 2)
+            .onChanged { _ in
+                FloatingOverlayManager.shared.handleDrag()
+            }
+            .onEnded { _ in
+                FloatingOverlayManager.shared.endDrag()
+            }
+    }
+
+    private var dragHandleView: some View {
+        ZStack {
+            Image(systemName: "line.3.horizontal")
+                .font(.system(size: 8, weight: .bold))
+                .foregroundStyle(Color.secondary.opacity(0.6))
+            OverlayDragHandle()
+        }
+        .frame(width: 14, height: 18)
+        .contentShape(Rectangle())
+        .help("Drag to reposition overlay")
+    }
+
     public var body: some View {
         mainContent
             .background(
@@ -227,6 +249,9 @@ public struct FloatingOverlayPillView: View {
                     }
                     Divider()
                 }
+                Button("Reset Overlay Position") {
+                    FloatingOverlayManager.shared.resetPosition()
+                }
                 Button("Hide Overlay") {
                     FloatingOverlayManager.shared.hide()
                 }
@@ -238,36 +263,47 @@ public struct FloatingOverlayPillView: View {
         if store.connectionStatus != .connected {
             // Disconnected / Connecting pill
             HStack(spacing: 8) {
+                dragHandleView
+
                 Image(systemName: store.connectionStatus == .connecting ? "waveform.badge.magnifyingglass" : "waveform.slash")
                     .foregroundStyle(.secondary)
-                    .font(.system(size: 12))
+                    .font(.system(size: 11))
                 Text(store.connectionStatus == .connecting ? "Connecting..." : "Disconnected")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
 
                 Spacer(minLength: 4)
 
                 closeButton
             }
-            .padding(.horizontal, 12)
+            .padding(.leading, 8)
+            .padding(.trailing, 10)
             .padding(.vertical, 8)
-            .frame(width: 190)
+            .frame(width: 210)
             .glassEffect(.regular.interactive(), in: .capsule)
+            .simultaneousGesture(dragGesture)
         } else if isCollapsed {
             // Collapsed compact pill
-            HStack(spacing: 8) {
-                Image(systemName: "antenna.radiowaves.left.and.right")
-                    .foregroundStyle(store.accentTint)
-                    .font(.system(size: 11))
+            HStack(spacing: 7) {
+                dragHandleView
 
-                Text("#\(channelName)")
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
+                HStack(spacing: 5) {
+                    Image(systemName: "antenna.radiowaves.left.and.right")
+                        .foregroundStyle(store.accentTint)
+                        .font(.system(size: 10, weight: .bold))
 
-                Text("(\(channelMembers.count))")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
+                    Text("#\(channelName)")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+
+                    Text("(\(channelMembers.count))")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                }
+                .contentShape(Rectangle())
+                .simultaneousGesture(dragGesture)
 
                 if let speaker = activeSpeakers.first {
                     HStack(spacing: 4) {
@@ -302,9 +338,10 @@ public struct FloatingOverlayPillView: View {
 
                 closeButton
             }
-            .padding(.horizontal, 10)
+            .padding(.leading, 8)
+            .padding(.trailing, 10)
             .padding(.vertical, 6)
-            .frame(minWidth: 200, maxWidth: 280)
+            .frame(minWidth: 220, maxWidth: 300)
             .glassEffect(
                 .regular.tint(!activeSpeakers.isEmpty ? Color.green.opacity(0.12) : nil).interactive(),
                 in: .capsule
@@ -314,17 +351,23 @@ public struct FloatingOverlayPillView: View {
             VStack(alignment: .leading, spacing: 5) {
                 // Header
                 HStack(spacing: 6) {
-                    Image(systemName: "antenna.radiowaves.left.and.right")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(store.accentTint)
+                    dragHandleView
 
-                    Text("#\(channelName)")
-                        .font(.system(size: 11, weight: .bold))
-                        .lineLimit(1)
+                    HStack(spacing: 5) {
+                        Image(systemName: "antenna.radiowaves.left.and.right")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(store.accentTint)
 
-                    Text("(\(channelMembers.count))")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
+                        Text("#\(channelName)")
+                            .font(.system(size: 11, weight: .bold))
+                            .lineLimit(1)
+
+                        Text("(\(channelMembers.count))")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                    }
+                    .contentShape(Rectangle())
+                    .simultaneousGesture(dragGesture)
 
                     Spacer(minLength: 4)
 
@@ -347,7 +390,8 @@ public struct FloatingOverlayPillView: View {
 
                     closeButton
                 }
-                .padding(.horizontal, 10)
+                .padding(.leading, 8)
+                .padding(.trailing, 10)
                 .padding(.top, 8)
                 .padding(.bottom, 2)
 
@@ -377,7 +421,7 @@ public struct FloatingOverlayPillView: View {
                     .padding(.bottom, 6)
                 }
             }
-            .frame(minWidth: 200, maxWidth: 250)
+            .frame(minWidth: 220, maxWidth: 260)
             .glassEffect(
                 .regular.tint(!activeSpeakers.isEmpty ? Color.green.opacity(0.08) : nil).interactive(),
                 in: RoundedRectangle(cornerRadius: 14)
@@ -437,6 +481,34 @@ public struct FloatingOverlayPillView: View {
     }
 }
 
+/// An AppKit NSView that initiates native macOS window dragging on mouseDown.
+public struct OverlayDragHandle: NSViewRepresentable {
+    public init() {}
+
+    public func makeNSView(context: Context) -> DragHandleNSView {
+        DragHandleNSView()
+    }
+
+    public func updateNSView(_ nsView: DragHandleNSView, context: Context) {}
+}
+
+public final class DragHandleNSView: NSView {
+    public override var mouseDownCanMoveWindow: Bool {
+        return true
+    }
+
+    public override func resetCursorRects() {
+        super.resetCursorRects()
+        addCursorRect(bounds, cursor: .openHand)
+    }
+
+    public override func mouseDown(with event: NSEvent) {
+        guard let window = window else { return }
+        window.performDrag(with: event)
+        FloatingOverlayManager.shared.savePosition(window.frame.origin)
+    }
+}
+
 /// Custom hosting view enabling instant first-click interactions while running as a floating non-activating panel.
 final class OverlayHostingView<Content: View>: NSHostingView<Content> {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
@@ -449,8 +521,12 @@ final class OverlayHostingView<Content: View>: NSHostingView<Content> {
 public final class FloatingOverlayManager: ObservableObject {
     public static let shared = FloatingOverlayManager()
 
-    private var panel: NSPanel?
+    public private(set) var panel: NSPanel?
     @Published public private(set) var isVisible: Bool = false
+
+    private var initialMouseOffset: CGPoint? = nil
+    private let userDefaultsXKey = "Swimble_Overlay_Position_X"
+    private let userDefaultsYKey = "Swimble_Overlay_Position_Y"
 
     private init() {}
 
@@ -469,8 +545,10 @@ public final class FloatingOverlayManager: ObservableObject {
             // CRITICAL: Disable NSHostingView's automatic window min/max size updates to prevent recursive AppKit constraint crashes
             hosting.sizingOptions = []
 
+            let initialOrigin = loadInitialOrigin()
+
             let p = NSPanel(
-                contentRect: NSRect(x: 120, y: 120, width: 220, height: 80),
+                contentRect: NSRect(origin: initialOrigin, size: CGSize(width: 220, height: 80)),
                 styleMask: [.borderless, .nonactivatingPanel],
                 backing: .buffered,
                 defer: false
@@ -511,5 +589,80 @@ public final class FloatingOverlayManager: ObservableObject {
             newFrame.size = newSize
             panel.setFrame(newFrame, display: true, animate: false)
         }
+    }
+
+    // MARK: - Dragging & Window Position Management
+
+    public func handleDrag() {
+        guard let panel = panel else { return }
+        let currentMouse = NSEvent.mouseLocation
+
+        if initialMouseOffset == nil {
+            initialMouseOffset = CGPoint(
+                x: panel.frame.origin.x - currentMouse.x,
+                y: panel.frame.origin.y - currentMouse.y
+            )
+        }
+
+        guard let offset = initialMouseOffset else { return }
+        let newOrigin = CGPoint(
+            x: currentMouse.x + offset.x,
+            y: currentMouse.y + offset.y
+        )
+        panel.setFrameOrigin(newOrigin)
+    }
+
+    public func endDrag() {
+        initialMouseOffset = nil
+        if let panel = panel {
+            savePosition(panel.frame.origin)
+        }
+    }
+
+    public func savePosition(_ origin: CGPoint) {
+        UserDefaults.standard.set(origin.x, forKey: userDefaultsXKey)
+        UserDefaults.standard.set(origin.y, forKey: userDefaultsYKey)
+    }
+
+    public func resetPosition() {
+        guard let panel = panel else { return }
+        if let screen = panel.screen ?? NSScreen.main {
+            let vf = screen.visibleFrame
+            let newOrigin = CGPoint(x: vf.minX + 32, y: vf.maxY - panel.frame.height - 32)
+            panel.setFrameOrigin(newOrigin)
+            savePosition(newOrigin)
+        }
+    }
+
+    private func loadInitialOrigin() -> CGPoint {
+        if UserDefaults.standard.object(forKey: userDefaultsXKey) != nil,
+           UserDefaults.standard.object(forKey: userDefaultsYKey) != nil {
+            let x = UserDefaults.standard.double(forKey: userDefaultsXKey)
+            let y = UserDefaults.standard.double(forKey: userDefaultsYKey)
+            let candidate = CGPoint(x: x, y: y)
+            return ensureVisibleOnScreen(candidate, size: CGSize(width: 220, height: 80))
+        }
+
+        // Default: Top-left of primary screen with comfortable margins
+        if let screen = NSScreen.main {
+            let vf = screen.visibleFrame
+            return CGPoint(x: vf.minX + 32, y: vf.maxY - 120)
+        }
+        return CGPoint(x: 100, y: 700)
+    }
+
+    private func ensureVisibleOnScreen(_ origin: CGPoint, size: CGSize) -> CGPoint {
+        let testRect = NSRect(origin: origin, size: size)
+        for screen in NSScreen.screens {
+            if screen.visibleFrame.intersects(testRect) {
+                return origin
+            }
+        }
+        // Fall back to main screen top-left if candidate is off-screen
+        if let screen = NSScreen.main {
+            let vf = screen.visibleFrame
+            return CGPoint(x: vf.minX + 32, y: vf.maxY - size.height - 32)
+        }
+        return origin
     }
 }
