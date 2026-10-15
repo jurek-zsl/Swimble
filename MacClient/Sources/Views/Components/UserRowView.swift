@@ -36,13 +36,28 @@ public struct UserRowView: View {
         store.isUserTextIgnored(sessionId: user.sessionId)
     }
 
+    private var isTalking: Bool {
+        if isMe {
+            return store.audioEngine.isTransmitting
+        }
+        return user.isTalking
+    }
+
+    private var talkingState: TalkingState {
+        if isMe {
+            return store.isWhispering ? .whisper : .talking
+        }
+        return user.talkingState
+    }
+
     public var body: some View {
         HStack(spacing: 8) {
-            SpeakingOrbView(isTalking: user.isTalking, talkingState: user.talkingState, size: 10)
+            SpeakingOrbView(isTalking: isTalking, talkingState: talkingState, size: 10)
 
             Text(user.name)
                 .font(.body)
-                .foregroundStyle(user.isTalking ? Color.primary : Color.secondary)
+                .foregroundStyle(isTalking ? Color.primary : Color.secondary)
+                .fontWeight(isTalking ? .semibold : .regular)
 
             if isMe {
                 Text("(you)")
@@ -106,8 +121,13 @@ public struct UserRowView: View {
         .padding(.horizontal, 6)
         .background(
             RoundedRectangle(cornerRadius: 6)
-                .fill(isHovered ? Color.secondary.opacity(0.12) : Color.clear)
+                .fill(
+                    isTalking
+                        ? Color.green.opacity(0.12)
+                        : (isHovered ? Color.secondary.opacity(0.12) : Color.clear)
+                )
         )
+        .animation(.easeInOut(duration: 0.15), value: isTalking)
         .onHover { hovering in
             isHovered = hovering
         }

@@ -12,6 +12,7 @@ public final class MacAudioEngine: @unchecked Sendable {
     public var isRunning: Bool = false
     public var inputLevelDb: Float = -100.0
     public var isTransmitting: Bool = false
+    public var onTransmissionChanged: (@Sendable (Bool) -> Void)?
 
     // Configuration
     private let transmitState: AudioTransmitState
@@ -123,7 +124,10 @@ public final class MacAudioEngine: @unchecked Sendable {
         self.loopbackBuffer.clear()
         self.transmitState.reset()
         self.isRunning = false
-        self.isTransmitting = false
+        if self.isTransmitting {
+            self.isTransmitting = false
+            self.onTransmissionChanged?(false)
+        }
         self.inputLevelDb = -100.0
     }
 
@@ -233,7 +237,11 @@ public final class MacAudioEngine: @unchecked Sendable {
             DispatchQueue.main.async { [weak self] in
                 guard let self = self else { return }
                 self.inputLevelDb = db
+                let wasTransmitting = self.isTransmitting
                 self.isTransmitting = result.shouldTransmit
+                if wasTransmitting != result.shouldTransmit {
+                    self.onTransmissionChanged?(result.shouldTransmit)
+                }
             }
         }
     }

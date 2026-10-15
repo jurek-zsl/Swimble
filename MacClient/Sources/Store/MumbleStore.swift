@@ -118,6 +118,16 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
         // 3. Initialize Audio Engine & Global PTT
         let audioEngine = MacAudioEngine(client: client)
         self.audioEngine = audioEngine
+        audioEngine.onTransmissionChanged = { [weak self] transmitting in
+            Task { @MainActor [weak self] in
+                guard let self = self else { return }
+                if let myId = self.mySessionId, let idx = self.users.firstIndex(where: { $0.sessionId == myId }) {
+                    self.users[idx].isTalking = transmitting
+                    self.users[idx].talkingState = transmitting ? (self.isWhispering ? .whisper : .talking) : .passive
+                    self.rebuildTree()
+                }
+            }
+        }
         self.globalPTT.configure(audioEngine: audioEngine)
         self.globalPTT.onToggleMute = { [weak self] in
             self?.toggleSelfMute()
