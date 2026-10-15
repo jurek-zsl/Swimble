@@ -1,0 +1,46 @@
+name: Swimble
+options:
+  bundleIdPrefix: com.swimble
+  deploymentTarget:
+    macOS: "26.0"
+targets:
+  Swimble:
+    type: application
+    platform: macOS
+    deploymentTarget: "26.0"
+    sources:
+      - Sources
+      - Generated/mumble_core.swift
+    dependencies:
+      - sdk: AudioToolbox.framework
+      - sdk: AVFoundation.framework
+      - sdk: CoreAudio.framework
+      - sdk: Security.framework
+      - framework: Generated/libmumble_core.a
+        embed: false
+    settings:
+      base:
+        PRODUCT_NAME: Swimble
+        PRODUCT_BUNDLE_IDENTIFIER: com.swimble.Swimble
+        MACOSX_DEPLOYMENT_TARGET: "26.0"
+        SWIFT_VERSION: "6.0"
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_NSMicrophoneUsageDescription: "Swimble requires microphone access for voice chat."
+        INFOPLIST_KEY_CFBundleDisplayName: "Swimble"
+        SWIFT_INCLUDE_PATHS:
+          - "$(PROJECT_DIR)/Generated"
+        HEADER_SEARCH_PATHS:
+          - "$(PROJECT_DIR)/Generated"
+          - "/opt/homebrew/opt/opus/include"
+        LIBRARY_SEARCH_PATHS:
+          - "$(PROJECT_DIR)/Generated"
+          - "/opt/homebrew/opt/opus/lib"
+        OTHER_LDFLAGS:
+          - "-lopus"
+          - "-lresolv"
+        OTHER_SWIFT_FLAGS:
+          - "-Xcc"
+          - "-fmodule-map-file=$(PROJECT_DIR)/Generated/mumble_coreFFI.modulemap"
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGNING_REQUIRED: "NO"
+        CODE_SIGNING_ALLOWED: "YES"

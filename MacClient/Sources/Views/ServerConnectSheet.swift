@@ -1,0 +1,325 @@
+import SwiftUI
+import AppKit
+
+/// Sheet for managing server bookmarks and initiating server connections.
+public struct ServerConnectSheet: View {
+    @Bindable public var store: MumbleStore
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var selectedBookmarkId: UUID?
+    @State private var isEditing: Bool = false
+
+    // Form Fields
+    @State private var formName: String = ""
+    @State private var formHost: String = ""
+    @State private var formPort: String = "64738"
+    @State private var formUsername: String = ""
+    @State private var formPassword: String = ""
+    @State private var copiedFingerprint: Bool = false
+
+    public init(store: MumbleStore) {
+        self.store = store
+    }
+
+    private var selectedBookmark: ServerBookmark? {
+        store.bookmarks.first(where: { $0.id == selectedBookmarkId })
+    }
+
+    public var body: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                Text("Swimble Server Connect")
+                    .font(.title2.bold())
+                Spacer()
+                Button("Done") {
+                    dismiss()
+                }
+                .keyboardShortcut(.cancelAction)
+            }
+            .padding(.horizontal, 24)
+            .padding(.top, 20)
+            .padding(.bottom, 12)
+
+            Divider()
+
+            HStack(spacing: 0) {
+                // Left Column: Saved Bookmarks List
+                VStack(spacing: 0) {
+                    List(selection: $selectedBookmarkId) {
+                        Section("Favorites") {
+                            ForEach(store.bookmarks.filter { $0.isFavorite }) { bookmark in
+                                BookmarkRow(bookmark: bookmark, store: store)
+                                    .tag(bookmark.id)
+                            }
+                        }
+
+                        Section("All Servers") {
+                            ForEach(store.bookmarks) { bookmark in
+                                BookmarkRow(bookmark: bookmark, store: store)
+                                    .tag(bookmark.id)
+                            }
+                        }
+                    }
+                    .listStyle(.sidebar)
+
+                    Divider()
+
+                    // Bottom list toolbar (+ / -)
+                    HStack {
+                        Button(action: createNewBookmark) {
+                            Image(systemName: "plus")
+                        }
+                        .help("Add New Server")
+
+                        Button(action: deleteSelectedBookmark) {
+                            Image(systemName: "trash")
+                        }
+                        .disabled(selectedBookmark == nil)
+                        .help("Delete Selected Server")
+
+                        Spacer()
+                    }
+                    .padding(8)
+                }
+                .frame(width: 220)
+
+                Divider()
+
+                // Right Column: Server Details Form & Certificate Info
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
+                        Text("Server Details")
+                            .font(.headline)
+
+                        // Form Fields
+                        Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 12) {
+                            GridRow {
+                                Text("Name:")
+                                    .foregroundStyle(.secondary)
+                                TextField("e.g. Local Murmur", text: $formName)
+                                    .textFieldStyle(.roundedBorder)
+                            }
+
+                            GridRow {
+                                Text("Host:")
+                                    .foregroundStyle(.secondary)
+                                TextField("127.0.0.1", text: $formHost)
+                                    .textFieldStyle(.roundedBorder)
+                            }
+
+                            GridRow {
+                                Text("Port:")
+                                    .foregroundStyle(.secondary)
+                                TextField("64738", text: $formPort)
+                                    .textFieldStyle(.roundedBorder)
+                                    .frame(width: 100)
+                            }
+
+                            GridRow {
+                                Text("Username:")
+                                    .foregroundStyle(.secondary)
+                                TextField("Nickname", text: $formUsername)
+                                    .textFieldStyle(.roundedBorder)
+                            }
+
+                            GridRow {
+                                Text("Password:")
+                                    .foregroundStyle(.secondary)
+                                SecureField("Optional", text: $formPassword)
+                                    .textFieldStyle(.roundedBorder)
+                            }
+                        }
+
+                        HStack {
+                            Button("Save Changes") {
+                                saveCurrentForm()
+                            }
+                            .buttonStyle(.bordered)
+                            .disabled(selectedBookmark == nil)
+
+                            Spacer()
+
+                            Button("Connect") {
+                                connectToCurrent()
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .keyboardShortcut(.defaultAction)
+                            .disabled(formHost.isEmpty || formUsername.isEmpty)
+                        }
+
+                        Divider()
+
+                        // Client Certificate Info
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Text("Client X.509 Certificate")
+                                    .font(.subheadline.bold())
+                                Spacer()
+                                Button(copiedFingerprint ? "Copied!" : "Copy Fingerprint") {
+                                    NSPasteboard.general.clearContents()
+                                    NSPasteboard.general.setString(store.certFingerprint, forType: .string)
+                                    copiedFingerprint = true
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                                        copiedFingerprint = false
+                                    }
+                                }
+                                .font(.caption)
+                                .buttonStyle(.bordered)
+                            }
+
+                            Text("SHA-1 Fingerprint:")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+
+                            Text(store.certFingerprint)
+                                .font(.system(.caption, design: .monospaced))
+                                .padding(8)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(Color.secondary.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
+                                .textSelection(.enabled)
+
+                            Text("Your certificate is securely persisted in the macOS Keychain and authenticates you on Murmur servers without passwords.")
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                    .padding(24)
+                }
+            }
+        }
+        .frame(width: 640, height: 460)
+        .onAppear {
+            if selectedBookmarkId == nil, let first = store.bookmarks.first {
+                selectBookmark(first)
+            }
+        }
+        .onChange(of: selectedBookmarkId) { _, newId in
+            if let id = newId, let bm = store.bookmarks.first(where: { $0.id == id }) {
+                loadForm(bm)
+            }
+        }
+    }
+
+    private func selectBookmark(_ bm: ServerBookmark) {
+        selectedBookmarkId = bm.id
+        loadForm(bm)
+    }
+
+    private func loadForm(_ bm: ServerBookmark) {
+        formName = bm.name
+        formHost = bm.host
+        formPort = "\(bm.port)"
+        formUsername = bm.username
+        formPassword = bm.password ?? KeychainHelper.loadServerPassword(bookmarkId: bm.id) ?? ""
+    }
+
+    private func saveCurrentForm() {
+        guard let id = selectedBookmarkId,
+              let idx = store.bookmarks.firstIndex(where: { $0.id == id }) else { return }
+
+        let port = UInt16(formPort) ?? 64738
+        var updated = store.bookmarks[idx]
+        updated.name = formName
+        updated.host = formHost
+        updated.port = port
+        updated.username = formUsername
+        updated.password = formPassword.isEmpty ? nil : formPassword
+
+        store.saveBookmark(updated)
+    }
+
+    private func createNewBookmark() {
+        let newBm = ServerBookmark(
+            name: "New Server",
+            host: "127.0.0.1",
+            port: 64738,
+            username: "User"
+        )
+        store.addBookmark(newBm)
+        selectBookmark(newBm)
+    }
+
+    private func deleteSelectedBookmark() {
+        guard let bm = selectedBookmark else { return }
+        store.deleteBookmark(bm)
+        if let next = store.bookmarks.first {
+            selectBookmark(next)
+        } else {
+            selectedBookmarkId = nil
+        }
+    }
+
+    private func connectToCurrent() {
+        saveCurrentForm()
+        if let bm = selectedBookmark {
+            store.connect(bookmark: bm)
+            dismiss()
+        }
+    }
+}
+
+struct BookmarkRow: View {
+    let bookmark: ServerBookmark
+    let store: MumbleStore
+    @State private var pingInfo: ServerPingInfo? = nil
+    @State private var pingFailed: Bool = false
+
+    var body: some View {
+        HStack {
+            Image(systemName: "server.rack")
+                .foregroundStyle(Color.accentColor)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(bookmark.name)
+                    .font(.body.bold())
+                HStack(spacing: 6) {
+                    Text("\(bookmark.host):\(bookmark.port)")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+
+                    if let ping = pingInfo {
+                        Text("•")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                        Text("\(Int(ping.latencyMs)) ms")
+                            .font(.caption2.bold())
+                            .foregroundStyle(.green)
+                        Text("(\(ping.currentUsers)/\(ping.maxUsers))")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    } else if pingFailed {
+                        Text("•")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                        Text("Offline")
+                            .font(.caption2)
+                            .foregroundStyle(.red)
+                    }
+                }
+            }
+
+            Spacer()
+
+            Button(action: {
+                store.toggleFavoriteBookmark(bookmark)
+            }) {
+                Image(systemName: bookmark.isFavorite ? "star.fill" : "star")
+                    .foregroundStyle(bookmark.isFavorite ? Color.yellow : Color.secondary)
+                    .font(.caption)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.vertical, 4)
+        .task(id: "\(bookmark.host):\(bookmark.port)") {
+            do {
+                let info = try await pingMumbleServer(host: bookmark.host, port: bookmark.port, timeoutMs: 2000)
+                self.pingInfo = info
+                self.pingFailed = false
+            } catch {
+                self.pingInfo = nil
+                self.pingFailed = true
+            }
+        }
+    }
+}

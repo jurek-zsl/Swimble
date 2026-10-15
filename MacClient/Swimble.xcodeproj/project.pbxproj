@@ -1,0 +1,523 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		04648DD4AE07E5650EB24609 /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2247A3AAF7A7AF0786A6535 /* KeychainHelper.swift */; };
+		0BE3913C5C1E27A70CDFDBB3 /* SpeakingOrbView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B65D69B0D575EC2E37531211 /* SpeakingOrbView.swift */; };
+		0C345CAE35DA5EF8C6D399B8 /* SettingsModal.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC4FC784298C1A436B1DD7B1 /* SettingsModal.swift */; };
+		15A5488C85F5CC37D574AFFD /* mumble_core.swift in Sources */ = {isa = PBXBuildFile; fileRef = 090F1C2C11C1D6A404A98B96 /* mumble_core.swift */; };
+		1B85E328D40EE4EE8A6DDC95 /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 2EFFD1440A493EFEB411994B /* Security.framework */; };
+		2506CF39704029479B9198A7 /* FloatingOverlayWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 800F4E30AAC0ECCA5750B0CA /* FloatingOverlayWindow.swift */; };
+		2C95187369DE7CDE894F1122 /* libmumble_core.a in Frameworks */ = {isa = PBXBuildFile; fileRef = D8F6FDC552592B89A0AFC0E3 /* libmumble_core.a */; };
+		3C1D0E3F827064A7DA8B55BF /* ServerConnectSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE6E22E77DE84EE1F67ED920 /* ServerConnectSheet.swift */; };
+		48961B702CCAFE2B3667A995 /* AudioSettingsPopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = E79E8587A42576CCE43718FE /* AudioSettingsPopover.swift */; };
+		5A0B4BC52096770C9DEDFCA9 /* App.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F416F2F98FB55738E749671 /* App.swift */; };
+		6D048E5EB6C1AC36074195FC /* ChannelTreeNode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C8E3D10662080C8C58BBB25 /* ChannelTreeNode.swift */; };
+		7CD50DF939B92B5302748E65 /* MacAudioEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51AE2862ABAC495191B6AA2F /* MacAudioEngine.swift */; };
+		872EE86E1C64DACC265696FC /* CoreAudioDeviceManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = D44B6F056A925DEEA15EE380 /* CoreAudioDeviceManager.swift */; };
+		879D83BFB29D6D38688D32BD /* MumbleStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10389079B3AED4788E13A3CD /* MumbleStore.swift */; };
+		8A857310C9F80088302BF7C8 /* AudioToolbox.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 90281F12C63E300CFA61BE16 /* AudioToolbox.framework */; };
+		AA64A68DAFE6C49117EFDDD4 /* ChannelRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEA6C7D03FA5BEA5BB8BE052 /* ChannelRowView.swift */; };
+		ABEB616D0EB07E43AA80D58D /* ServerBookmark.swift in Sources */ = {isa = PBXBuildFile; fileRef = C13C038913297A3FE49E3863 /* ServerBookmark.swift */; };
+		B7FEBD69DA5F9D581B6BA403 /* AirPodsAudioLock.swift in Sources */ = {isa = PBXBuildFile; fileRef = B57B5BE9226854864653B2EA /* AirPodsAudioLock.swift */; };
+		B9B1A69E2E28A622498DF550 /* FloatingVoiceHUD.swift in Sources */ = {isa = PBXBuildFile; fileRef = 056BE1AC86EFA30EC46854F4 /* FloatingVoiceHUD.swift */; };
+		C3015566C62991871ED1327C /* ChatAndActivityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4465EC52752E78B45234A582 /* ChatAndActivityView.swift */; };
+		C919859158FAAA84E0B8795C /* UserRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E13181C0A3D7784E5BA1981 /* UserRowView.swift */; };
+		CE362D4BA9D54A2088C352EB /* ServerSplitView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 617A686B998774A5BFA7D2B6 /* ServerSplitView.swift */; };
+		E3353E6AF351FE9465F07F38 /* CoreAudio.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 95D67961E1365E062F455260 /* CoreAudio.framework */; };
+		E41A216900C75FABD2AB9EFA /* AVFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4D06299B7CE33F3BCF39062D /* AVFoundation.framework */; };
+		F1FAA6A66EB6740A4591CFA8 /* GlobalPTT.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4ABCAE82B83EF2D8086B07F2 /* GlobalPTT.swift */; };
+		F7A6E0FC218251818AEFE8C4 /* ChannelTreeSidebar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D75388A3A0B276E8E23E2A3 /* ChannelTreeSidebar.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		056BE1AC86EFA30EC46854F4 /* FloatingVoiceHUD.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingVoiceHUD.swift; sourceTree = "<group>"; };
+		090F1C2C11C1D6A404A98B96 /* mumble_core.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mumble_core.swift; sourceTree = "<group>"; };
+		0E13181C0A3D7784E5BA1981 /* UserRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserRowView.swift; sourceTree = "<group>"; };
+		10389079B3AED4788E13A3CD /* MumbleStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MumbleStore.swift; sourceTree = "<group>"; };
+		26C509DE6A305D83F7496221 /* Swimble.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Swimble.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		2EFFD1440A493EFEB411994B /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
+		4465EC52752E78B45234A582 /* ChatAndActivityView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatAndActivityView.swift; sourceTree = "<group>"; };
+		4ABCAE82B83EF2D8086B07F2 /* GlobalPTT.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalPTT.swift; sourceTree = "<group>"; };
+		4D06299B7CE33F3BCF39062D /* AVFoundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AVFoundation.framework; path = System/Library/Frameworks/AVFoundation.framework; sourceTree = SDKROOT; };
+		51AE2862ABAC495191B6AA2F /* MacAudioEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacAudioEngine.swift; sourceTree = "<group>"; };
+		5F416F2F98FB55738E749671 /* App.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App.swift; sourceTree = "<group>"; };
+		617A686B998774A5BFA7D2B6 /* ServerSplitView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerSplitView.swift; sourceTree = "<group>"; };
+		800F4E30AAC0ECCA5750B0CA /* FloatingOverlayWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingOverlayWindow.swift; sourceTree = "<group>"; };
+		8C8E3D10662080C8C58BBB25 /* ChannelTreeNode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChannelTreeNode.swift; sourceTree = "<group>"; };
+		8D75388A3A0B276E8E23E2A3 /* ChannelTreeSidebar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChannelTreeSidebar.swift; sourceTree = "<group>"; };
+		90281F12C63E300CFA61BE16 /* AudioToolbox.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AudioToolbox.framework; path = System/Library/Frameworks/AudioToolbox.framework; sourceTree = SDKROOT; };
+		95D67961E1365E062F455260 /* CoreAudio.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreAudio.framework; path = System/Library/Frameworks/CoreAudio.framework; sourceTree = SDKROOT; };
+		B57B5BE9226854864653B2EA /* AirPodsAudioLock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirPodsAudioLock.swift; sourceTree = "<group>"; };
+		B65D69B0D575EC2E37531211 /* SpeakingOrbView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeakingOrbView.swift; sourceTree = "<group>"; };
+		C13C038913297A3FE49E3863 /* ServerBookmark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerBookmark.swift; sourceTree = "<group>"; };
+		CC4FC784298C1A436B1DD7B1 /* SettingsModal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsModal.swift; sourceTree = "<group>"; };
+		CE6E22E77DE84EE1F67ED920 /* ServerConnectSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerConnectSheet.swift; sourceTree = "<group>"; };
+		D44B6F056A925DEEA15EE380 /* CoreAudioDeviceManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreAudioDeviceManager.swift; sourceTree = "<group>"; };
+		D8F6FDC552592B89A0AFC0E3 /* libmumble_core.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libmumble_core.a; path = Generated/libmumble_core.a; sourceTree = "<group>"; };
+		E2247A3AAF7A7AF0786A6535 /* KeychainHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainHelper.swift; sourceTree = "<group>"; };
+		E79E8587A42576CCE43718FE /* AudioSettingsPopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioSettingsPopover.swift; sourceTree = "<group>"; };
+		FEA6C7D03FA5BEA5BB8BE052 /* ChannelRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChannelRowView.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		71665B2A1666CA6653F3C56B /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8A857310C9F80088302BF7C8 /* AudioToolbox.framework in Frameworks */,
+				E41A216900C75FABD2AB9EFA /* AVFoundation.framework in Frameworks */,
+				E3353E6AF351FE9465F07F38 /* CoreAudio.framework in Frameworks */,
+				1B85E328D40EE4EE8A6DDC95 /* Security.framework in Frameworks */,
+				2C95187369DE7CDE894F1122 /* libmumble_core.a in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		3C85A5120B7F6BE553E46A34 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				8D75388A3A0B276E8E23E2A3 /* ChannelTreeSidebar.swift */,
+				4465EC52752E78B45234A582 /* ChatAndActivityView.swift */,
+				056BE1AC86EFA30EC46854F4 /* FloatingVoiceHUD.swift */,
+				CE6E22E77DE84EE1F67ED920 /* ServerConnectSheet.swift */,
+				617A686B998774A5BFA7D2B6 /* ServerSplitView.swift */,
+				661A9CD108363C6BF4AF6A62 /* Components */,
+				E687A3DC3DD5B0571C61DE5F /* Overlay */,
+				DF5E5BC8827473EB0C7AC232 /* Settings */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		5725E53BA4AEE426B50AB089 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				26C509DE6A305D83F7496221 /* Swimble.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		661A9CD108363C6BF4AF6A62 /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				E79E8587A42576CCE43718FE /* AudioSettingsPopover.swift */,
+				FEA6C7D03FA5BEA5BB8BE052 /* ChannelRowView.swift */,
+				B65D69B0D575EC2E37531211 /* SpeakingOrbView.swift */,
+				0E13181C0A3D7784E5BA1981 /* UserRowView.swift */,
+			);
+			path = Components;
+			sourceTree = "<group>";
+		};
+		6F24FE601E305D0D348BC36F /* Store */ = {
+			isa = PBXGroup;
+			children = (
+				10389079B3AED4788E13A3CD /* MumbleStore.swift */,
+			);
+			path = Store;
+			sourceTree = "<group>";
+		};
+		B816698A53FCA23FB8EAFFF7 = {
+			isa = PBXGroup;
+			children = (
+				E14C01F715C41F6BC7BB83FF /* Generated */,
+				F35A69535FD51E002354449D /* Sources */,
+				E06ADF77433F66BD42733E94 /* Frameworks */,
+				5725E53BA4AEE426B50AB089 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		B9496894F73C5E51070952D9 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				8C8E3D10662080C8C58BBB25 /* ChannelTreeNode.swift */,
+				C13C038913297A3FE49E3863 /* ServerBookmark.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		DF5E5BC8827473EB0C7AC232 /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				CC4FC784298C1A436B1DD7B1 /* SettingsModal.swift */,
+			);
+			path = Settings;
+			sourceTree = "<group>";
+		};
+		E06ADF77433F66BD42733E94 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				90281F12C63E300CFA61BE16 /* AudioToolbox.framework */,
+				4D06299B7CE33F3BCF39062D /* AVFoundation.framework */,
+				95D67961E1365E062F455260 /* CoreAudio.framework */,
+				D8F6FDC552592B89A0AFC0E3 /* libmumble_core.a */,
+				2EFFD1440A493EFEB411994B /* Security.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		E14C01F715C41F6BC7BB83FF /* Generated */ = {
+			isa = PBXGroup;
+			children = (
+				090F1C2C11C1D6A404A98B96 /* mumble_core.swift */,
+			);
+			path = Generated;
+			sourceTree = "<group>";
+		};
+		E687A3DC3DD5B0571C61DE5F /* Overlay */ = {
+			isa = PBXGroup;
+			children = (
+				800F4E30AAC0ECCA5750B0CA /* FloatingOverlayWindow.swift */,
+			);
+			path = Overlay;
+			sourceTree = "<group>";
+		};
+		F35A69535FD51E002354449D /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				5F416F2F98FB55738E749671 /* App.swift */,
+				E2247A3AAF7A7AF0786A6535 /* KeychainHelper.swift */,
+				F7232C5698B25E924EA30025 /* Audio */,
+				B9496894F73C5E51070952D9 /* Models */,
+				6F24FE601E305D0D348BC36F /* Store */,
+				3C85A5120B7F6BE553E46A34 /* Views */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		F7232C5698B25E924EA30025 /* Audio */ = {
+			isa = PBXGroup;
+			children = (
+				B57B5BE9226854864653B2EA /* AirPodsAudioLock.swift */,
+				D44B6F056A925DEEA15EE380 /* CoreAudioDeviceManager.swift */,
+				4ABCAE82B83EF2D8086B07F2 /* GlobalPTT.swift */,
+				51AE2862ABAC495191B6AA2F /* MacAudioEngine.swift */,
+			);
+			path = Audio;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		4FA8BDE4A423D110F1674306 /* Swimble */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AE8AC48C4871C718C169B6DE /* Build configuration list for PBXNativeTarget "Swimble" */;
+			buildPhases = (
+				B1F479BB8CAE4843C13EF7BE /* Sources */,
+				71665B2A1666CA6653F3C56B /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Swimble;
+			packageProductDependencies = (
+			);
+			productName = Swimble;
+			productReference = 26C509DE6A305D83F7496221 /* Swimble.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		99942A4D79A546839C3D6135 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+				};
+			};
+			buildConfigurationList = FDA0EB4787BA4FCB9FFC6DCB /* Build configuration list for PBXProject "Swimble" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = B816698A53FCA23FB8EAFFF7;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 5725E53BA4AEE426B50AB089 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				4FA8BDE4A423D110F1674306 /* Swimble */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		B1F479BB8CAE4843C13EF7BE /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B7FEBD69DA5F9D581B6BA403 /* AirPodsAudioLock.swift in Sources */,
+				5A0B4BC52096770C9DEDFCA9 /* App.swift in Sources */,
+				48961B702CCAFE2B3667A995 /* AudioSettingsPopover.swift in Sources */,
+				AA64A68DAFE6C49117EFDDD4 /* ChannelRowView.swift in Sources */,
+				6D048E5EB6C1AC36074195FC /* ChannelTreeNode.swift in Sources */,
+				F7A6E0FC218251818AEFE8C4 /* ChannelTreeSidebar.swift in Sources */,
+				C3015566C62991871ED1327C /* ChatAndActivityView.swift in Sources */,
+				872EE86E1C64DACC265696FC /* CoreAudioDeviceManager.swift in Sources */,
+				2506CF39704029479B9198A7 /* FloatingOverlayWindow.swift in Sources */,
+				B9B1A69E2E28A622498DF550 /* FloatingVoiceHUD.swift in Sources */,
+				F1FAA6A66EB6740A4591CFA8 /* GlobalPTT.swift in Sources */,
+				04648DD4AE07E5650EB24609 /* KeychainHelper.swift in Sources */,
+				7CD50DF939B92B5302748E65 /* MacAudioEngine.swift in Sources */,
+				879D83BFB29D6D38688D32BD /* MumbleStore.swift in Sources */,
+				ABEB616D0EB07E43AA80D58D /* ServerBookmark.swift in Sources */,
+				3C1D0E3F827064A7DA8B55BF /* ServerConnectSheet.swift in Sources */,
+				CE362D4BA9D54A2088C352EB /* ServerSplitView.swift in Sources */,
+				0C345CAE35DA5EF8C6D399B8 /* SettingsModal.swift in Sources */,
+				0BE3913C5C1E27A70CDFDBB3 /* SpeakingOrbView.swift in Sources */,
+				C919859158FAAA84E0B8795C /* UserRowView.swift in Sources */,
+				15A5488C85F5CC37D574AFFD /* mumble_core.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		0B500C4C3ADE3E41E906275E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		8853D884CA0752B9EDF3FC58 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGNING_ALLOWED = YES;
+				CODE_SIGNING_REQUIRED = NO;
+				CODE_SIGN_IDENTITY = "-";
+				COMBINE_HIDPI_IMAGES = YES;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"\"Generated\"",
+				);
+				GENERATE_INFOPLIST_FILE = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(PROJECT_DIR)/Generated",
+					/opt/homebrew/opt/opus/include,
+				);
+				INFOPLIST_KEY_CFBundleDisplayName = Swimble;
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Swimble requires microphone access for voice chat.";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(PROJECT_DIR)/Generated",
+					/opt/homebrew/opt/opus/lib,
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				OTHER_LDFLAGS = (
+					"-lopus",
+					"-lresolv",
+				);
+				OTHER_SWIFT_FLAGS = (
+					"-Xcc",
+					"-fmodule-map-file=$(PROJECT_DIR)/Generated/mumble_coreFFI.modulemap",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.swimble.Swimble;
+				PRODUCT_NAME = Swimble;
+				SDKROOT = macosx;
+				SWIFT_INCLUDE_PATHS = (
+					"$(PROJECT_DIR)/Generated",
+				);
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		B98B882F8328F7C9A439DE0C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGNING_ALLOWED = YES;
+				CODE_SIGNING_REQUIRED = NO;
+				CODE_SIGN_IDENTITY = "-";
+				COMBINE_HIDPI_IMAGES = YES;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"\"Generated\"",
+				);
+				GENERATE_INFOPLIST_FILE = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(PROJECT_DIR)/Generated",
+					/opt/homebrew/opt/opus/include,
+				);
+				INFOPLIST_KEY_CFBundleDisplayName = Swimble;
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Swimble requires microphone access for voice chat.";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(PROJECT_DIR)/Generated",
+					/opt/homebrew/opt/opus/lib,
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				OTHER_LDFLAGS = (
+					"-lopus",
+					"-lresolv",
+				);
+				OTHER_SWIFT_FLAGS = (
+					"-Xcc",
+					"-fmodule-map-file=$(PROJECT_DIR)/Generated/mumble_coreFFI.modulemap",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.swimble.Swimble;
+				PRODUCT_NAME = Swimble;
+				SDKROOT = macosx;
+				SWIFT_INCLUDE_PATHS = (
+					"$(PROJECT_DIR)/Generated",
+				);
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		D00672D5A577797C78D29C26 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		AE8AC48C4871C718C169B6DE /* Build configuration list for PBXNativeTarget "Swimble" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8853D884CA0752B9EDF3FC58 /* Debug */,
+				B98B882F8328F7C9A439DE0C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		FDA0EB4787BA4FCB9FFC6DCB /* Build configuration list for PBXProject "Swimble" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D00672D5A577797C78D29C26 /* Debug */,
+				0B500C4C3ADE3E41E906275E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 99942A4D79A546839C3D6135 /* Project object */;
+}

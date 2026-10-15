@@ -1,0 +1,29 @@
+[package]
+name = "mumble_core"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "mumble_core"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[[bin]]
+name = "uniffi-bindgen"
+path = "src/bin/uniffi-bindgen.rs"
+
+[dependencies]
+uniffi = { version = "0.32", features = ["tokio", "cli"] }
+tokio = { version = "1.43", features = ["full"] }
+tokio-rustls = "0.26"
+rustls = "0.23"
+rcgen = "0.13"
+prost = "0.13"
+bytes = "1"
+aes = "0.8"
+opus = "0.4"
+rtrb = "0.3"
+p12 = "0.6.3"
+base64 = "0.22"
+
+[build-dependencies]
+prost-build = "0.13"
