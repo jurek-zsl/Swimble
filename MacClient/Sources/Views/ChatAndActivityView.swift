@@ -51,25 +51,76 @@ struct ChatImageHelper {
         return finalData.base64EncodedString()
     }
 
+    private static let supportedImageExtensions: Set<String> = [
+        "png", "jpg", "jpeg", "gif", "webp", "heic", "tiff", "tif", "bmp", "ico"
+    ]
+
+    static func isImageFile(url: URL) -> Bool {
+        return supportedImageExtensions.contains(url.pathExtension.lowercased())
+    }
+
     static func loadImageFromPasteboard() -> NSImage? {
         let pb = NSPasteboard.general
+
+        // 1. Check for direct NSImage objects (Safari/Chrome 'Copy Image', Preview, etc.)
         if let images = pb.readObjects(forClasses: [NSImage.self], options: nil) as? [NSImage], let first = images.first {
             return first
         }
-        if let urls = pb.readObjects(forClasses: [NSURL.self], options: nil) as? [URL] {
-            for url in urls {
-                if let img = NSImage(contentsOf: url) {
+
+        // 2. Check for raw image data types (PNG, TIFF, JPEG, WebP)
+        let imageTypes: [NSPasteboard.PasteboardType] = [
+            .png,
+            .tiff,
+            NSPasteboard.PasteboardType("public.png"),
+            NSPasteboard.PasteboardType("public.tiff"),
+            NSPasteboard.PasteboardType("public.jpeg"),
+            NSPasteboard.PasteboardType("org.webmproject.webp"),
+            NSPasteboard.PasteboardType("com.compuserve.gif")
+        ]
+        if let availableTypes = pb.types {
+            for type in imageTypes {
+                if availableTypes.contains(type), let data = pb.data(forType: type), let img = NSImage(data: data) {
                     return img
                 }
             }
         }
-        if let types = pb.types {
-            for type in [NSPasteboard.PasteboardType.png, .tiff] {
-                if types.contains(type), let data = pb.data(forType: type), let img = NSImage(data: data) {
+
+        // 3. Check for copied files via NSURL (e.g. copied image file in Finder or Desktop)
+        if let nsUrls = pb.readObjects(forClasses: [NSURL.self], options: nil) as? [NSURL] {
+            for nsUrl in nsUrls {
+                let url = nsUrl as URL
+                if isImageFile(url: url), let img = NSImage(contentsOf: url) {
                     return img
                 }
             }
         }
+
+        // 4. Check for copied file paths via NSFilenamesPboardType (Finder standard file pasteboard)
+        if let filenames = pb.propertyList(forType: NSPasteboard.PasteboardType("NSFilenamesPboardType")) as? [String] {
+            for path in filenames {
+                let url = URL(fileURLWithPath: path)
+                if isImageFile(url: url), let img = NSImage(contentsOfFile: path) {
+                    return img
+                }
+            }
+        }
+
+        // 5. Inspect individual NSPasteboardItems
+        if let items = pb.pasteboardItems {
+            for item in items {
+                for type in imageTypes {
+                    if let data = item.data(forType: type), let img = NSImage(data: data) {
+                        return img
+                    }
+                }
+                if let urlString = item.string(forType: .fileURL), let url = URL(string: urlString) {
+                    if isImageFile(url: url), let img = NSImage(contentsOf: url) {
+                        return img
+                    }
+                }
+            }
+        }
+
         return nil
     }
 
@@ -101,6 +152,113 @@ struct ChatImageHelper {
     }
 }
 
+/// An AppKit-backed single-line text field for the chat compose box that intercepts
+/// paste events (Cmd+V and Edit -> Paste) to automatically stage copied images (screenshots,
+/// Finder image files, clipboard bitmaps) while delegating plain text pastes and Enter-to-send.
+struct ChatInputField: NSViewRepresentable {
+    @Binding var text: String
+    var placeholder: String
+    @Binding var isFocused: Bool
+    var onPasteImage: (NSImage) -> Void
+    var onSubmit: () -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+
+    func makeNSView(context: Context) -> NSTextField {
+        let textField = CustomPasteTextField()
+        textField.isBordered = false
+        textField.drawsBackground = false
+        textField.focusRingType = .none
+        textField.font = .systemFont(ofSize: 13)
+        textField.textColor = .labelColor
+        textField.placeholderString = placeholder
+        textField.delegate = context.coordinator
+        textField.coordinator = context.coordinator
+        textField.cell?.wraps = false
+        textField.cell?.isScrollable = true
+        return textField
+    }
+
+    func updateNSView(_ nsView: NSTextField, context: Context) {
+        if nsView.stringValue != text {
+            nsView.stringValue = text
+        }
+        if nsView.placeholderString != placeholder {
+            nsView.placeholderString = placeholder
+        }
+        context.coordinator.parent = self
+
+        if isFocused {
+            DispatchQueue.main.async {
+                if let window = nsView.window,
+                   window.firstResponder != nsView,
+                   window.firstResponder != nsView.currentEditor() {
+                    window.makeFirstResponder(nsView)
+                }
+            }
+        }
+    }
+
+    class Coordinator: NSObject, NSTextFieldDelegate {
+        var parent: ChatInputField
+
+        init(_ parent: ChatInputField) {
+            self.parent = parent
+        }
+
+        func controlTextDidChange(_ obj: Notification) {
+            if let field = obj.object as? NSTextField {
+                parent.text = field.stringValue
+            }
+        }
+
+        func controlTextDidBeginEditing(_ obj: Notification) {
+            parent.isFocused = true
+        }
+
+        func controlTextDidEndEditing(_ obj: Notification) {
+            parent.isFocused = false
+        }
+
+        func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+            if commandSelector == #selector(NSResponder.insertNewline(_:)) {
+                parent.onSubmit()
+                return true
+            }
+            if commandSelector == #selector(NSText.paste(_:)) {
+                if let img = ChatImageHelper.loadImageFromPasteboard() {
+                    parent.onPasteImage(img)
+                    return true
+                }
+            }
+            return false
+        }
+    }
+}
+
+private class CustomPasteTextField: NSTextField {
+    weak var coordinator: ChatInputField.Coordinator?
+
+    override var intrinsicContentSize: NSSize {
+        var size = super.intrinsicContentSize
+        size.height = max(size.height, 22)
+        return size
+    }
+
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        if event.modifierFlags.intersection([.deviceIndependentFlagsMask]).contains(.command) &&
+           (event.charactersIgnoringModifiers?.lowercased() == "v") {
+            if let img = ChatImageHelper.loadImageFromPasteboard() {
+                coordinator?.parent.onPasteImage(img)
+                return true
+            }
+        }
+        return super.performKeyEquivalent(with: event)
+    }
+}
+
 /// Detail view displaying the active channel's header, rich chat stream, and compose field.
 public struct ChatAndActivityView: View {
     @Bindable public var store: MumbleStore
@@ -110,7 +268,8 @@ public struct ChatAndActivityView: View {
     @State private var stagedImage: NSImage? = nil
     @State private var stagedImageDimensions: String = ""
     @State private var isDropTargeted: Bool = false
-    @FocusState private var isMessageFocused: Bool
+    @State private var isFieldFocused: Bool = true
+    @State private var pasteKeyMonitor: Any? = nil
 
     public init(store: MumbleStore, showConnectSheet: Binding<Bool>) {
         self.store = store
@@ -332,12 +491,18 @@ public struct ChatAndActivityView: View {
                             .foregroundStyle(.secondary)
                             .font(.system(size: 14))
 
-                        TextField(stagedImage != nil ? "Add a caption (optional)..." : "Message \(activeChannelName)...", text: $composeText)
-                            .textFieldStyle(.plain)
-                            .focused($isMessageFocused)
-                            .onSubmit {
+                        ChatInputField(
+                            text: $composeText,
+                            placeholder: stagedImage != nil ? "Add a caption (optional)..." : "Message \(activeChannelName)...",
+                            isFocused: $isFieldFocused,
+                            onPasteImage: { img in
+                                stageImage(img)
+                            },
+                            onSubmit: {
                                 submitMessage()
                             }
+                        )
+                        .frame(minHeight: 22)
 
                         if !composeText.isEmpty {
                             Button(action: { composeText = "" }) {
@@ -364,6 +529,12 @@ public struct ChatAndActivityView: View {
             .padding(.horizontal, 20)
             .padding(.vertical, 12)
             .background(Color(NSColor.windowBackgroundColor).opacity(0.85))
+        }
+        .onAppear {
+            setupPasteMonitor()
+        }
+        .onDisappear {
+            removePasteMonitor()
         }
         .dropDestination(for: URL.self) { urls, _ in
             if let first = urls.first, let img = NSImage(contentsOf: first) {
@@ -422,6 +593,29 @@ public struct ChatAndActivityView: View {
         }
     }
 
+    private func setupPasteMonitor() {
+        if pasteKeyMonitor == nil {
+            pasteKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+                // Intercept Cmd+V anywhere in the active window
+                if event.modifierFlags.intersection([.deviceIndependentFlagsMask]).contains(.command) &&
+                   (event.charactersIgnoringModifiers?.lowercased() == "v") {
+                    if let img = ChatImageHelper.loadImageFromPasteboard() {
+                        stageImage(img)
+                        return nil // Suppress event so text field doesn't beep or drop
+                    }
+                }
+                return event
+            }
+        }
+    }
+
+    private func removePasteMonitor() {
+        if let monitor = pasteKeyMonitor {
+            NSEvent.removeMonitor(monitor)
+            pasteKeyMonitor = nil
+        }
+    }
+
     private func chooseImageFile() {
         if let img = ChatImageHelper.pickImageFile() {
             stageImage(img)
@@ -437,7 +631,7 @@ public struct ChatAndActivityView: View {
     private func stageImage(_ img: NSImage) {
         stagedImage = img
         stagedImageDimensions = "\(Int(img.size.width)) × \(Int(img.size.height)) px"
-        isMessageFocused = true
+        isFieldFocused = true
     }
 
     private func submitMessage() {
@@ -460,7 +654,7 @@ public struct ChatAndActivityView: View {
         composeText = ""
         stagedImage = nil
         stagedImageDimensions = ""
-        isMessageFocused = true
+        isFieldFocused = true
     }
 }
 
