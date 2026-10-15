@@ -71,6 +71,7 @@ public struct ChannelTreeSidebar: View {
                             Section("Users") {
                                 ForEach(matchingUsers, id: \.sessionId) { user in
                                     UserRowView(store: store, user: user)
+                                        .selectionDisabled(true)
                                 }
                             }
                         }
@@ -144,6 +145,7 @@ struct ChannelTreeNodeView: View {
                 // Users in this channel
                 ForEach(node.users, id: \.sessionId) { user in
                     UserRowView(store: store, user: user)
+                        .selectionDisabled(true)
                 }
             } label: {
                 ChannelRowView(
@@ -151,8 +153,8 @@ struct ChannelTreeNodeView: View {
                     channel: node.channel,
                     userCount: node.users.count
                 )
+                .tag(node.channel.id)
             }
-            .tag(node.channel.id)
         }
     }
 }

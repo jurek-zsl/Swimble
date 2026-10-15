@@ -13,6 +13,7 @@ public struct UserRowView: View {
     @State private var kickReasonInput = ""
     @State private var showingBanAlert = false
     @State private var banReasonInput = ""
+    @State private var isHovered = false
 
     public init(store: MumbleStore, user: UserInfo) {
         self.store = store
@@ -103,7 +104,15 @@ public struct UserRowView: View {
         }
         .padding(.vertical, 3)
         .padding(.horizontal, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(isHovered ? Color.secondary.opacity(0.12) : Color.clear)
+        )
+        .onHover { hovering in
+            isHovered = hovering
+        }
         .contentShape(Rectangle())
+        .selectionDisabled(true)
         .draggable(String(user.sessionId))
         .contextMenu {
             if !isMe {

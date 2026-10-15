@@ -1,10 +1,24 @@
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
-use tokio::net::UdpSocket;
+use tokio::net::{TcpStream, UdpSocket};
 use tokio::time::timeout;
 use crate::{MumbleError, ServerPingInfo};
 
 #[uniffi::export]
 pub async fn ping_mumble_server(host: String, port: u16, timeout_ms: u64) -> Result<ServerPingInfo, MumbleError> {
+    // 1. Try standard UDP Mumble ping probe first (short timeout)
+    let udp_timeout_ms = timeout_ms.min(1000).max(300);
+    if let Ok(info) = ping_mumble_udp(&host, port, udp_timeout_ms).await {
+        return Ok(info);
+    }
+
+    // 2. Fall back to TCP connection probe (measures handshake latency)
+    // Many Murmur servers disable UDP ping or cloud firewalls block UDP,
+    // but TCP control port is active and accepts client connections.
+    let tcp_timeout_ms = timeout_ms.max(1500);
+    ping_mumble_tcp(&host, port, tcp_timeout_ms).await
+}
+
+async fn ping_mumble_udp(host: &str, port: u16, timeout_ms: u64) -> Result<ServerPingInfo, MumbleError> {
     let bind_addr = if host.contains(':') && !host.starts_with('[') {
         "[::]:0"
     } else {
@@ -36,7 +50,7 @@ pub async fn ping_mumble_server(host: String, port: u16, timeout_ms: u64) -> Res
         .map_err(|e| MumbleError::NetworkError(format!("Failed to send UDP ping: {}", e)))?;
 
     let mut buf = [0u8; 128];
-    let duration = Duration::from_millis(timeout_ms.max(100));
+    let duration = Duration::from_millis(timeout_ms);
 
     let n = timeout(duration, socket.recv(&mut buf))
         .await
@@ -65,5 +79,26 @@ pub async fn ping_mumble_server(host: String, port: u16, timeout_ms: u64) -> Res
         current_users,
         max_users,
         version,
+    })
+}
+
+async fn ping_mumble_tcp(host: &str, port: u16, timeout_ms: u64) -> Result<ServerPingInfo, MumbleError> {
+    let addr = format!("{}:{}", host, port);
+    let start_instant = Instant::now();
+    let duration = Duration::from_millis(timeout_ms);
+
+    let stream = timeout(duration, TcpStream::connect(&addr))
+        .await
+        .map_err(|_| MumbleError::NetworkError(format!("TCP connection to {} timed out", addr)))?
+        .map_err(|e| MumbleError::NetworkError(format!("Failed to connect TCP to {}: {}", addr, e)))?;
+
+    let latency_ms = start_instant.elapsed().as_secs_f32() * 1000.0;
+    drop(stream);
+
+    Ok(ServerPingInfo {
+        latency_ms,
+        current_users: 0,
+        max_users: 0,
+        version: "Online (TCP)".to_string(),
     })
 }

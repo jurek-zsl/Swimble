@@ -310,6 +310,13 @@ struct BookmarkRow: View {
     @State private var pingInfo: ServerPingInfo? = nil
     @State private var pingFailed: Bool = false
 
+    private var isCurrentlyConnected: Bool {
+        store.connectionStatus == .connected &&
+        (store.activeBookmark?.id == bookmark.id ||
+         (store.activeBookmark?.host.lowercased() == bookmark.host.lowercased() &&
+          store.activeBookmark?.port == bookmark.port))
+    }
+
     var body: some View {
         HStack {
             Image(systemName: "server.rack")
@@ -323,16 +330,35 @@ struct BookmarkRow: View {
                         .font(.caption2)
                         .foregroundStyle(.secondary)
 
-                    if let ping = pingInfo {
+                    if isCurrentlyConnected {
+                        Text("•")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                        Text("Connected")
+                            .font(.caption2.bold())
+                            .foregroundStyle(.green)
+                        Text("\(Int(store.tcpPingMs)) ms")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                        Text("(\(store.users.count) user\(store.users.count == 1 ? "" : "s"))")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    } else if let ping = pingInfo {
                         Text("•")
                             .font(.caption2)
                             .foregroundStyle(.tertiary)
                         Text("\(Int(ping.latencyMs)) ms")
                             .font(.caption2.bold())
                             .foregroundStyle(.green)
-                        Text("(\(ping.currentUsers)/\(ping.maxUsers))")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
+                        if ping.maxUsers > 0 {
+                            Text("(\(ping.currentUsers)/\(ping.maxUsers))")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        } else {
+                            Text("(Online)")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
                     } else if pingFailed {
                         Text("•")
                             .font(.caption2)
@@ -364,6 +390,7 @@ struct BookmarkRow: View {
             }
         )
         .task(id: "\(bookmark.host):\(bookmark.port)") {
+            if isCurrentlyConnected { return }
             do {
                 let info = try await pingMumbleServer(host: bookmark.host, port: bookmark.port, timeoutMs: 2000)
                 self.pingInfo = info
