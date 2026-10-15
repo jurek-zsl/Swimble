@@ -18,7 +18,6 @@ struct SwimbleApp: App {
         Settings {
             SettingsView(store: store)
         }
-        .windowResizability(.contentSize)
 
         // Menu Bar Companion for Gaming & Background Control
         MenuBarExtra("Swimble", systemImage: store.isSelfMuted ? "mic.slash.fill" : "waveform.circle.fill") {

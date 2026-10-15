@@ -14,10 +14,28 @@ public final class MacAudioEngine: @unchecked Sendable {
     public var isTransmitting: Bool = false
 
     // Configuration
-    public var vadThresholdDb: Float = -45.0
-    public var isPushToTalk: Bool = false
-    public var isPushToTalkActive: Bool = false
-    public var activeVoiceTargetId: UInt8? = nil
+    private let transmitState: AudioTransmitState
+
+    public var vadThresholdDb: Float = -45.0 {
+        didSet {
+            transmitState.setVadThresholdDb(vadThresholdDb)
+        }
+    }
+    public var isPushToTalk: Bool = false {
+        didSet {
+            transmitState.setPushToTalk(isPushToTalk)
+        }
+    }
+    public var isPushToTalkActive: Bool = false {
+        didSet {
+            transmitState.setPushToTalkActive(isPushToTalkActive)
+        }
+    }
+    public var activeVoiceTargetId: UInt8? = nil {
+        didSet {
+            transmitState.setActiveVoiceTargetId(activeVoiceTargetId)
+        }
+    }
     public var isAirPodsAudioLockEnabled: Bool = true {
         didSet {
             AirPodsAudioLock.shared.setEnabled(isAirPodsAudioLockEnabled)
@@ -33,13 +51,9 @@ public final class MacAudioEngine: @unchecked Sendable {
         }
     }
 
-    // Hangover duration for VAD (in frames)
-    private var vadHangoverFrames: Int = 0
-    private let hangoverMaxFrames: Int = 12
-    private var lastMeterUpdateTime: Double = 0
-
     public init(client: MumbleClient) {
         self.client = client
+        self.transmitState = AudioTransmitState()
         if UserDefaults.standard.object(forKey: "Swimble_AirPodsAudioLock") != nil {
             self.isAirPodsAudioLockEnabled = UserDefaults.standard.bool(forKey: "Swimble_AirPodsAudioLock")
         } else if UserDefaults.standard.object(forKey: "MumbleGlass_AirPodsAudioLock") != nil {
@@ -101,6 +115,7 @@ public final class MacAudioEngine: @unchecked Sendable {
             self.sourceNode = nil
         }
         self.loopbackBuffer.clear()
+        self.transmitState.reset()
         self.isRunning = false
         self.isTransmitting = false
         self.inputLevelDb = -100.0
@@ -197,36 +212,22 @@ public final class MacAudioEngine: @unchecked Sendable {
         // Write to loopback buffer if monitoring is enabled
         self.loopbackBuffer.write(samples: outputSamples)
 
-        // Direct low-latency transmission check
-        Task { @MainActor [weak self] in
-            guard let self = self else { return }
-            let shouldTransmit: Bool
-            if self.isPushToTalk {
-                shouldTransmit = self.isPushToTalkActive
-            } else {
-                if db >= self.vadThresholdDb {
-                    self.vadHangoverFrames = self.hangoverMaxFrames
-                    shouldTransmit = true
-                } else if self.vadHangoverFrames > 0 {
-                    self.vadHangoverFrames -= 1
-                    shouldTransmit = true
-                } else {
-                    shouldTransmit = false
-                }
-            }
+        // Process transmission synchronously on the audio thread with zero latency
+        let now = CACurrentMediaTime()
+        let result = self.transmitState.processAudio(db: db, now: now)
 
-            if shouldTransmit {
-                self.client.pushMicPcm(samples: outputSamples, target: self.activeVoiceTargetId)
-            } else if self.isTransmitting {
-                self.client.finishMicStream(target: self.activeVoiceTargetId)
-            }
+        if result.shouldTransmit {
+            self.client.pushMicPcm(samples: outputSamples, target: result.target)
+        } else if result.wasTransmitting {
+            self.client.finishMicStream(target: result.target)
+        }
 
-            // Throttle UI metering to avoid flooding the main runloop
-            let now = CACurrentMediaTime()
-            if now - self.lastMeterUpdateTime >= 0.05 {
-                self.lastMeterUpdateTime = now
+        // Only dispatch to MainActor if UI metering update is needed (~15Hz or state transition)
+        if result.needsUiUpdate {
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self else { return }
                 self.inputLevelDb = db
-                self.isTransmitting = shouldTransmit
+                self.isTransmitting = result.shouldTransmit
             }
         }
     }
@@ -283,6 +284,84 @@ final class LoopbackBuffer: @unchecked Sendable {
         os_unfair_lock_lock(&lock)
         defer { os_unfair_lock_unlock(&lock) }
         buffer.removeAll()
+    }
+}
+
+/// Thread-safe lock-protected state manager for audio processing and transmission.
+final class AudioTransmitState: @unchecked Sendable {
+    private var lock = os_unfair_lock_s()
+    private var isPushToTalk: Bool = false
+    private var isPushToTalkActive: Bool = false
+    private var vadThresholdDb: Float = -45.0
+    private var activeVoiceTargetId: UInt8? = nil
+    private var vadHangoverFrames: Int = 0
+    private let hangoverMaxFrames: Int = 12
+    private var isTransmitting: Bool = false
+    private var lastMeterUpdateTime: Double = 0
+
+    func setPushToTalk(_ enabled: Bool) {
+        os_unfair_lock_lock(&lock)
+        isPushToTalk = enabled
+        os_unfair_lock_unlock(&lock)
+    }
+
+    func setPushToTalkActive(_ active: Bool) {
+        os_unfair_lock_lock(&lock)
+        isPushToTalkActive = active
+        os_unfair_lock_unlock(&lock)
+    }
+
+    func setVadThresholdDb(_ db: Float) {
+        os_unfair_lock_lock(&lock)
+        vadThresholdDb = db
+        os_unfair_lock_unlock(&lock)
+    }
+
+    func setActiveVoiceTargetId(_ id: UInt8?) {
+        os_unfair_lock_lock(&lock)
+        activeVoiceTargetId = id
+        os_unfair_lock_unlock(&lock)
+    }
+
+    func processAudio(db: Float, now: Double) -> (shouldTransmit: Bool, wasTransmitting: Bool, target: UInt8?, needsUiUpdate: Bool) {
+        os_unfair_lock_lock(&lock)
+        defer { os_unfair_lock_unlock(&lock) }
+
+        let shouldTransmit: Bool
+        if isPushToTalk {
+            shouldTransmit = isPushToTalkActive
+        } else {
+            if db >= vadThresholdDb {
+                vadHangoverFrames = hangoverMaxFrames
+                shouldTransmit = true
+            } else if vadHangoverFrames > 0 {
+                vadHangoverFrames -= 1
+                shouldTransmit = true
+            } else {
+                shouldTransmit = false
+            }
+        }
+
+        let wasTransmitting = isTransmitting
+        isTransmitting = shouldTransmit
+
+        let stateChanged = (shouldTransmit != wasTransmitting)
+        let timeElapsed = (now - lastMeterUpdateTime >= 0.06)
+        let needsUiUpdate = stateChanged || timeElapsed
+
+        if needsUiUpdate {
+            lastMeterUpdateTime = now
+        }
+
+        return (shouldTransmit, wasTransmitting, activeVoiceTargetId, needsUiUpdate)
+    }
+
+    func reset() {
+        os_unfair_lock_lock(&lock)
+        vadHangoverFrames = 0
+        isTransmitting = false
+        lastMeterUpdateTime = 0
+        os_unfair_lock_unlock(&lock)
     }
 }
 

@@ -88,12 +88,19 @@ public struct FloatingVoiceHUD: View {
                                     .font(.system(size: 9, weight: .bold))
                                     .foregroundStyle(.secondary)
 
-                                let levelFraction = max(0.0, min(1.0, Double((audioEngine.inputLevelDb + 80) / 80)))
-                                Capsule()
-                                    .fill(audioEngine.isTransmitting ? Color.green : Color.secondary.opacity(0.3))
-                                    .frame(width: 44 * CGFloat(levelFraction), height: 4)
-                                    .background(Color.secondary.opacity(0.15), in: Capsule())
-                                    .frame(width: 44, alignment: .leading)
+                                Canvas { context, size in
+                                    let trackPath = Path(roundedRect: CGRect(origin: .zero, size: size), cornerRadius: size.height / 2)
+                                    context.fill(trackPath, with: .color(Color.secondary.opacity(0.15)))
+
+                                    let levelFraction = max(0.0, min(1.0, Double((audioEngine.inputLevelDb + 80) / 80)))
+                                    let fillWidth = size.width * CGFloat(levelFraction)
+                                    if fillWidth > 0 {
+                                        let fillRect = CGRect(x: 0, y: 0, width: fillWidth, height: size.height)
+                                        let fillColor = audioEngine.isTransmitting ? Color.green : Color.secondary.opacity(0.3)
+                                        context.fill(Path(roundedRect: fillRect, cornerRadius: size.height / 2), with: .color(fillColor))
+                                    }
+                                }
+                                .frame(width: 44, height: 4)
                             }
                         }
                         .padding(.horizontal, 12)

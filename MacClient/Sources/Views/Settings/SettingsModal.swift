@@ -193,25 +193,26 @@ struct AudioSettingsTab: View {
 
                         // Live Level Meter Bar
                         VStack(alignment: .leading, spacing: 4) {
-                            GeometryReader { geo in
-                                ZStack(alignment: .leading) {
-                                    // Background track
-                                    Capsule()
-                                        .fill(Color.secondary.opacity(0.2))
+                            Canvas { context, size in
+                                // Background track
+                                let trackPath = Path(roundedRect: CGRect(origin: .zero, size: size), cornerRadius: size.height / 2)
+                                context.fill(trackPath, with: .color(Color.secondary.opacity(0.2)))
 
-                                    // Current mic level
-                                    let levelFraction = max(0.0, min(1.0, Double((audioEngine.inputLevelDb + 80) / 80)))
-                                    Capsule()
-                                        .fill(audioEngine.isTransmitting ? Color.green : Color.secondary)
-                                        .frame(width: geo.size.width * CGFloat(levelFraction))
-
-                                    // Threshold gate marker
-                                    let threshFraction = max(0.0, min(1.0, Double((audioEngine.vadThresholdDb + 80) / 80)))
-                                    Rectangle()
-                                        .fill(Color.red)
-                                        .frame(width: 2, height: geo.size.height)
-                                        .offset(x: geo.size.width * CGFloat(threshFraction))
+                                // Current mic level
+                                let levelFraction = max(0.0, min(1.0, Double((audioEngine.inputLevelDb + 80) / 80)))
+                                let fillWidth = size.width * CGFloat(levelFraction)
+                                if fillWidth > 0 {
+                                    let fillRect = CGRect(x: 0, y: 0, width: fillWidth, height: size.height)
+                                    let fillPath = Path(roundedRect: fillRect, cornerRadius: size.height / 2)
+                                    let fillColor = audioEngine.isTransmitting ? Color.green : Color.secondary
+                                    context.fill(fillPath, with: .color(fillColor))
                                 }
+
+                                // Threshold gate marker
+                                let threshFraction = max(0.0, min(1.0, Double((audioEngine.vadThresholdDb + 80) / 80)))
+                                let gateX = size.width * CGFloat(threshFraction)
+                                let markerRect = CGRect(x: max(0, gateX - 1), y: 0, width: 2, height: size.height)
+                                context.fill(Path(markerRect), with: .color(Color.red))
                             }
                             .frame(height: 10)
 

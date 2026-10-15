@@ -66,6 +66,7 @@ struct ChatImageHelper {
         return nil
     }
 
+    @MainActor
     static func pickImageFile() -> NSImage? {
         let panel = NSOpenPanel()
         panel.canChooseFiles = true
@@ -78,6 +79,7 @@ struct ChatImageHelper {
         return nil
     }
 
+    @MainActor
     static func saveImageToDisk(_ image: NSImage) {
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.jpeg, .png]
