@@ -270,6 +270,7 @@ public struct ChatAndActivityView: View {
     @State private var isDropTargeted: Bool = false
     @State private var isFieldFocused: Bool = true
     @State private var pasteKeyMonitor: Any? = nil
+    private let bottomAnchorId = "chat_bottom_anchor"
 
     public init(store: MumbleStore, showConnectSheet: Binding<Bool>) {
         self.store = store
@@ -392,20 +393,31 @@ public struct ChatAndActivityView: View {
                             .frame(maxWidth: .infinity)
                             .padding(.top, 60)
                         } else {
-                            ForEach(store.chatMessages, id: \.self) { msg in
+                            ForEach(Array(store.chatMessages.enumerated()), id: \.offset) { index, msg in
                                 ChatMessageRow(message: msg)
-                                    .id(msg.timestamp)
+                                    .id("msg_\(index)")
                             }
+
+                            // Explicit anchor at the absolute bottom of the chat stream
+                            Color.clear
+                                .frame(height: 1)
+                                .id(bottomAnchorId)
                         }
                     }
                     .padding(20)
                 }
+                .defaultScrollAnchor(.bottom)
                 .onChange(of: store.chatMessages.count) { _, _ in
-                    if let last = store.chatMessages.last {
-                        withAnimation {
-                            proxy.scrollTo(last.timestamp, anchor: .bottom)
-                        }
-                    }
+                    scrollToBottom(proxy: proxy, animated: true)
+                }
+                .onChange(of: store.chatMessages.last?.htmlBody) { _, _ in
+                    scrollToBottom(proxy: proxy, animated: true)
+                }
+                .onAppear {
+                    scrollToBottom(proxy: proxy, animated: false)
+                }
+                .onChange(of: store.selectedChannelId) { _, _ in
+                    scrollToBottom(proxy: proxy, animated: false)
                 }
             }
 
@@ -655,6 +667,30 @@ public struct ChatAndActivityView: View {
         stagedImage = nil
         stagedImageDimensions = ""
         isFieldFocused = true
+    }
+
+    private func scrollToBottom(proxy: ScrollViewProxy, animated: Bool = true) {
+        guard !store.chatMessages.isEmpty else { return }
+        // Initial immediate dispatch
+        DispatchQueue.main.async {
+            if animated {
+                withAnimation(.easeOut(duration: 0.2)) {
+                    proxy.scrollTo(bottomAnchorId, anchor: .bottom)
+                }
+            } else {
+                proxy.scrollTo(bottomAnchorId, anchor: .bottom)
+            }
+        }
+        // Follow-up pass to guarantee scroll position after SwiftUI view measuring and image rendering
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
+            if animated {
+                withAnimation(.easeOut(duration: 0.15)) {
+                    proxy.scrollTo(bottomAnchorId, anchor: .bottom)
+                }
+            } else {
+                proxy.scrollTo(bottomAnchorId, anchor: .bottom)
+            }
+        }
     }
 }
 
