@@ -496,6 +496,12 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
         Task { @MainActor [weak self] in
             guard let self = self else { return }
             if self.ignoredTextMessageUsers.contains(message.senderSession) { return }
+            if message.senderSession == self.mySessionId {
+                if let last = self.chatMessages.last,
+                   last.senderSession == message.senderSession && last.htmlBody == message.htmlBody {
+                    return
+                }
+            }
             self.chatMessages.append(message)
             if message.senderSession != self.mySessionId {
                 SoundManager.shared.playMessageReceived()
