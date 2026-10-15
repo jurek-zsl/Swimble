@@ -56,6 +56,13 @@ struct ChatImageHelper {
         if let images = pb.readObjects(forClasses: [NSImage.self], options: nil) as? [NSImage], let first = images.first {
             return first
         }
+        if let urls = pb.readObjects(forClasses: [NSURL.self], options: nil) as? [URL] {
+            for url in urls {
+                if let img = NSImage(contentsOf: url) {
+                    return img
+                }
+            }
+        }
         if let types = pb.types {
             for type in [NSPasteboard.PasteboardType.png, .tiff] {
                 if types.contains(type), let data = pb.data(forType: type), let img = NSImage(data: data) {
@@ -380,6 +387,15 @@ public struct ChatAndActivityView: View {
                         }
                     }
                     return
+                } else if provider.canLoadObject(ofClass: URL.self) {
+                    _ = provider.loadObject(ofClass: URL.self) { url, _ in
+                        if let url = url, let img = NSImage(contentsOf: url) {
+                            DispatchQueue.main.async {
+                                stageImage(img)
+                            }
+                        }
+                    }
+                    return
                 }
             }
             if let img = ChatImageHelper.loadImageFromPasteboard() {
@@ -628,6 +644,112 @@ struct ImagePreviewModal: View {
     }
 }
 
+/// In-memory cache for remote chat images
+final class ImageCache: @unchecked Sendable {
+    nonisolated(unsafe) static let shared = NSCache<NSURL, NSImage>()
+}
+
+/// Loads and renders remote HTTP/HTTPS images with fallback card, tap-to-preview, and context actions.
+struct RemoteChatImageView: View {
+    let url: URL
+    let onSelect: (NSImage) -> Void
+
+    @State private var loadedImage: NSImage? = nil
+    @State private var isLoading: Bool = true
+    @State private var loadFailed: Bool = false
+
+    var body: some View {
+        Group {
+            if let img = loadedImage {
+                Image(nsImage: img)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxHeight: 260)
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
+                    )
+                    .shadow(color: Color.black.opacity(0.12), radius: 4, x: 0, y: 2)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        onSelect(img)
+                    }
+                    .help("Click to view full size")
+                    .contextMenu {
+                        Button("View Full Size") {
+                            onSelect(img)
+                        }
+                        Button("Copy Image") {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.writeObjects([img])
+                        }
+                        Button("Save Image As...") {
+                            ChatImageHelper.saveImageToDisk(img)
+                        }
+                        Divider()
+                        Button("Open in Browser") {
+                            NSWorkspace.shared.open(url)
+                        }
+                    }
+            } else if isLoading {
+                HStack(spacing: 8) {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text("Loading image...")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+            } else {
+                HStack(spacing: 8) {
+                    Image(systemName: "photo.badge.exclamationmark")
+                        .foregroundStyle(.secondary)
+                    Link(url.lastPathComponent.isEmpty ? (url.host ?? url.absoluteString) : url.lastPathComponent, destination: url)
+                        .font(.caption)
+                        .lineLimit(1)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+            }
+        }
+        .task(id: url) {
+            await fetchImage()
+        }
+    }
+
+    private func fetchImage() async {
+        if let cached = ImageCache.shared.object(forKey: url as NSURL) {
+            self.loadedImage = cached
+            self.isLoading = false
+            return
+        }
+
+        var request = URLRequest(url: url)
+        request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Swimble/1.0", forHTTPHeaderField: "User-Agent")
+        request.setValue("image/webp,image/png,image/jpeg,image/*;q=0.8,*/*;q=0.5", forHTTPHeaderField: "Accept")
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            if let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode),
+               let img = NSImage(data: data) {
+                ImageCache.shared.setObject(img, forKey: url as NSURL)
+                self.loadedImage = img
+                self.isLoading = false
+            } else {
+                self.loadFailed = true
+                self.isLoading = false
+            }
+        } catch {
+            self.loadFailed = true
+            self.isLoading = false
+        }
+    }
+}
+
 /// Single chat message row with sanitized HTML/Markdown, base64 data URI and remote image previews.
 struct ChatMessageRow: View {
     let message: ChatMessage
@@ -678,7 +800,7 @@ struct ChatMessageRow: View {
                         Image(nsImage: nsImg)
                             .resizable()
                             .scaledToFit()
-                            .frame(maxHeight: 240)
+                            .frame(maxHeight: 260)
                             .clipShape(RoundedRectangle(cornerRadius: 10))
                             .overlay(
                                 RoundedRectangle(cornerRadius: 10)
@@ -711,27 +833,8 @@ struct ChatMessageRow: View {
             if !remoteImageUrls.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
                     ForEach(remoteImageUrls, id: \.self) { url in
-                        AsyncImage(url: url) { phase in
-                            switch phase {
-                            case .success(let image):
-                                image
-                                    .resizable()
-                                    .scaledToFit()
-                                    .frame(maxHeight: 240)
-                                    .clipShape(RoundedRectangle(cornerRadius: 10))
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 10)
-                                            .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
-                                    )
-                                    .shadow(color: Color.black.opacity(0.12), radius: 4, x: 0, y: 2)
-                            case .failure:
-                                EmptyView()
-                            case .empty:
-                                ProgressView()
-                                    .frame(width: 60, height: 60)
-                            @unknown default:
-                                EmptyView()
-                            }
+                        RemoteChatImageView(url: url) { selectedImg in
+                            previewImageItem = IdentifiableImage(image: selectedImg)
                         }
                     }
                 }
@@ -745,9 +848,18 @@ struct ChatMessageRow: View {
 
     private func cleanText(from text: String) -> String {
         return text
-            .replacingOccurrences(of: #"(?i)<img[^>]*>"#, with: "", options: .regularExpression)
+            // Remove full <img> tags
+            .replacingOccurrences(of: #"(?i)<img\b[^>]*>"#, with: "", options: .regularExpression)
+            // Remove markdown images
             .replacingOccurrences(of: #"!\[.*?\]\([^\)]+\)"#, with: "", options: .regularExpression)
-            .replacingOccurrences(of: #"(?i)<br\s*/?>\s*$"#, with: "", options: .regularExpression)
+            // Remove <a> tags that wrap data: URIs
+            .replacingOccurrences(of: #"(?i)<a\b[^>]*?\bhref=["\']data:image\/[^"\']+["\'][^>]*>.*?<\/a>"#, with: "", options: .regularExpression)
+            // Remove raw data:image URIs that might remain in chat
+            .replacingOccurrences(of: #"(?i)data:image\/[^;,]+(?:;[^;,]+)*;base64,[A-Za-z0-9+\/=\s%]+"#, with: "", options: .regularExpression)
+            // Remove empty <a> tags
+            .replacingOccurrences(of: #"(?i)<a\b[^>]*?>\s*<\/a>"#, with: "", options: .regularExpression)
+            // Remove trailing line breaks
+            .replacingOccurrences(of: #"(?i)<br\s*\/?>\s*$"#, with: "", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
@@ -768,19 +880,38 @@ struct ChatMessageRow: View {
     }
 
     private func extractDataUriImages(from text: String) -> [NSImage] {
-        let pattern = #"(?:src=["\x27]|\()data:image\/[a-zA-Z0-9.+-]+;base64,([A-Za-z0-9+\/=\s]+)(?:["\x27]|\))"#
+        // Matches data:image/...;base64,<base64data> in src="...", src='...', src=..., href="...", or raw
+        let pattern = #"(?:data:image\/[^;,]+(?:;[^;,]+)*;base64,)([A-Za-z0-9+\/=\s%]+)"#
         guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
             return []
         }
         let nsString = text as NSString
         let matches = regex.matches(in: text, range: NSRange(location: 0, length: nsString.length))
+
+        var seenHashes = Set<Int>()
         return matches.compactMap { match in
             guard match.numberOfRanges > 1 else { return nil }
-            let b64 = nsString.substring(with: match.range(at: 1))
-                .replacingOccurrences(of: "\n", with: "")
-                .replacingOccurrences(of: "\r", with: "")
-                .trimmingCharacters(in: .whitespaces)
-            guard let data = Data(base64Encoded: b64), let img = NSImage(data: data) else {
+            var rawB64 = nsString.substring(with: match.range(at: 1))
+
+            // Stop at any HTML tag delimiter, attribute quote, or parenthesis
+            if let termIdx = rawB64.firstIndex(where: { "\"'<>)".contains($0) }) {
+                rawB64 = String(rawB64[..<termIdx])
+            }
+
+            // Percent-decode if URL-encoded
+            if rawB64.contains("%"), let decoded = rawB64.removingPercentEncoding {
+                rawB64 = decoded
+            }
+
+            // Strip ALL whitespaces, newlines, tabs, and carriage returns (fixes Qt 80-col line wrapping)
+            let cleanB64 = rawB64.components(separatedBy: .whitespacesAndNewlines).joined()
+            guard !cleanB64.isEmpty else { return nil }
+
+            let hash = cleanB64.hashValue
+            guard seenHashes.insert(hash).inserted else { return nil }
+
+            guard let data = Data(base64Encoded: cleanB64, options: .ignoreUnknownCharacters),
+                  let img = NSImage(data: data) else {
                 return nil
             }
             return img
@@ -788,15 +919,46 @@ struct ChatMessageRow: View {
     }
 
     private func extractRemoteImageUrls(from text: String) -> [URL] {
-        let pattern = #"https?://[^\s"'<>]+\.(?:png|jpg|jpeg|gif|webp)"#
-        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
-            return []
+        var urls: [URL] = []
+
+        // Pattern A: <img ... src="url" ...> or <img ... src='url' ...>
+        let imgTagPattern = #"(?i)<img\b[^>]*?\bsrc\s*=\s*["\'](https?:\/\/[^"\']+)["\']"#
+        if let imgRegex = try? NSRegularExpression(pattern: imgTagPattern) {
+            let ns = text as NSString
+            let matches = imgRegex.matches(in: text, range: NSRange(location: 0, length: ns.length))
+            for m in matches where m.numberOfRanges > 1 {
+                if let u = URL(string: ns.substring(with: m.range(at: 1))) {
+                    urls.append(u)
+                }
+            }
         }
-        let nsString = text as NSString
-        let matches = regex.matches(in: text, range: NSRange(location: 0, length: nsString.length))
-        return matches.compactMap {
-            let urlString = nsString.substring(with: $0.range)
-            return URL(string: urlString)
+
+        // Pattern B: Markdown image: ![...](https://...)
+        let mdPattern = #"!\[.*?\]\((https?:\/\/[^\s\)]+)\)"#
+        if let mdRegex = try? NSRegularExpression(pattern: mdPattern) {
+            let ns = text as NSString
+            let matches = mdRegex.matches(in: text, range: NSRange(location: 0, length: ns.length))
+            for m in matches where m.numberOfRanges > 1 {
+                if let u = URL(string: ns.substring(with: m.range(at: 1))) {
+                    urls.append(u)
+                }
+            }
         }
+
+        // Pattern C: Standalone image URLs ending with image extensions (plus optional query string)
+        let urlPattern = #"(?i)https?:\/\/[^\s"'<>]+\.(?:png|jpg|jpeg|gif|webp|heic|bmp)(?:\?[^\s"'<>]*)?"#
+        if let urlRegex = try? NSRegularExpression(pattern: urlPattern) {
+            let ns = text as NSString
+            let matches = urlRegex.matches(in: text, range: NSRange(location: 0, length: ns.length))
+            for m in matches {
+                if let u = URL(string: ns.substring(with: m.range)) {
+                    urls.append(u)
+                }
+            }
+        }
+
+        // Deduplicate preserving order
+        var seen = Set<String>()
+        return urls.filter { seen.insert($0.absoluteString).inserted }
     }
 }

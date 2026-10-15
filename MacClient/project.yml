@@ -27,6 +27,7 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_NSMicrophoneUsageDescription: "Swimble requires microphone access for voice chat."
         INFOPLIST_KEY_CFBundleDisplayName: "Swimble"
+        INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsArbitraryLoads: YES
         SWIFT_INCLUDE_PATHS:
           - "$(PROJECT_DIR)/Generated"
         HEADER_SEARCH_PATHS:

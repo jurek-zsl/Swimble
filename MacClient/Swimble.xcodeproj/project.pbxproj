@@ -371,6 +371,7 @@
 					/opt/homebrew/opt/opus/include,
 				);
 				INFOPLIST_KEY_CFBundleDisplayName = Swimble;
+				INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsArbitraryLoads = YES;
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Swimble requires microphone access for voice chat.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -417,6 +418,7 @@
 					/opt/homebrew/opt/opus/include,
 				);
 				INFOPLIST_KEY_CFBundleDisplayName = Swimble;
+				INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsArbitraryLoads = YES;
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Swimble requires microphone access for voice chat.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
