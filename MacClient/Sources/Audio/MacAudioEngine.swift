@@ -16,6 +16,12 @@ public final class MacAudioEngine: @unchecked Sendable {
     // Configuration
     private let transmitState: AudioTransmitState
 
+    public var isMuted: Bool = false {
+        didSet {
+            transmitState.setMuted(isMuted)
+        }
+    }
+
     public var vadThresholdDb: Float = -45.0 {
         didSet {
             transmitState.setVadThresholdDb(vadThresholdDb)
@@ -290,6 +296,7 @@ final class LoopbackBuffer: @unchecked Sendable {
 /// Thread-safe lock-protected state manager for audio processing and transmission.
 final class AudioTransmitState: @unchecked Sendable {
     private var lock = os_unfair_lock_s()
+    private var isMuted: Bool = false
     private var isPushToTalk: Bool = false
     private var isPushToTalkActive: Bool = false
     private var vadThresholdDb: Float = -45.0
@@ -298,6 +305,12 @@ final class AudioTransmitState: @unchecked Sendable {
     private let hangoverMaxFrames: Int = 12
     private var isTransmitting: Bool = false
     private var lastMeterUpdateTime: Double = 0
+
+    func setMuted(_ muted: Bool) {
+        os_unfair_lock_lock(&lock)
+        isMuted = muted
+        os_unfair_lock_unlock(&lock)
+    }
 
     func setPushToTalk(_ enabled: Bool) {
         os_unfair_lock_lock(&lock)
@@ -328,7 +341,9 @@ final class AudioTransmitState: @unchecked Sendable {
         defer { os_unfair_lock_unlock(&lock) }
 
         let shouldTransmit: Bool
-        if isPushToTalk {
+        if isMuted {
+            shouldTransmit = false
+        } else if isPushToTalk {
             shouldTransmit = isPushToTalkActive
         } else {
             if db >= vadThresholdDb {

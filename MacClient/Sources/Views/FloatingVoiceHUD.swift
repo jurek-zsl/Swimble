@@ -1,5 +1,53 @@
 import SwiftUI
 
+/// Interactive button style providing tactile spring press feedback and enforcing
+/// a solid hit-test shape across the entire circular frame so no clicks are missed.
+public struct HUDCircleButtonStyle: ButtonStyle {
+    public init() {}
+
+    public func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.90 : 1.0)
+            .animation(.spring(response: 0.18, dampingFraction: 0.75), value: configuration.isPressed)
+            .contentShape(Circle())
+    }
+}
+
+/// Interactive button style for capsule-shaped pills.
+public struct HUDCapsuleButtonStyle: ButtonStyle {
+    public init() {}
+
+    public func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
+            .animation(.spring(response: 0.18, dampingFraction: 0.75), value: configuration.isPressed)
+            .contentShape(Capsule())
+    }
+}
+
+/// Dedicated subview for live VAD audio level metering.
+/// Isolates observation of `audioEngine.inputLevelDb` (~15-30Hz updates) so the parent
+/// HUD and its voice control buttons do NOT constantly re-evaluate and abort in-flight clicks.
+private struct VadLevelMeterView: View {
+    @Bindable var audioEngine: MacAudioEngine
+
+    var body: some View {
+        Canvas { context, size in
+            let trackPath = Path(roundedRect: CGRect(origin: .zero, size: size), cornerRadius: size.height / 2)
+            context.fill(trackPath, with: .color(Color.secondary.opacity(0.15)))
+
+            let levelFraction = max(0.0, min(1.0, Double((audioEngine.inputLevelDb + 80) / 80)))
+            let fillWidth = size.width * CGFloat(levelFraction)
+            if fillWidth > 0 {
+                let fillRect = CGRect(x: 0, y: 0, width: fillWidth, height: size.height)
+                let fillColor = audioEngine.isTransmitting ? Color.green : Color.secondary.opacity(0.3)
+                context.fill(Path(roundedRect: fillRect, cornerRadius: size.height / 2), with: .color(fillColor))
+            }
+        }
+        .frame(width: 44, height: 4)
+    }
+}
+
 /// Floating bottom voice control HUD using native macOS 26 Liquid Glass APIs.
 public struct FloatingVoiceHUD: View {
     @Bindable public var store: MumbleStore
@@ -33,10 +81,7 @@ public struct FloatingVoiceHUD: View {
 
                 // 1. Transmit Mode Pill (VAD meter vs PTT Button)
                 if audioEngine.isPushToTalk {
-                    Button(action: {
-                        store.selectedSettingsTab = .shortcuts
-                        openSettings()
-                    }) {
+                    Button(action: {}) {
                         HStack(spacing: 8) {
                             Image(systemName: audioEngine.isTransmitting ? "mic.fill" : "hand.tap.fill")
                                 .font(.system(size: 14))
@@ -45,8 +90,9 @@ public struct FloatingVoiceHUD: View {
                         }
                         .padding(.horizontal, 14)
                         .padding(.vertical, 10)
+                        .contentShape(Capsule())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(HUDCapsuleButtonStyle())
                     .glassEffect(
                         .regular.tint(audioEngine.isTransmitting ? .green : nil).interactive(),
                         in: .capsule
@@ -63,9 +109,7 @@ public struct FloatingVoiceHUD: View {
                     )
                     .contextMenu {
                         Button("Switch to Voice Activity (VAD)") {
-                            withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
-                                audioEngine.isPushToTalk = false
-                            }
+                            audioEngine.isPushToTalk = false
                         }
                         Button("Shortcut Settings...") {
                             store.selectedSettingsTab = .shortcuts
@@ -82,42 +126,29 @@ public struct FloatingVoiceHUD: View {
                                 .foregroundStyle(audioEngine.isTransmitting ? Color.green : Color.primary)
                                 .font(.system(size: 14))
 
-                            // Compact live level bar
+                            // Compact live level bar (isolated from parent HUD invalidations)
                             VStack(alignment: .leading, spacing: 2) {
                                 Text("VAD")
                                     .font(.system(size: 9, weight: .bold))
                                     .foregroundStyle(.secondary)
 
-                                Canvas { context, size in
-                                    let trackPath = Path(roundedRect: CGRect(origin: .zero, size: size), cornerRadius: size.height / 2)
-                                    context.fill(trackPath, with: .color(Color.secondary.opacity(0.15)))
-
-                                    let levelFraction = max(0.0, min(1.0, Double((audioEngine.inputLevelDb + 80) / 80)))
-                                    let fillWidth = size.width * CGFloat(levelFraction)
-                                    if fillWidth > 0 {
-                                        let fillRect = CGRect(x: 0, y: 0, width: fillWidth, height: size.height)
-                                        let fillColor = audioEngine.isTransmitting ? Color.green : Color.secondary.opacity(0.3)
-                                        context.fill(Path(roundedRect: fillRect, cornerRadius: size.height / 2), with: .color(fillColor))
-                                    }
-                                }
-                                .frame(width: 44, height: 4)
+                                VadLevelMeterView(audioEngine: audioEngine)
                             }
                         }
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
+                        .contentShape(Capsule())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(HUDCapsuleButtonStyle())
                     .glassEffect(
                         .regular.tint(audioEngine.isTransmitting ? .green.opacity(0.4) : nil).interactive(),
                         in: .capsule
                     )
                     .glassEffectID("transmitPill", in: glassNamespace)
-                    .help("Voice Activation Meter (Click to Calibrate)")
+                    .help("Voice Activation Meter (Click for Audio Settings)")
                     .contextMenu {
                         Button("Switch to Push-to-Talk (PTT)") {
-                            withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
-                                audioEngine.isPushToTalk = true
-                            }
+                            audioEngine.isPushToTalk = true
                         }
                         Button("Audio Settings...") {
                             store.selectedSettingsTab = .audio
@@ -128,15 +159,14 @@ public struct FloatingVoiceHUD: View {
 
                 // 2. Microphone Mute Button
                 Button(action: {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
-                        store.toggleSelfMute()
-                    }
+                    store.toggleSelfMute()
                 }) {
                     Image(systemName: store.isSelfMuted ? "mic.slash.fill" : "mic.fill")
                         .font(.system(size: 15))
-                        .frame(width: 36, height: 36)
+                        .frame(width: 38, height: 38)
+                        .contentShape(Circle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(HUDCircleButtonStyle())
                 .glassEffect(
                     .regular.tint(store.isSelfMuted ? .red : nil).interactive(),
                     in: .circle
@@ -146,9 +176,7 @@ public struct FloatingVoiceHUD: View {
 
                 // 3. Deafen Button
                 Button(action: {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
-                        store.toggleSelfDeaf()
-                    }
+                    store.toggleSelfDeaf()
                 }) {
                     Image(systemName: "headphones")
                         .font(.system(size: 15))
@@ -160,9 +188,10 @@ public struct FloatingVoiceHUD: View {
                                     .foregroundStyle(.white)
                             }
                         }
-                        .frame(width: 36, height: 36)
+                        .frame(width: 38, height: 38)
+                        .contentShape(Circle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(HUDCircleButtonStyle())
                 .glassEffect(
                     .regular.tint(store.isSelfDeafened ? .orange : nil).interactive(),
                     in: .circle
@@ -177,9 +206,10 @@ public struct FloatingVoiceHUD: View {
                 }) {
                     Image(systemName: "gearshape.fill")
                         .font(.system(size: 15))
-                        .frame(width: 36, height: 36)
+                        .frame(width: 38, height: 38)
+                        .contentShape(Circle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(HUDCircleButtonStyle())
                 .glassEffect(
                     .regular.interactive(),
                     in: .circle
@@ -190,15 +220,14 @@ public struct FloatingVoiceHUD: View {
                 // 5. Disconnect Button
                 if store.connectionStatus == .connected || store.connectionStatus == .connecting {
                     Button(action: {
-                        withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
-                            store.disconnect()
-                        }
+                        store.disconnect()
                     }) {
                         Image(systemName: "phone.down.fill")
                             .font(.system(size: 15))
-                            .frame(width: 36, height: 36)
+                            .frame(width: 38, height: 38)
+                            .contentShape(Circle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(HUDCircleButtonStyle())
                     .glassEffect(
                         .regular.tint(.red).interactive(),
                         in: .circle
@@ -210,10 +239,10 @@ public struct FloatingVoiceHUD: View {
             .padding(.horizontal, 8)
             .padding(.vertical, 6)
         }
-        .animation(.spring(response: 0.35, dampingFraction: 0.7), value: store.isSelfMuted)
-        .animation(.spring(response: 0.35, dampingFraction: 0.7), value: store.isSelfDeafened)
-        .animation(.spring(response: 0.35, dampingFraction: 0.7), value: store.isWhispering)
-        .animation(.spring(response: 0.35, dampingFraction: 0.7), value: audioEngine.isPushToTalk)
-        .animation(.spring(response: 0.35, dampingFraction: 0.7), value: store.connectionStatus)
+        .animation(.spring(response: 0.28, dampingFraction: 0.75), value: store.isSelfMuted)
+        .animation(.spring(response: 0.28, dampingFraction: 0.75), value: store.isSelfDeafened)
+        .animation(.spring(response: 0.28, dampingFraction: 0.75), value: store.isWhispering)
+        .animation(.spring(response: 0.28, dampingFraction: 0.75), value: audioEngine.isPushToTalk)
+        .animation(.spring(response: 0.28, dampingFraction: 0.75), value: store.connectionStatus)
     }
 }

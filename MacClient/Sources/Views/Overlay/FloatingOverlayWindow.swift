@@ -100,21 +100,35 @@ public struct FloatingOverlayPillView: View {
                     .foregroundStyle(.secondary)
 
                 if store.isSelfMuted {
-                    Image(systemName: "mic.slash.fill")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(.red)
-                        .padding(.horizontal, 4)
-                        .padding(.vertical, 2)
-                        .background(Color.red.opacity(0.15), in: Capsule())
+                    Button(action: {
+                        store.toggleSelfMute()
+                    }) {
+                        Image(systemName: "mic.slash.fill")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.red)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 3)
+                            .background(Color.red.opacity(0.18), in: Capsule())
+                            .contentShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .help("Muted (Click to Unmute)")
                 }
 
                 if store.isSelfDeafened {
-                    Image(systemName: "headphones.slash")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(.red)
-                        .padding(.horizontal, 4)
-                        .padding(.vertical, 2)
-                        .background(Color.red.opacity(0.15), in: Capsule())
+                    Button(action: {
+                        store.toggleSelfDeaf()
+                    }) {
+                        Image(systemName: "headphones.slash")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.red)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 3)
+                            .background(Color.red.opacity(0.18), in: Capsule())
+                            .contentShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .help("Deafened (Click to Undeafen)")
                 }
             }
         }
@@ -154,10 +168,13 @@ final class AutoSizingOverlayHostingView<Content: View>: NSHostingView<Content> 
         if fit.width > 0 && fit.height > 0 {
             let current = window.frame.size
             if abs(current.width - fit.width) > 1 || abs(current.height - fit.height) > 1 {
-                var newFrame = window.frame
-                newFrame.origin.y += (newFrame.size.height - fit.height)
-                newFrame.size = fit
-                window.setFrame(newFrame, display: true, animate: false)
+                DispatchQueue.main.async { [weak window] in
+                    guard let window = window else { return }
+                    var newFrame = window.frame
+                    newFrame.origin.y += (newFrame.size.height - fit.height)
+                    newFrame.size = fit
+                    window.setFrame(newFrame, display: true, animate: false)
+                }
             }
         }
     }

@@ -730,6 +730,13 @@ impl MumbleClient {
     }
 
     pub fn set_self_mute(&self, muted: bool) {
+        if let Ok(mut state) = self.state.write() {
+            if let Some(sid) = state.my_session {
+                if let Some(user) = state.users.get_mut(&sid) {
+                    user.is_self_muted = muted;
+                }
+            }
+        }
         let msg = proto::UserState {
             self_mute: Some(muted),
             ..Default::default()
@@ -738,8 +745,19 @@ impl MumbleClient {
     }
 
     pub fn set_self_deaf(&self, deafened: bool) {
+        if let Ok(mut state) = self.state.write() {
+            if let Some(sid) = state.my_session {
+                if let Some(user) = state.users.get_mut(&sid) {
+                    user.is_self_deafened = deafened;
+                    if deafened {
+                        user.is_self_muted = true;
+                    }
+                }
+            }
+        }
         let msg = proto::UserState {
             self_deaf: Some(deafened),
+            self_mute: if deafened { Some(true) } else { None },
             ..Default::default()
         };
         self.send_proto(TYPE_USER_STATE, &msg);

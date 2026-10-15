@@ -208,6 +208,7 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
     public func toggleSelfMute() {
         let newMuted = !isSelfMuted
         self.isSelfMuted = newMuted
+        audioEngine.isMuted = newMuted
         client.setSelfMute(muted: newMuted)
         SoundManager.shared.playMute(isMuted: newMuted)
     }
@@ -220,6 +221,9 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
         // Mumble convention: deafening also mutes
         if newDeaf {
             self.isSelfMuted = true
+            audioEngine.isMuted = true
+        } else {
+            audioEngine.isMuted = self.isSelfMuted
         }
     }
 
@@ -471,6 +475,7 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
             if let myId = self.mySessionId, let me = users.first(where: { $0.sessionId == myId }) {
                 self.isSelfMuted = me.isSelfMuted
                 self.isSelfDeafened = me.isSelfDeafened
+                self.audioEngine.isMuted = me.isSelfMuted
             }
             self.rebuildTree()
         }
