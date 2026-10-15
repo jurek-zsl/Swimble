@@ -3,6 +3,7 @@ import AppKit
 import UniformTypeIdentifiers
 
 public enum SettingsTab: String, CaseIterable, Identifiable, Sendable {
+    case general = "General"
     case audio = "Audio"
     case shortcuts = "Shortcuts"
     case tokens = "Access Tokens"
@@ -12,6 +13,7 @@ public enum SettingsTab: String, CaseIterable, Identifiable, Sendable {
 
     public var iconName: String {
         switch self {
+        case .general: return "gearshape.fill"
         case .audio: return "waveform"
         case .shortcuts: return "keyboard"
         case .tokens: return "key.fill"
@@ -25,12 +27,12 @@ public enum SettingsTab: String, CaseIterable, Identifiable, Sendable {
 public struct SettingsModal: View {
     @Bindable public var store: MumbleStore
     @Binding public var isPresented: Bool
-    @State public var selectedTab: SettingsTab = .audio
+    @State public var selectedTab: SettingsTab = .general
 
     @State private var newTokenText: String = ""
     private var deviceManager = CoreAudioDeviceManager.shared
 
-    public init(store: MumbleStore, isPresented: Binding<Bool>, initialTab: SettingsTab = .audio) {
+    public init(store: MumbleStore, isPresented: Binding<Bool>, initialTab: SettingsTab = .general) {
         self.store = store
         self._isPresented = isPresented
         self._selectedTab = State(initialValue: initialTab)
@@ -60,7 +62,7 @@ public struct SettingsModal: View {
                     }
                 }
                 .pickerStyle(.segmented)
-                .frame(width: 420)
+                .frame(width: 480)
 
                 Spacer()
 
@@ -80,6 +82,8 @@ public struct SettingsModal: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     switch selectedTab {
+                    case .general:
+                        GeneralSettingsTab(store: store)
                     case .audio:
                         AudioSettingsTab(store: store, deviceManager: deviceManager)
                     case .shortcuts:

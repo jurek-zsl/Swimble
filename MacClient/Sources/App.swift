@@ -9,14 +9,27 @@ struct SwimbleApp: App {
         // Main Application Window
         WindowGroup("Swimble") {
             ServerSplitView(store: store)
-                .frame(minWidth: 780, minHeight: 520)
+                .frame(minWidth: 820, minHeight: 540)
         }
         .windowStyle(.titleBar)
         .windowToolbarStyle(.unified)
 
+        // Native Dedicated Settings Window (Cmd+,)
+        Settings {
+            SettingsView(store: store)
+        }
+        .windowResizability(.contentSize)
+
         // Menu Bar Companion for Gaming & Background Control
         MenuBarExtra("Swimble", systemImage: store.isSelfMuted ? "mic.slash.fill" : "waveform.circle.fill") {
             VStack {
+                // Settings Shortcut
+                Button("Settings...") {
+                    NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+                }
+                .keyboardShortcut(",", modifiers: [.command])
+
+                Divider()
                 // Connection & Channel Status
                 if store.connectionStatus == .connected {
                     Text("\(store.activeBookmark?.name ?? "Connected")")

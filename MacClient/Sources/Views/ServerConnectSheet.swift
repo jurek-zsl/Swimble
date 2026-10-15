@@ -49,14 +49,14 @@ public struct ServerConnectSheet: View {
                     List(selection: $selectedBookmarkId) {
                         Section("Favorites") {
                             ForEach(store.bookmarks.filter { $0.isFavorite }) { bookmark in
-                                BookmarkRow(bookmark: bookmark, store: store)
+                                BookmarkRow(bookmark: bookmark, store: store, onConnect: { dismiss() })
                                     .tag(bookmark.id)
                             }
                         }
 
                         Section("All Servers") {
                             ForEach(store.bookmarks) { bookmark in
-                                BookmarkRow(bookmark: bookmark, store: store)
+                                BookmarkRow(bookmark: bookmark, store: store, onConnect: { dismiss() })
                                     .tag(bookmark.id)
                             }
                         }
@@ -65,12 +65,18 @@ public struct ServerConnectSheet: View {
 
                     Divider()
 
-                    // Bottom list toolbar (+ / -)
-                    HStack {
+                    // Bottom list toolbar (+ / duplicate / trash)
+                    HStack(spacing: 8) {
                         Button(action: createNewBookmark) {
                             Image(systemName: "plus")
                         }
                         .help("Add New Server")
+
+                        Button(action: duplicateSelectedBookmark) {
+                            Image(systemName: "plus.square.on.square")
+                        }
+                        .disabled(selectedBookmark == nil)
+                        .help("Duplicate Selected Server")
 
                         Button(action: deleteSelectedBookmark) {
                             Image(systemName: "trash")
@@ -89,8 +95,22 @@ public struct ServerConnectSheet: View {
                 // Right Column: Server Details Form & Certificate Info
                 ScrollView {
                     VStack(alignment: .leading, spacing: 20) {
-                        Text("Server Details")
-                            .font(.headline)
+                        HStack {
+                            Text("Server Details")
+                                .font(.headline)
+                            Spacer()
+                            if let bm = selectedBookmark {
+                                Button(action: {
+                                    store.toggleFavoriteBookmark(bm)
+                                }) {
+                                    Label(bm.isFavorite ? "Favorited" : "Favorite", systemImage: bm.isFavorite ? "star.fill" : "star")
+                                        .font(.caption)
+                                        .foregroundStyle(bm.isFavorite ? Color.yellow : Color.secondary)
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                            }
+                        }
 
                         // Form Fields
                         Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 12) {
@@ -131,6 +151,13 @@ public struct ServerConnectSheet: View {
                             }
                         }
 
+                        if formHost.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+                           formUsername.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            Text("Server host and username are required to connect.")
+                                .font(.caption)
+                                .foregroundStyle(.red)
+                        }
+
                         HStack {
                             Button("Save Changes") {
                                 saveCurrentForm()
@@ -144,8 +171,10 @@ public struct ServerConnectSheet: View {
                                 connectToCurrent()
                             }
                             .buttonStyle(.borderedProminent)
+                            .tint(store.accentTint)
                             .keyboardShortcut(.defaultAction)
-                            .disabled(formHost.isEmpty || formUsername.isEmpty)
+                            .disabled(formHost.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+                                      formUsername.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                         }
 
                         Divider()
@@ -240,6 +269,21 @@ public struct ServerConnectSheet: View {
         selectBookmark(newBm)
     }
 
+    private func duplicateSelectedBookmark() {
+        guard let bm = selectedBookmark else { return }
+        let copy = ServerBookmark(
+            id: UUID(),
+            name: "\(bm.name) (Copy)",
+            host: bm.host,
+            port: bm.port,
+            username: bm.username,
+            password: bm.password,
+            isFavorite: false
+        )
+        store.addBookmark(copy)
+        selectBookmark(copy)
+    }
+
     private func deleteSelectedBookmark() {
         guard let bm = selectedBookmark else { return }
         store.deleteBookmark(bm)
@@ -262,13 +306,14 @@ public struct ServerConnectSheet: View {
 struct BookmarkRow: View {
     let bookmark: ServerBookmark
     let store: MumbleStore
+    var onConnect: (() -> Void)? = nil
     @State private var pingInfo: ServerPingInfo? = nil
     @State private var pingFailed: Bool = false
 
     var body: some View {
         HStack {
             Image(systemName: "server.rack")
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(store.accentTint)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(bookmark.name)
@@ -311,6 +356,13 @@ struct BookmarkRow: View {
             .buttonStyle(.plain)
         }
         .padding(.vertical, 4)
+        .contentShape(Rectangle())
+        .simultaneousGesture(
+            TapGesture(count: 2).onEnded {
+                store.connect(bookmark: bookmark)
+                onConnect?()
+            }
+        )
         .task(id: "\(bookmark.host):\(bookmark.port)") {
             do {
                 let info = try await pingMumbleServer(host: bookmark.host, port: bookmark.port, timeoutMs: 2000)

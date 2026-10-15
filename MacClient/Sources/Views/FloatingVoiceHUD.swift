@@ -4,8 +4,7 @@ import SwiftUI
 public struct FloatingVoiceHUD: View {
     @Bindable public var store: MumbleStore
     @Namespace private var glassNamespace
-    @State private var showSettingsSheet: Bool = false
-    @State private var settingsTab: SettingsTab = .audio
+    @Environment(\.openSettings) private var openSettings
 
     public init(store: MumbleStore) {
         self.store = store
@@ -35,8 +34,8 @@ public struct FloatingVoiceHUD: View {
                 // 1. Transmit Mode Pill (VAD meter vs PTT Button)
                 if audioEngine.isPushToTalk {
                     Button(action: {
-                        settingsTab = .shortcuts
-                        showSettingsSheet = true
+                        store.selectedSettingsTab = .shortcuts
+                        openSettings()
                     }) {
                         HStack(spacing: 8) {
                             Image(systemName: audioEngine.isTransmitting ? "mic.fill" : "hand.tap.fill")
@@ -64,17 +63,19 @@ public struct FloatingVoiceHUD: View {
                     )
                     .contextMenu {
                         Button("Switch to Voice Activity (VAD)") {
-                            audioEngine.isPushToTalk = false
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+                                audioEngine.isPushToTalk = false
+                            }
                         }
                         Button("Shortcut Settings...") {
-                            settingsTab = .shortcuts
-                            showSettingsSheet = true
+                            store.selectedSettingsTab = .shortcuts
+                            openSettings()
                         }
                     }
                 } else {
                     Button(action: {
-                        settingsTab = .audio
-                        showSettingsSheet = true
+                        store.selectedSettingsTab = .audio
+                        openSettings()
                     }) {
                         HStack(spacing: 8) {
                             Image(systemName: audioEngine.isTransmitting ? "waveform.circle.fill" : "waveform")
@@ -107,18 +108,22 @@ public struct FloatingVoiceHUD: View {
                     .help("Voice Activation Meter (Click to Calibrate)")
                     .contextMenu {
                         Button("Switch to Push-to-Talk (PTT)") {
-                            audioEngine.isPushToTalk = true
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+                                audioEngine.isPushToTalk = true
+                            }
                         }
                         Button("Audio Settings...") {
-                            settingsTab = .audio
-                            showSettingsSheet = true
+                            store.selectedSettingsTab = .audio
+                            openSettings()
                         }
                     }
                 }
 
                 // 2. Microphone Mute Button
                 Button(action: {
-                    store.toggleSelfMute()
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+                        store.toggleSelfMute()
+                    }
                 }) {
                     Image(systemName: store.isSelfMuted ? "mic.slash.fill" : "mic.fill")
                         .font(.system(size: 15))
@@ -130,13 +135,15 @@ public struct FloatingVoiceHUD: View {
                     in: .circle
                 )
                 .glassEffectID("muteButton", in: glassNamespace)
-                .help(store.isSelfMuted ? "Unmute Microphone" : "Mute Microphone")
+                .help(store.isSelfMuted ? "Unmute Microphone (Cmd+Shift+M)" : "Mute Microphone (Cmd+Shift+M)")
 
                 // 3. Deafen Button
                 Button(action: {
-                    store.toggleSelfDeaf()
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+                        store.toggleSelfDeaf()
+                    }
                 }) {
-                    Image(systemName: store.isSelfDeafened ? "headphones" : "headphones")
+                    Image(systemName: "headphones")
                         .font(.system(size: 15))
                         .overlay {
                             if store.isSelfDeafened {
@@ -154,12 +161,12 @@ public struct FloatingVoiceHUD: View {
                     in: .circle
                 )
                 .glassEffectID("deafenButton", in: glassNamespace)
-                .help(store.isSelfDeafened ? "Undeafen Audio" : "Deafen Audio")
+                .help(store.isSelfDeafened ? "Undeafen Audio (Cmd+Shift+D)" : "Deafen Audio (Cmd+Shift+D)")
 
                 // 4. Audio Settings Gear Button
                 Button(action: {
-                    settingsTab = .audio
-                    showSettingsSheet = true
+                    store.selectedSettingsTab = .general
+                    openSettings()
                 }) {
                     Image(systemName: "gearshape.fill")
                         .font(.system(size: 15))
@@ -171,12 +178,14 @@ public struct FloatingVoiceHUD: View {
                     in: .circle
                 )
                 .glassEffectID("settingsButton", in: glassNamespace)
-                .help("Settings (Audio, Shortcuts, Tokens)")
+                .help("Settings (Cmd+,)")
 
                 // 5. Disconnect Button
                 if store.connectionStatus == .connected || store.connectionStatus == .connecting {
                     Button(action: {
-                        store.disconnect()
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+                            store.disconnect()
+                        }
                     }) {
                         Image(systemName: "phone.down.fill")
                             .font(.system(size: 15))
@@ -194,8 +203,10 @@ public struct FloatingVoiceHUD: View {
             .padding(.horizontal, 8)
             .padding(.vertical, 6)
         }
-        .sheet(isPresented: $showSettingsSheet) {
-            SettingsModal(store: store, isPresented: $showSettingsSheet, initialTab: settingsTab)
-        }
+        .animation(.spring(response: 0.35, dampingFraction: 0.7), value: store.isSelfMuted)
+        .animation(.spring(response: 0.35, dampingFraction: 0.7), value: store.isSelfDeafened)
+        .animation(.spring(response: 0.35, dampingFraction: 0.7), value: store.isWhispering)
+        .animation(.spring(response: 0.35, dampingFraction: 0.7), value: audioEngine.isPushToTalk)
+        .animation(.spring(response: 0.35, dampingFraction: 0.7), value: store.connectionStatus)
     }
 }

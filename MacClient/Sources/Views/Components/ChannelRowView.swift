@@ -35,12 +35,21 @@ public struct ChannelRowView: View {
     public var body: some View {
         HStack(spacing: 8) {
             Image(systemName: isJoined ? "speaker.wave.2.fill" : "folder.fill")
-                .foregroundStyle(isJoined ? Color.accentColor : Color.secondary)
+                .foregroundStyle(isJoined ? Color.green : Color.secondary)
                 .font(.subheadline)
 
             Text(channel.name)
                 .font(isJoined ? .headline : .body)
-                .foregroundStyle(isJoined ? Color.accentColor : Color.primary)
+                .foregroundStyle(isJoined ? Color.primary : Color.primary)
+
+            if isJoined {
+                Text("YOU")
+                    .font(.system(size: 8, weight: .black))
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 1)
+                    .background(Color.green.opacity(0.18), in: Capsule())
+                    .foregroundStyle(.green)
+            }
 
             if channel.isTemporary {
                 Image(systemName: "clock")
@@ -75,10 +84,12 @@ public struct ChannelRowView: View {
             store.moveUser(sessionId: sessionId, channelId: channel.id)
             return true
         }
-        .onTapGesture(count: 2) {
-            store.joinChannel(channelId: channel.id)
-        }
-        .onTapGesture(count: 1) {
+        .simultaneousGesture(
+            TapGesture(count: 2).onEnded {
+                store.joinChannel(channelId: channel.id)
+            }
+        )
+        .onTapGesture {
             store.selectedChannelId = channel.id
         }
         .contextMenu {

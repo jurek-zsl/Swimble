@@ -26,20 +26,57 @@ public struct ChatAndActivityView: View {
         VStack(spacing: 0) {
             // Header Bar
             HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(activeChannelName)
-                        .font(.title3.bold())
+                HStack(spacing: 10) {
+                    Image(systemName: store.isViewingCurrentChannel ? "speaker.wave.2.fill" : "number")
+                        .foregroundStyle(store.isViewingCurrentChannel ? Color.green : Color.secondary)
+                        .font(.title3)
 
-                    if let selId = store.selectedChannelId,
-                       let ch = store.channels.first(where: { $0.id == selId }),
-                       !ch.description.isEmpty {
-                        Text(ch.description)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 8) {
+                            Text(activeChannelName)
+                                .font(.title3.bold())
+
+                            if store.isViewingCurrentChannel {
+                                Text("VOICE CONNECTED")
+                                    .font(.system(size: 9, weight: .bold))
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(Color.green.opacity(0.15), in: Capsule())
+                                    .foregroundStyle(.green)
+                            }
+                        }
+
+                        if let selId = store.selectedChannelId,
+                           let ch = store.channels.first(where: { $0.id == selId }),
+                           !ch.description.isEmpty {
+                            Text(ch.description)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
 
                 Spacer()
+
+                // Join Channel Action if viewing another channel
+                if !store.isViewingCurrentChannel, let selId = store.selectedChannelId {
+                    Button(action: {
+                        withAnimation {
+                            store.joinChannel(channelId: selId)
+                        }
+                    }) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "arrow.right.circle.fill")
+                            Text("Join Channel")
+                                .font(.subheadline.bold())
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(store.accentTint)
+                    .help("Join this voice channel")
+                }
 
                 // Live Ping Popover Button
                 Button(action: { showPingPopover.toggle() }) {
@@ -79,13 +116,16 @@ public struct ChatAndActivityView: View {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 14) {
                         if store.chatMessages.isEmpty {
-                            VStack(spacing: 8) {
+                            VStack(spacing: 10) {
                                 Image(systemName: "bubble.left.and.bubble.right")
-                                    .font(.system(size: 36))
+                                    .font(.system(size: 40))
                                     .foregroundStyle(.tertiary)
-                                Text("No messages yet")
-                                    .font(.subheadline)
+                                Text("No messages in \(activeChannelName) yet")
+                                    .font(.headline)
                                     .foregroundStyle(.secondary)
+                                Text("Type a message below to start chatting.")
+                                    .font(.caption)
+                                    .foregroundStyle(.tertiary)
                             }
                             .frame(maxWidth: .infinity)
                             .padding(.top, 60)
@@ -117,20 +157,35 @@ public struct ChatAndActivityView: View {
 
                 // Message Compose Field
                 HStack(spacing: 12) {
-                    TextField("Message \(activeChannelName)...", text: $composeText)
-                        .textFieldStyle(.plain)
-                        .focused($isMessageFocused)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .background(Color.secondary.opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
-                        .onSubmit {
-                            submitMessage()
+                    HStack(spacing: 8) {
+                        Image(systemName: "text.bubble")
+                            .foregroundStyle(.secondary)
+                            .font(.system(size: 14))
+
+                        TextField("Message \(activeChannelName)...", text: $composeText)
+                            .textFieldStyle(.plain)
+                            .focused($isMessageFocused)
+                            .onSubmit {
+                                submitMessage()
+                            }
+
+                        if !composeText.isEmpty {
+                            Button(action: { composeText = "" }) {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundStyle(.secondary)
+                                    .font(.system(size: 13))
+                            }
+                            .buttonStyle(.plain)
                         }
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(Color.secondary.opacity(0.1), in: RoundedRectangle(cornerRadius: 10))
 
                     Button(action: submitMessage) {
                         Image(systemName: "arrow.up.circle.fill")
-                            .font(.system(size: 24))
-                            .foregroundStyle(composeText.isEmpty ? Color.secondary : Color.accentColor)
+                            .font(.system(size: 26))
+                            .foregroundStyle(composeText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? Color.secondary.opacity(0.4) : store.accentTint)
                     }
                     .buttonStyle(.plain)
                     .disabled(composeText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)

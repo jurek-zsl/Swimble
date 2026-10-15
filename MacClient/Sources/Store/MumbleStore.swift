@@ -1,6 +1,7 @@
 import Foundation
 import CryptoKit
 import Observation
+import SwiftUI
 
 /// Main application state store managing Mumble server networking, channel hierarchies,
 /// user speaking states, chat activity, and audio hardware synchronization.
@@ -54,6 +55,49 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
     // Ignored Users for Chat
     public var ignoredTextMessageUsers: Set<UInt32> = []
 
+    // User Settings & UI Preferences
+    public var selectedSettingsTab: SettingsTab = .general
+    public var accentColorName: String = UserDefaults.standard.string(forKey: "Swimble_AccentColor") ?? "Cyan" {
+        didSet {
+            UserDefaults.standard.set(accentColorName, forKey: "Swimble_AccentColor")
+            self.accentTint = Self.colorFromName(accentColorName)
+        }
+    }
+    public var accentTint: Color = .cyan
+
+    public var autoReconnectOnLaunch: Bool = UserDefaults.standard.bool(forKey: "Swimble_AutoReconnect") {
+        didSet {
+            UserDefaults.standard.set(autoReconnectOnLaunch, forKey: "Swimble_AutoReconnect")
+        }
+    }
+
+    public var myChannelId: UInt32? {
+        guard let myId = mySessionId, let me = users.first(where: { $0.sessionId == myId }) else { return nil }
+        return me.channelId
+    }
+
+    public var myChannel: ChannelInfo? {
+        guard let chId = myChannelId else { return nil }
+        return channels.first(where: { $0.id == chId })
+    }
+
+    public var isViewingCurrentChannel: Bool {
+        guard let sel = selectedChannelId, let myCh = myChannelId else { return false }
+        return sel == myCh
+    }
+
+    public static func colorFromName(_ name: String) -> Color {
+        switch name {
+        case "Cyan": return .cyan
+        case "Emerald": return .green
+        case "Sapphire": return .blue
+        case "Amethyst": return .purple
+        case "Amber": return .orange
+        case "Ruby": return .red
+        default: return .cyan
+        }
+    }
+
     public init() {
         // 1. Initialize or load persistent client identity from Keychain
         let identity: ClientIdentity
@@ -88,6 +132,14 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
         // 4. Load saved bookmarks & access tokens
         loadBookmarks()
         loadAccessTokens()
+
+        // 5. Initialize accent tint and auto-connect if enabled
+        self.accentTint = Self.colorFromName(self.accentColorName)
+        if self.autoReconnectOnLaunch, let fav = self.bookmarks.first(where: { $0.isFavorite }) ?? self.bookmarks.first {
+            Task { @MainActor [weak self] in
+                self?.connect(bookmark: fav)
+            }
+        }
     }
 
     // MARK: - Server Connection Actions
@@ -157,12 +209,14 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
         let newMuted = !isSelfMuted
         self.isSelfMuted = newMuted
         client.setSelfMute(muted: newMuted)
+        SoundManager.shared.playMute(isMuted: newMuted)
     }
 
     public func toggleSelfDeaf() {
         let newDeaf = !isSelfDeafened
         self.isSelfDeafened = newDeaf
         client.setSelfDeaf(deafened: newDeaf)
+        SoundManager.shared.playDeafen(isDeafened: newDeaf)
         // Mumble convention: deafening also mutes
         if newDeaf {
             self.isSelfMuted = true
@@ -399,6 +453,20 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
     nonisolated public func onUsersUpdated(users: [UserInfo]) {
         Task { @MainActor [weak self] in
             guard let self = self else { return }
+            let oldSessions = Set(self.users.map { $0.sessionId })
+            let newSessions = Set(users.map { $0.sessionId })
+
+            if !self.users.isEmpty {
+                let joined = newSessions.subtracting(oldSessions)
+                let left = oldSessions.subtracting(newSessions)
+                let myId = self.mySessionId ?? 0
+                if !joined.isEmpty && !joined.contains(myId) {
+                    SoundManager.shared.playUserJoined()
+                } else if !left.isEmpty && !left.contains(myId) {
+                    SoundManager.shared.playUserLeft()
+                }
+            }
+
             self.users = users
             if let myId = self.mySessionId, let me = users.first(where: { $0.sessionId == myId }) {
                 self.isSelfMuted = me.isSelfMuted
@@ -412,9 +480,14 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
         Task { @MainActor [weak self] in
             guard let self = self else { return }
             if let idx = self.users.firstIndex(where: { $0.sessionId == sessionId }) {
+                let wasWhispering = self.users[idx].talkingState == .whisper
                 self.users[idx].isTalking = isTalking
                 self.users[idx].talkingState = talkingState
                 self.rebuildTree()
+
+                if isTalking && talkingState == .whisper && !wasWhispering && sessionId != self.mySessionId {
+                    SoundManager.shared.playWhisper()
+                }
             }
         }
     }
@@ -424,6 +497,9 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
             guard let self = self else { return }
             if self.ignoredTextMessageUsers.contains(message.senderSession) { return }
             self.chatMessages.append(message)
+            if message.senderSession != self.mySessionId {
+                SoundManager.shared.playMessageReceived()
+            }
         }
     }
 
