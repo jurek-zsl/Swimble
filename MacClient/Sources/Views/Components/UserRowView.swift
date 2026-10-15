@@ -55,9 +55,8 @@ public struct UserRowView: View {
             SpeakingOrbView(isTalking: isTalking, talkingState: talkingState, size: 10)
 
             Text(user.name)
-                .font(.body)
+                .font(.system(size: 13, weight: isTalking ? .semibold : .medium))
                 .foregroundStyle(isTalking ? Color.primary : Color.secondary)
-                .fontWeight(isTalking ? .semibold : .regular)
 
             if isMe {
                 Text("(you)")

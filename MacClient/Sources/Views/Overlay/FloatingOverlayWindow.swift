@@ -60,7 +60,7 @@ public struct ChannelMemberOverlayRow: View {
 
             // Member name
             Text(member.name)
-                .font(.system(size: 11, weight: member.isTalking ? .semibold : .medium))
+                .font(.system(size: 11.5, weight: member.isTalking ? .semibold : .medium))
                 .foregroundStyle(
                     member.isTalking
                         ? Color.primary

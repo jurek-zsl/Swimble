@@ -171,7 +171,7 @@ struct ChatInputField: NSViewRepresentable {
         textField.isBordered = false
         textField.drawsBackground = false
         textField.focusRingType = .none
-        textField.font = .systemFont(ofSize: 13)
+        textField.font = .systemFont(ofSize: 13.5, weight: .regular)
         textField.textColor = .labelColor
         textField.placeholderString = placeholder
         textField.delegate = context.coordinator
@@ -1009,17 +1009,18 @@ struct ChatMessageRow: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
                 Text(message.senderName)
-                    .font(.subheadline.bold())
+                    .font(.system(size: 13, weight: .bold))
                     .foregroundStyle(Color.accentColor)
 
                 Text(timeString)
-                    .font(.caption2)
+                    .font(.system(size: 11))
                     .foregroundStyle(.tertiary)
             }
 
             if !cleanAttributedText.characters.isEmpty {
                 Text(cleanAttributedText)
-                    .font(.body)
+                    .font(.system(size: 13.5, weight: .regular))
+                    .lineSpacing(3)
                     .textSelection(.enabled)
             }
 
@@ -1095,18 +1096,70 @@ struct ChatMessageRow: View {
 
     private func parseBody(_ raw: String) -> AttributedString {
         guard !raw.isEmpty else { return AttributedString("") }
-        if let data = raw.data(using: .utf8),
-           let nsAttr = try? NSAttributedString(
-            data: data,
-            options: [
-                .documentType: NSAttributedString.DocumentType.html,
-                .characterEncoding: String.Encoding.utf8.rawValue
-            ],
-            documentAttributes: nil
-           ) {
-            return AttributedString(nsAttr)
+
+        // Plain text messages (no HTML tags) render directly with native SF Pro system typography
+        if !raw.contains("<") || !raw.contains(">") {
+            if let md = try? AttributedString(markdown: raw) {
+                return md
+            }
+            return AttributedString(raw)
         }
-        return (try? AttributedString(markdown: raw)) ?? AttributedString(raw)
+
+        let styledHtml = """
+        <!DOCTYPE html>
+        <html>
+        <head>
+        <meta charset="utf-8">
+        <style>
+        body, p, div, span, a {
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro", "Helvetica Neue", Helvetica, Arial, sans-serif;
+            font-size: 13.5px;
+            line-height: 1.35;
+        }
+        </style>
+        </head>
+        <body>\(raw)</body>
+        </html>
+        """
+
+        guard let data = styledHtml.data(using: .utf8),
+              let nsAttr = try? NSMutableAttributedString(
+                data: data,
+                options: [
+                    .documentType: NSAttributedString.DocumentType.html,
+                    .characterEncoding: String.Encoding.utf8.rawValue
+                ],
+                documentAttributes: nil
+              ) else {
+            return (try? AttributedString(markdown: raw)) ?? AttributedString(raw)
+        }
+
+        // Sanitize any remaining WebKit default Times-Roman fonts and dark strokes
+        nsAttr.enumerateAttributes(in: NSRange(location: 0, length: nsAttr.length)) { attrs, range, _ in
+            if let font = attrs[.font] as? NSFont {
+                let isBold = font.fontDescriptor.symbolicTraits.contains(.bold)
+                let isItalic = font.fontDescriptor.symbolicTraits.contains(.italic)
+                let weight: NSFont.Weight = isBold ? .semibold : .regular
+                var newFont = NSFont.systemFont(ofSize: 13.5, weight: weight)
+                if isItalic {
+                    let italicDesc = newFont.fontDescriptor.withSymbolicTraits(.italic)
+                    newFont = NSFont(descriptor: italicDesc, size: 13.5) ?? newFont
+                }
+                nsAttr.addAttribute(.font, value: newFont, range: range)
+            }
+            if attrs[.link] == nil {
+                nsAttr.addAttribute(.foregroundColor, value: NSColor.labelColor, range: range)
+            }
+            nsAttr.removeAttribute(.strokeColor, range: range)
+            nsAttr.removeAttribute(.strokeWidth, range: range)
+        }
+
+        // Trim trailing newlines added by HTML block elements (<p>, <div>, etc.)
+        while nsAttr.string.hasSuffix("\n") || nsAttr.string.hasSuffix("\r") {
+            nsAttr.deleteCharacters(in: NSRange(location: nsAttr.length - 1, length: 1))
+        }
+
+        return AttributedString(nsAttr)
     }
 
     private func extractDataUriImages(from text: String) -> [NSImage] {

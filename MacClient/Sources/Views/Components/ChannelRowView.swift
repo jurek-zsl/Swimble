@@ -39,8 +39,8 @@ public struct ChannelRowView: View {
                 .font(.subheadline)
 
             Text(channel.name)
-                .font(isJoined ? .headline : .body)
-                .foregroundStyle(isJoined ? Color.primary : Color.primary)
+                .font(.system(size: 13, weight: isJoined ? .semibold : .medium))
+                .foregroundStyle(Color.primary)
 
             if isJoined {
                 Text("YOU")
