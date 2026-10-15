@@ -42,6 +42,11 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
     public var clientIdentity: ClientIdentity!
     public var certFingerprint: String = ""
 
+    // Server Ping Caching
+    public var serverPingResults: [String: ServerPingInfo] = [:]
+    public var serverPingFailed: [String: Bool] = [:]
+    public var isPingingServers: Bool = false
+
     // Server Connection Information
     public var connectionInfo: ServerConnectionInfo? = nil
 
@@ -387,6 +392,55 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
     private func saveBookmarks() {
         if let data = try? JSONEncoder().encode(bookmarks) {
             UserDefaults.standard.set(data, forKey: "Swimble_Bookmarks")
+        }
+    }
+
+    // MARK: - Server Ping Operations
+
+    public static func pingKey(host: String, port: UInt16) -> String {
+        let clean = host.trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "mumble://", with: "")
+            .replacingOccurrences(of: "https://", with: "")
+            .replacingOccurrences(of: "http://", with: "")
+            .lowercased()
+        let cleanHost = clean.components(separatedBy: ":").first ?? clean
+        return "\(cleanHost):\(port)"
+    }
+
+    public func pingKey(for bookmark: ServerBookmark) -> String {
+        Self.pingKey(host: bookmark.host, port: bookmark.port)
+    }
+
+    public func pingBookmark(_ bookmark: ServerBookmark) async {
+        let cleanHost = bookmark.host.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanHost.isEmpty else { return }
+        let key = pingKey(for: bookmark)
+
+        do {
+            let info = try await pingMumbleServer(host: cleanHost, port: bookmark.port, timeoutMs: 3000)
+            self.serverPingResults[key] = info
+            self.serverPingFailed[key] = false
+        } catch is CancellationError {
+            // Task was cancelled (e.g. view disappeared or refresh triggered); do not mark as failed
+        } catch {
+            if !Task.isCancelled {
+                self.serverPingResults[key] = nil
+                self.serverPingFailed[key] = true
+            }
+        }
+    }
+
+    public func pingAllBookmarks() {
+        guard !isPingingServers else { return }
+        isPingingServers = true
+        let list = self.bookmarks
+        Task { [weak self] in
+            for bookmark in list {
+                Task { [weak self] in
+                    await self?.pingBookmark(bookmark)
+                }
+            }
+            self?.isPingingServers = false
         }
     }
 

@@ -1,3 +1,4 @@
+use std::net::SocketAddr;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::net::{TcpStream, UdpSocket};
 use tokio::time::timeout;
@@ -5,32 +6,76 @@ use crate::{MumbleError, ServerPingInfo};
 
 #[uniffi::export]
 pub async fn ping_mumble_server(host: String, port: u16, timeout_ms: u64) -> Result<ServerPingInfo, MumbleError> {
+    let trimmed = host.trim();
+    let no_prefix = trimmed
+        .strip_prefix("mumble://")
+        .or_else(|| trimmed.strip_prefix("http://"))
+        .or_else(|| trimmed.strip_prefix("https://"))
+        .unwrap_or(trimmed);
+
+    // If host has :port embedded (e.g. "127.0.0.1:64738" or "server.com:64738")
+    let (target_host, target_port) = if let Some((h, p_str)) = no_prefix.rsplit_once(':') {
+        if !h.contains(':') || (h.starts_with('[') && h.ends_with(']')) {
+            let clean_h = h.trim_matches('[').trim_matches(']');
+            if let Ok(parsed_p) = p_str.parse::<u16>() {
+                (clean_h, parsed_p)
+            } else {
+                (clean_h, port)
+            }
+        } else {
+            (no_prefix, port)
+        }
+    } else {
+        (no_prefix, port)
+    };
+
+    // Resolve address list via Tokio DNS lookup
+    let addrs: Vec<SocketAddr> = match tokio::net::lookup_host((target_host, target_port)).await {
+        Ok(iter) => iter.collect(),
+        Err(e) => {
+            return Err(MumbleError::NetworkError(format!(
+                "DNS lookup failed for {}:{}: {}",
+                target_host, target_port, e
+            )));
+        }
+    };
+
+    if addrs.is_empty() {
+        return Err(MumbleError::NetworkError(format!(
+            "No IP addresses resolved for {}:{}",
+            target_host, target_port
+        )));
+    }
+
     // 1. Try standard UDP Mumble ping probe first (short timeout)
-    let udp_timeout_ms = timeout_ms.min(1000).max(300);
-    if let Ok(info) = ping_mumble_udp(&host, port, udp_timeout_ms).await {
-        return Ok(info);
+    let udp_timeout = Duration::from_millis(timeout_ms.min(1000).max(400));
+    for &addr in &addrs {
+        if let Ok(info) = ping_udp_target(addr, udp_timeout).await {
+            return Ok(info);
+        }
     }
 
     // 2. Fall back to TCP connection probe (measures handshake latency)
-    // Many Murmur servers disable UDP ping or cloud firewalls block UDP,
-    // but TCP control port is active and accepts client connections.
-    let tcp_timeout_ms = timeout_ms.max(1500);
-    ping_mumble_tcp(&host, port, tcp_timeout_ms).await
+    let tcp_timeout = Duration::from_millis(timeout_ms.max(1500));
+    for &addr in &addrs {
+        if let Ok(info) = ping_tcp_target(addr, tcp_timeout).await {
+            return Ok(info);
+        }
+    }
+
+    Err(MumbleError::NetworkError(format!(
+        "Server {}:{} is unreachable",
+        target_host, target_port
+    )))
 }
 
-async fn ping_mumble_udp(host: &str, port: u16, timeout_ms: u64) -> Result<ServerPingInfo, MumbleError> {
-    let bind_addr = if host.contains(':') && !host.starts_with('[') {
-        "[::]:0"
-    } else {
-        "0.0.0.0:0"
-    };
-
+async fn ping_udp_target(addr: SocketAddr, timeout_dur: Duration) -> Result<ServerPingInfo, MumbleError> {
+    let bind_addr = if addr.is_ipv6() { "[::]:0" } else { "0.0.0.0:0" };
     let socket = UdpSocket::bind(bind_addr)
         .await
         .map_err(|e| MumbleError::NetworkError(format!("Failed to bind UDP socket: {}", e)))?;
 
-    let addr = format!("{}:{}", host, port);
-    socket.connect(&addr)
+    socket.connect(addr)
         .await
         .map_err(|e| MumbleError::NetworkError(format!("Failed to connect UDP socket to {}: {}", addr, e)))?;
 
@@ -50,9 +95,7 @@ async fn ping_mumble_udp(host: &str, port: u16, timeout_ms: u64) -> Result<Serve
         .map_err(|e| MumbleError::NetworkError(format!("Failed to send UDP ping: {}", e)))?;
 
     let mut buf = [0u8; 128];
-    let duration = Duration::from_millis(timeout_ms);
-
-    let n = timeout(duration, socket.recv(&mut buf))
+    let n = timeout(timeout_dur, socket.recv(&mut buf))
         .await
         .map_err(|_| MumbleError::NetworkError("UDP ping timed out".into()))?
         .map_err(|e| MumbleError::NetworkError(format!("Failed to recv UDP ping reply: {}", e)))?;
@@ -82,12 +125,9 @@ async fn ping_mumble_udp(host: &str, port: u16, timeout_ms: u64) -> Result<Serve
     })
 }
 
-async fn ping_mumble_tcp(host: &str, port: u16, timeout_ms: u64) -> Result<ServerPingInfo, MumbleError> {
-    let addr = format!("{}:{}", host, port);
+async fn ping_tcp_target(addr: SocketAddr, timeout_dur: Duration) -> Result<ServerPingInfo, MumbleError> {
     let start_instant = Instant::now();
-    let duration = Duration::from_millis(timeout_ms);
-
-    let stream = timeout(duration, TcpStream::connect(&addr))
+    let stream = timeout(timeout_dur, TcpStream::connect(addr))
         .await
         .map_err(|_| MumbleError::NetworkError(format!("TCP connection to {} timed out", addr)))?
         .map_err(|e| MumbleError::NetworkError(format!("Failed to connect TCP to {}: {}", addr, e)))?;

@@ -25,6 +25,14 @@ public struct ServerConnectSheet: View {
         store.bookmarks.first(where: { $0.id == selectedBookmarkId })
     }
 
+    private var favoriteBookmarks: [ServerBookmark] {
+        store.bookmarks.filter { $0.isFavorite }
+    }
+
+    private var otherBookmarks: [ServerBookmark] {
+        store.bookmarks.filter { !$0.isFavorite }
+    }
+
     public var body: some View {
         VStack(spacing: 0) {
             // Header
@@ -47,17 +55,21 @@ public struct ServerConnectSheet: View {
                 // Left Column: Saved Bookmarks List
                 VStack(spacing: 0) {
                     List(selection: $selectedBookmarkId) {
-                        Section("Favorites") {
-                            ForEach(store.bookmarks.filter { $0.isFavorite }) { bookmark in
-                                BookmarkRow(bookmark: bookmark, store: store, onConnect: { dismiss() })
-                                    .tag(bookmark.id)
+                        if !favoriteBookmarks.isEmpty {
+                            Section("Favorites") {
+                                ForEach(favoriteBookmarks) { bookmark in
+                                    BookmarkRow(bookmark: bookmark, store: store, onConnect: { dismiss() })
+                                        .tag(bookmark.id)
+                                }
                             }
                         }
 
-                        Section("All Servers") {
-                            ForEach(store.bookmarks) { bookmark in
-                                BookmarkRow(bookmark: bookmark, store: store, onConnect: { dismiss() })
-                                    .tag(bookmark.id)
+                        if !otherBookmarks.isEmpty || favoriteBookmarks.isEmpty {
+                            Section(favoriteBookmarks.isEmpty ? "Servers" : "Other Servers") {
+                                ForEach(favoriteBookmarks.isEmpty ? store.bookmarks : otherBookmarks) { bookmark in
+                                    BookmarkRow(bookmark: bookmark, store: store, onConnect: { dismiss() })
+                                        .tag(bookmark.id)
+                                }
                             }
                         }
                     }
@@ -65,7 +77,7 @@ public struct ServerConnectSheet: View {
 
                     Divider()
 
-                    // Bottom list toolbar (+ / duplicate / trash)
+                    // Bottom list toolbar (+ / duplicate / trash / refresh)
                     HStack(spacing: 8) {
                         Button(action: createNewBookmark) {
                             Image(systemName: "plus")
@@ -85,6 +97,14 @@ public struct ServerConnectSheet: View {
                         .help("Delete Selected Server")
 
                         Spacer()
+
+                        Button(action: {
+                            store.pingAllBookmarks()
+                        }) {
+                            Image(systemName: "arrow.clockwise")
+                        }
+                        .disabled(store.isPingingServers)
+                        .help("Refresh Server Status")
                     }
                     .padding(8)
                 }
@@ -222,6 +242,7 @@ public struct ServerConnectSheet: View {
             if selectedBookmarkId == nil, let first = store.bookmarks.first {
                 selectBookmark(first)
             }
+            store.pingAllBookmarks()
         }
         .onChange(of: selectedBookmarkId) { _, newId in
             if let id = newId, let bm = store.bookmarks.first(where: { $0.id == id }) {
@@ -256,6 +277,9 @@ public struct ServerConnectSheet: View {
         updated.password = formPassword.isEmpty ? nil : formPassword
 
         store.saveBookmark(updated)
+        Task {
+            await store.pingBookmark(updated)
+        }
     }
 
     private func createNewBookmark() {
@@ -267,6 +291,9 @@ public struct ServerConnectSheet: View {
         )
         store.addBookmark(newBm)
         selectBookmark(newBm)
+        Task {
+            await store.pingBookmark(newBm)
+        }
     }
 
     private func duplicateSelectedBookmark() {
@@ -282,6 +309,9 @@ public struct ServerConnectSheet: View {
         )
         store.addBookmark(copy)
         selectBookmark(copy)
+        Task {
+            await store.pingBookmark(copy)
+        }
     }
 
     private func deleteSelectedBookmark() {
@@ -307,8 +337,18 @@ struct BookmarkRow: View {
     let bookmark: ServerBookmark
     let store: MumbleStore
     var onConnect: (() -> Void)? = nil
-    @State private var pingInfo: ServerPingInfo? = nil
-    @State private var pingFailed: Bool = false
+
+    private var pingKey: String {
+        store.pingKey(for: bookmark)
+    }
+
+    private var pingInfo: ServerPingInfo? {
+        store.serverPingResults[pingKey]
+    }
+
+    private var pingFailed: Bool {
+        store.serverPingFailed[pingKey] ?? false
+    }
 
     private var isCurrentlyConnected: Bool {
         store.connectionStatus == .connected &&
@@ -366,6 +406,13 @@ struct BookmarkRow: View {
                         Text("Offline")
                             .font(.caption2)
                             .foregroundStyle(.red)
+                    } else {
+                        Text("•")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                        Text("Checking...")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
                     }
                 }
             }
@@ -389,16 +436,9 @@ struct BookmarkRow: View {
                 onConnect?()
             }
         )
-        .task(id: "\(bookmark.host):\(bookmark.port)") {
+        .task(id: pingKey) {
             if isCurrentlyConnected { return }
-            do {
-                let info = try await pingMumbleServer(host: bookmark.host, port: bookmark.port, timeoutMs: 2000)
-                self.pingInfo = info
-                self.pingFailed = false
-            } catch {
-                self.pingInfo = nil
-                self.pingFailed = true
-            }
+            await store.pingBookmark(bookmark)
         }
     }
 }
