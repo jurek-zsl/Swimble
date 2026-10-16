@@ -296,6 +296,75 @@ struct AudioSettingsTab: View {
 
 // MARK: - 2. Shortcuts Settings Tab
 
+struct ShortcutRowView: View {
+    let title: String
+    let subtitle: String
+    let action: KeybindAction
+    let keybind: PTTKeybind?
+    let defaultKeybind: PTTKeybind?
+    let globalPTT: GlobalPTT
+    let onResetOrClear: () -> Void
+
+    var isRecording: Bool {
+        globalPTT.activeRecordingAction == action
+    }
+
+    var displayLabel: String {
+        if isRecording {
+            return globalPTT.recordingPreviewString(for: action)
+        }
+        return keybind?.displayString ?? "None"
+    }
+
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.subheadline.bold())
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            Button(action: {
+                if isRecording {
+                    globalPTT.activeRecordingAction = nil
+                } else {
+                    globalPTT.activeRecordingAction = action
+                }
+            }) {
+                HStack(spacing: 6) {
+                    if isRecording {
+                        Image(systemName: "record.circle")
+                            .symbolEffect(.pulse)
+                    }
+                    Text(displayLabel)
+                        .bold()
+                }
+                .frame(minWidth: 130)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(isRecording ? .orange : (keybind != nil ? .accentColor : .secondary.opacity(0.3)))
+
+            if let defaultKey = defaultKeybind {
+                if keybind != defaultKey {
+                    Button("Reset") {
+                        onResetOrClear()
+                    }
+                    .buttonStyle(.bordered)
+                }
+            } else if keybind != nil {
+                Button("Clear") {
+                    onResetOrClear()
+                }
+                .buttonStyle(.bordered)
+            }
+        }
+    }
+}
+
 struct ShortcutsSettingsTab: View {
     @Bindable var store: MumbleStore
 
@@ -311,146 +380,80 @@ struct ShortcutsSettingsTab: View {
                     .font(.headline)
 
                 // 1. Push-to-Talk Shortcut
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Push-to-Talk")
-                            .font(.subheadline.bold())
-                        Text("Hold this key while gaming to transmit voice.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Spacer()
-
-                    Button(action: {
-                        if globalPTT.activeRecordingAction == .ptt {
-                            globalPTT.activeRecordingAction = nil
-                        } else {
-                            globalPTT.activeRecordingAction = .ptt
-                        }
-                    }) {
-                        Text(globalPTT.activeRecordingAction == .ptt ? "Press any key..." : globalPTT.currentKeybind.displayString)
-                            .bold()
-                            .frame(minWidth: 120)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(globalPTT.activeRecordingAction == .ptt ? .orange : .accentColor)
-
-                    if globalPTT.currentKeybind != .defaultGrave {
-                        Button("Reset") {
-                            globalPTT.currentKeybind = .defaultGrave
-                        }
-                        .buttonStyle(.bordered)
-                    }
-                }
+                ShortcutRowView(
+                    title: "Push-to-Talk",
+                    subtitle: "Hold key combination to transmit audio while gaming.",
+                    action: .ptt,
+                    keybind: globalPTT.currentKeybind,
+                    defaultKeybind: .defaultGrave,
+                    globalPTT: globalPTT,
+                    onResetOrClear: { globalPTT.currentKeybind = .defaultGrave }
+                )
 
                 Divider()
 
                 // 2. Push-to-Whisper Shortcut
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Push-to-Whisper")
-                            .font(.subheadline.bold())
-                        Text("Hold this key to whisper directly to the active whisper target.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Spacer()
-
-                    Button(action: {
-                        if globalPTT.activeRecordingAction == .whisper {
-                            globalPTT.activeRecordingAction = nil
-                        } else {
-                            globalPTT.activeRecordingAction = .whisper
-                        }
-                    }) {
-                        Text(globalPTT.activeRecordingAction == .whisper ? "Press any key..." : (globalPTT.whisperKeybind?.displayString ?? "None"))
-                            .bold()
-                            .frame(minWidth: 120)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(globalPTT.activeRecordingAction == .whisper ? .cyan : .secondary.opacity(0.3))
-
-                    if globalPTT.whisperKeybind != nil {
-                        Button("Clear") {
-                            globalPTT.whisperKeybind = nil
-                        }
-                        .buttonStyle(.bordered)
-                    }
-                }
+                ShortcutRowView(
+                    title: "Push-to-Whisper",
+                    subtitle: "Hold key combination to whisper directly to active target.",
+                    action: .whisper,
+                    keybind: globalPTT.whisperKeybind,
+                    defaultKeybind: nil,
+                    globalPTT: globalPTT,
+                    onResetOrClear: { globalPTT.whisperKeybind = nil }
+                )
 
                 Divider()
 
                 // 3. Global Mute Shortcut
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Toggle Mute")
-                            .font(.subheadline.bold())
-                        Text("Mute or unmute your microphone globally.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Spacer()
-
-                    Button(action: {
-                        if globalPTT.activeRecordingAction == .mute {
-                            globalPTT.activeRecordingAction = nil
-                        } else {
-                            globalPTT.activeRecordingAction = .mute
-                        }
-                    }) {
-                        Text(globalPTT.activeRecordingAction == .mute ? "Press any key..." : (globalPTT.muteToggleKeybind?.displayString ?? "None"))
-                            .bold()
-                            .frame(minWidth: 120)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(globalPTT.activeRecordingAction == .mute ? .orange : .secondary.opacity(0.3))
-
-                    if globalPTT.muteToggleKeybind != nil {
-                        Button("Clear") {
-                            globalPTT.muteToggleKeybind = nil
-                        }
-                        .buttonStyle(.bordered)
-                    }
-                }
+                ShortcutRowView(
+                    title: "Toggle Mute",
+                    subtitle: "Mute or unmute your microphone globally (e.g. Ctrl + Shift + Z).",
+                    action: .mute,
+                    keybind: globalPTT.muteToggleKeybind,
+                    defaultKeybind: nil,
+                    globalPTT: globalPTT,
+                    onResetOrClear: { globalPTT.muteToggleKeybind = nil }
+                )
 
                 Divider()
 
-                // 3. Global Deafen Shortcut
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Toggle Deafen")
-                            .font(.subheadline.bold())
-                        Text("Mute all incoming audio and microphone globally.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
+                // 4. Global Deafen Shortcut
+                ShortcutRowView(
+                    title: "Toggle Deafen",
+                    subtitle: "Mute all incoming audio and your microphone globally.",
+                    action: .deafen,
+                    keybind: globalPTT.deafenToggleKeybind,
+                    defaultKeybind: nil,
+                    globalPTT: globalPTT,
+                    onResetOrClear: { globalPTT.deafenToggleKeybind = nil }
+                )
 
-                    Spacer()
+                Divider()
 
-                    Button(action: {
-                        if globalPTT.activeRecordingAction == .deafen {
-                            globalPTT.activeRecordingAction = nil
-                        } else {
-                            globalPTT.activeRecordingAction = .deafen
-                        }
-                    }) {
-                        Text(globalPTT.activeRecordingAction == .deafen ? "Press any key..." : (globalPTT.deafenToggleKeybind?.displayString ?? "None"))
-                            .bold()
-                            .frame(minWidth: 120)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(globalPTT.activeRecordingAction == .deafen ? .orange : .secondary.opacity(0.3))
+                // 5. Global Overlay Shortcut
+                ShortcutRowView(
+                    title: "Toggle Game Overlay",
+                    subtitle: "Show or hide the floating in-game speaking HUD overlay.",
+                    action: .overlay,
+                    keybind: globalPTT.overlayToggleKeybind,
+                    defaultKeybind: nil,
+                    globalPTT: globalPTT,
+                    onResetOrClear: { globalPTT.overlayToggleKeybind = nil }
+                )
 
-                    if globalPTT.deafenToggleKeybind != nil {
-                        Button("Clear") {
-                            globalPTT.deafenToggleKeybind = nil
-                        }
-                        .buttonStyle(.bordered)
-                    }
+                Divider()
+
+                // Instructions / Tip banner
+                HStack(spacing: 8) {
+                    Image(systemName: "keyboard.badge.ellipsis")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    Text("Tip: Click a shortcut button, then press any single key or combination of 2, 3 or more keys (e.g. Ctrl + Shift + Z). Press Escape to cancel or Delete to clear.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
+                .padding(.top, 4)
             }
             .padding(16)
             .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))

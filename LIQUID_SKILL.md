@@ -1,6 +1,6 @@
 ---
 name: swiftui-expert-skill
-description: "Write, review, or improve SwiftUI code following best practices for state management, view composition, performance, modern APIs, Swift concurrency, and iOS 26+ Liquid Glass adoption. Use when buil..."
+description: Write, review, or improve SwiftUI code following best practices for state management, view composition, performance, modern APIs, Swift concurrency, and macOS 26 / iOS 26+ Liquid Glass adoption. Use when building SwiftUI views, refactoring UI components, reviewing state management, or implementing Liquid Glass effects.
 source: "https://github.com/AvdLee/SwiftUI-Agent-Skill/tree/main/swiftui-expert-skill"
 risk: safe
 ---

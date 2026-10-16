@@ -206,12 +206,12 @@ public struct FloatingOverlayPillView: View {
 
     private var dragHandleView: some View {
         ZStack {
-            Image(systemName: "line.3.horizontal")
-                .font(.system(size: 8, weight: .bold))
-                .foregroundStyle(Color.secondary.opacity(0.6))
+            Capsule()
+                .fill(Color.secondary.opacity(0.35))
+                .frame(width: 3.5, height: 13)
             OverlayDragHandle()
         }
-        .frame(width: 14, height: 18)
+        .frame(width: 10, height: 20)
         .contentShape(Rectangle())
         .help("Drag to reposition overlay")
     }
@@ -272,22 +272,28 @@ public struct FloatingOverlayPillView: View {
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
 
                 Spacer(minLength: 4)
 
                 closeButton
             }
             .padding(.leading, 8)
-            .padding(.trailing, 10)
-            .padding(.vertical, 8)
-            .frame(width: 210)
+            .padding(.trailing, 8)
+            .padding(.vertical, 6)
+            .frame(width: 220)
             .glassEffect(.regular.interactive(), in: .capsule)
+            .overlay(
+                Capsule()
+                    .strokeBorder(Color.white.opacity(0.12), lineWidth: 0.5)
+            )
             .simultaneousGesture(dragGesture)
         } else if isCollapsed {
             // Collapsed compact pill
             HStack(spacing: 7) {
                 dragHandleView
 
+                // Channel indicator & member count
                 HStack(spacing: 5) {
                     Image(systemName: "antenna.radiowaves.left.and.right")
                         .foregroundStyle(store.accentTint)
@@ -297,54 +303,63 @@ public struct FloatingOverlayPillView: View {
                         .font(.system(size: 11, weight: .bold))
                         .foregroundStyle(.primary)
                         .lineLimit(1)
+                        .truncationMode(.tail)
+                        .frame(maxWidth: activeSpeakers.isEmpty ? 110 : 70, alignment: .leading)
 
-                    Text("(\(channelMembers.count))")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
+                    Text("\(channelMembers.count)")
+                        .font(.system(size: 9.5, weight: .bold))
+                        .foregroundStyle(Color.secondary.opacity(0.9))
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 1.5)
+                        .background(Color.secondary.opacity(0.15), in: Capsule())
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: true)
                 }
                 .contentShape(Rectangle())
                 .simultaneousGesture(dragGesture)
 
+                // Active speaker badge (if anyone is currently talking)
                 if let speaker = activeSpeakers.first {
-                    HStack(spacing: 4) {
-                        SpeakingOrbView(isTalking: true, talkingState: speaker.talkingState, size: 7)
+                    HStack(spacing: 5) {
+                        SpeakingOrbView(isTalking: true, talkingState: speaker.talkingState, size: 7.5)
                         Text(speaker.name)
-                            .font(.system(size: 10, weight: .semibold))
+                            .font(.system(size: 10.5, weight: .semibold))
+                            .foregroundStyle(speaker.isMe ? Color.accentColor : Color.primary)
                             .lineLimit(1)
+                            .truncationMode(.tail)
+                            .frame(maxWidth: 85, alignment: .leading)
                     }
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Color.green.opacity(0.15), in: Capsule())
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3)
+                    .background(Color.green.opacity(0.18), in: Capsule())
+                    .overlay(
+                        Capsule()
+                            .strokeBorder(Color.green.opacity(0.35), lineWidth: 0.5)
+                    )
+                    .fixedSize(horizontal: true, vertical: false)
                 }
 
-                Spacer(minLength: 4)
+                Spacer(minLength: 6)
 
-                quickMuteButton
-                quickDeafenButton
-
-                Button(action: {
-                    withAnimation(.spring(response: 0.28, dampingFraction: 0.8)) {
-                        isCollapsed = false
-                    }
-                }) {
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(Color.secondary)
-                        .frame(width: 18, height: 18)
-                        .contentShape(Circle())
+                // Control buttons cluster
+                HStack(spacing: 4) {
+                    quickMuteButton
+                    quickDeafenButton
+                    expandCollapseButton
+                    closeButton
                 }
-                .buttonStyle(.plain)
-                .help("Expand Member List")
-
-                closeButton
             }
             .padding(.leading, 8)
-            .padding(.trailing, 10)
-            .padding(.vertical, 6)
-            .frame(minWidth: 220, maxWidth: 300)
+            .padding(.trailing, 8)
+            .padding(.vertical, 5)
+            .frame(minWidth: activeSpeakers.isEmpty ? 250 : 320, maxWidth: 390)
             .glassEffect(
                 .regular.tint(!activeSpeakers.isEmpty ? Color.green.opacity(0.12) : nil).interactive(),
                 in: .capsule
+            )
+            .overlay(
+                Capsule()
+                    .strokeBorder(Color.white.opacity(0.12), lineWidth: 0.5)
             )
         } else {
             // Expanded Channel Card showing all channel members with speaking dots & audio status
@@ -361,37 +376,31 @@ public struct FloatingOverlayPillView: View {
                         Text("#\(channelName)")
                             .font(.system(size: 11, weight: .bold))
                             .lineLimit(1)
+                            .truncationMode(.tail)
 
-                        Text("(\(channelMembers.count))")
-                            .font(.system(size: 10))
-                            .foregroundStyle(.secondary)
+                        Text("\(channelMembers.count)")
+                            .font(.system(size: 9.5, weight: .bold))
+                            .foregroundStyle(Color.secondary.opacity(0.9))
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1.5)
+                            .background(Color.secondary.opacity(0.15), in: Capsule())
+                            .lineLimit(1)
+                            .fixedSize(horizontal: true, vertical: true)
                     }
                     .contentShape(Rectangle())
                     .simultaneousGesture(dragGesture)
 
                     Spacer(minLength: 4)
 
-                    quickMuteButton
-                    quickDeafenButton
-
-                    Button(action: {
-                        withAnimation(.spring(response: 0.28, dampingFraction: 0.8)) {
-                            isCollapsed = true
-                        }
-                    }) {
-                        Image(systemName: "chevron.up")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundStyle(Color.secondary)
-                            .frame(width: 18, height: 18)
-                            .contentShape(Circle())
+                    HStack(spacing: 4) {
+                        quickMuteButton
+                        quickDeafenButton
+                        expandCollapseButton
+                        closeButton
                     }
-                    .buttonStyle(.plain)
-                    .help("Collapse Overlay")
-
-                    closeButton
                 }
                 .padding(.leading, 8)
-                .padding(.trailing, 10)
+                .padding(.trailing, 8)
                 .padding(.top, 8)
                 .padding(.bottom, 2)
 
@@ -421,63 +430,95 @@ public struct FloatingOverlayPillView: View {
                     .padding(.bottom, 6)
                 }
             }
-            .frame(minWidth: 220, maxWidth: 260)
+            .frame(minWidth: 240, maxWidth: 280)
             .glassEffect(
                 .regular.tint(!activeSpeakers.isEmpty ? Color.green.opacity(0.08) : nil).interactive(),
                 in: RoundedRectangle(cornerRadius: 14)
             )
+            .overlay(
+                RoundedRectangle(cornerRadius: 14)
+                    .strokeBorder(Color.white.opacity(0.12), lineWidth: 0.5)
+            )
         }
+    }
+
+    private func controlButton(
+        systemName: String,
+        isActive: Bool = false,
+        activeColor: Color = .red,
+        helpText: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 9.5, weight: .bold))
+                .foregroundStyle(
+                    isActive
+                        ? activeColor
+                        : Color.secondary.opacity(0.85)
+                )
+                .frame(width: 22, height: 22)
+                .background(
+                    isActive
+                        ? activeColor.opacity(0.2)
+                        : Color.secondary.opacity(0.12),
+                    in: Circle()
+                )
+                .overlay(
+                    Circle()
+                        .strokeBorder(
+                            isActive
+                                ? activeColor.opacity(0.4)
+                                : Color.white.opacity(0.08),
+                            lineWidth: 0.5
+                        )
+                )
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .help(helpText)
     }
 
     private var quickMuteButton: some View {
-        Button(action: {
-            store.toggleSelfMute()
-        }) {
-            Image(systemName: store.isSelfMuted ? "mic.slash.fill" : "mic.fill")
-                .font(.system(size: 10, weight: .bold))
-                .foregroundStyle(store.isSelfMuted ? Color.red : Color.secondary)
-                .frame(width: 20, height: 20)
-                .background(
-                    store.isSelfMuted ? Color.red.opacity(0.18) : Color.secondary.opacity(0.1),
-                    in: Circle()
-                )
-                .contentShape(Circle())
-        }
-        .buttonStyle(.plain)
-        .help(store.isSelfMuted ? "Unmute Microphone" : "Mute Microphone")
+        controlButton(
+            systemName: store.isSelfMuted ? "mic.slash.fill" : "mic.fill",
+            isActive: store.isSelfMuted,
+            activeColor: .red,
+            helpText: store.isSelfMuted ? "Unmute Microphone" : "Mute Microphone",
+            action: { store.toggleSelfMute() }
+        )
     }
 
     private var quickDeafenButton: some View {
-        Button(action: {
-            store.toggleSelfDeaf()
-        }) {
-            Image(systemName: store.isSelfDeafened ? "headphones.slash" : "headphones")
-                .font(.system(size: 10, weight: .bold))
-                .foregroundStyle(store.isSelfDeafened ? Color.red : Color.secondary)
-                .frame(width: 20, height: 20)
-                .background(
-                    store.isSelfDeafened ? Color.red.opacity(0.18) : Color.secondary.opacity(0.1),
-                    in: Circle()
-                )
-                .contentShape(Circle())
-        }
-        .buttonStyle(.plain)
-        .help(store.isSelfDeafened ? "Undeafen Audio" : "Deafen Audio")
+        controlButton(
+            systemName: store.isSelfDeafened ? "headphones.slash" : "headphones",
+            isActive: store.isSelfDeafened,
+            activeColor: .red,
+            helpText: store.isSelfDeafened ? "Undeafen Audio" : "Deafen Audio",
+            action: { store.toggleSelfDeaf() }
+        )
+    }
+
+    private var expandCollapseButton: some View {
+        controlButton(
+            systemName: isCollapsed ? "chevron.down" : "chevron.up",
+            isActive: false,
+            helpText: isCollapsed ? "Expand Member List" : "Collapse Member List",
+            action: {
+                withAnimation(.spring(response: 0.28, dampingFraction: 0.8)) {
+                    isCollapsed.toggle()
+                }
+            }
+        )
     }
 
     private var closeButton: some View {
-        Button(action: {
-            FloatingOverlayManager.shared.hide()
-        }) {
-            Image(systemName: "xmark")
-                .font(.system(size: 8, weight: .bold))
-                .foregroundStyle(Color.secondary)
-                .frame(width: 18, height: 18)
-                .background(Color.secondary.opacity(0.15), in: Circle())
-                .contentShape(Circle())
-        }
-        .buttonStyle(.plain)
-        .help("Hide Overlay")
+        controlButton(
+            systemName: "xmark",
+            isActive: false,
+            helpText: "Hide Overlay",
+            action: { FloatingOverlayManager.shared.hide() }
+        )
     }
 }
 
@@ -548,7 +589,7 @@ public final class FloatingOverlayManager: ObservableObject {
             let initialOrigin = loadInitialOrigin()
 
             let p = NSPanel(
-                contentRect: NSRect(origin: initialOrigin, size: CGSize(width: 220, height: 80)),
+                contentRect: NSRect(origin: initialOrigin, size: CGSize(width: 280, height: 44)),
                 styleMask: [.borderless, .nonactivatingPanel],
                 backing: .buffered,
                 defer: false

@@ -143,6 +143,10 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
         self.globalPTT.onWhisperChanged = { [weak self] isWhispering in
             self?.setWhispering(isWhispering, targetId: 1)
         }
+        self.globalPTT.onToggleOverlay = { [weak self] in
+            guard let self = self else { return }
+            FloatingOverlayManager.shared.toggle(store: self)
+        }
 
         // 4. Load saved bookmarks & access tokens
         loadBookmarks()

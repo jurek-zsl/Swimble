@@ -113,7 +113,7 @@ public struct AudioSettingsPopover: View {
                         }) {
                             HStack {
                                 Image(systemName: "keyboard")
-                                Text(globalPTT.isRecordingKeybind ? "Press any key..." : globalPTT.currentKeybind.displayString)
+                                Text(globalPTT.isRecordingKeybind ? globalPTT.recordingPreviewString(for: .ptt) : globalPTT.currentKeybind.displayString)
                                     .bold()
                             }
                             .frame(maxWidth: .infinity)
