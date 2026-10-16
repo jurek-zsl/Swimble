@@ -10,9 +10,13 @@ pub const TYPE_CHANNEL_REMOVE: u16 = 6;
 pub const TYPE_CHANNEL_STATE: u16 = 7;
 pub const TYPE_USER_REMOVE: u16 = 8;
 pub const TYPE_USER_STATE: u16 = 9;
+pub const TYPE_BAN_LIST: u16 = 10;
 pub const TYPE_TEXT_MESSAGE: u16 = 11;
+pub const TYPE_PERMISSION_DENIED: u16 = 12;
 pub const TYPE_CRYPT_SETUP: u16 = 15;
+pub const TYPE_USER_LIST: u16 = 18;
 pub const TYPE_VOICE_TARGET: u16 = 19;
+pub const TYPE_PERMISSION_QUERY: u16 = 20;
 pub const TYPE_SERVER_CONFIG: u16 = 24;
 
 #[derive(Clone, Debug, PartialEq)]

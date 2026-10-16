@@ -138,14 +138,14 @@ struct ChannelTreeNodeView: View {
                 .tag(node.channel.id)
         } else {
             DisclosureGroup(isExpanded: $isExpanded) {
-                // Subchannels
-                ForEach(node.children) { child in
-                    ChannelTreeNodeView(store: store, node: child)
-                }
-                // Users in this channel
+                // Users in this channel (shown on top of all subchannels)
                 ForEach(node.users, id: \.sessionId) { user in
                     UserRowView(store: store, user: user)
                         .selectionDisabled(true)
+                }
+                // Subchannels (shown below users)
+                ForEach(node.children) { child in
+                    ChannelTreeNodeView(store: store, node: child)
                 }
             } label: {
                 ChannelRowView(
@@ -168,19 +168,47 @@ struct SearchChannelRow: View {
         store.myChannelId == channel.id
     }
 
+    private var isLocked: Bool {
+        !channel.canEnter
+    }
+
+    private var isUnlockedRestricted: Bool {
+        channel.canEnter && (channel.isEnterRestricted || store.previouslyLockedChannelIds.contains(channel.id))
+    }
+
     var body: some View {
         HStack {
             Image(systemName: isJoined ? "speaker.wave.2.fill" : "folder.fill")
                 .foregroundStyle(isJoined ? Color.green : Color.secondary)
             Text(channel.name)
                 .bold(isJoined)
+                .foregroundStyle(isLocked ? Color.secondary : Color.primary)
+
+            if isLocked {
+                Image(systemName: "lock.fill")
+                    .font(.caption2)
+                    .foregroundStyle(.red)
+                    .help("Locked channel: You cannot enter this channel")
+            } else if isUnlockedRestricted {
+                Image(systemName: "lock.open.fill")
+                    .font(.caption2)
+                    .foregroundStyle(.green)
+                    .help("Unlocked channel: You have permission to enter")
+            }
+
             Spacer()
             if !isJoined {
-                Button("Join") {
-                    store.joinChannel(channelId: channel.id)
+                Button(isLocked ? "Locked" : "Join") {
+                    if channel.canEnter {
+                        store.joinChannel(channelId: channel.id)
+                    } else {
+                        store.logSystemMessage("Cannot enter \(channel.name): Channel is locked.", icon: "lock.fill")
+                        SoundManager.shared.playPermissionDenied()
+                    }
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
+                .disabled(isLocked)
             }
         }
         .tag(channel.id)

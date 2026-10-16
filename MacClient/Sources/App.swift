@@ -13,6 +13,116 @@ struct SwimbleApp: App {
         }
         .windowStyle(.titleBar)
         .windowToolbarStyle(.unified)
+        .commands {
+            CommandMenu("Server") {
+                Button("Connect...") {
+                    store.activeModal = .serverConnect
+                }
+                .keyboardShortcut("o", modifiers: [.command])
+
+                Button("Disconnect") {
+                    store.disconnect()
+                }
+                .keyboardShortcut("d", modifiers: [.command])
+                .disabled(store.connectionStatus != .connected)
+
+                Divider()
+
+                Button("Information") {
+                    store.activeModal = .serverInfo
+                }
+                .keyboardShortcut("i", modifiers: [.command])
+                .disabled(store.connectionStatus != .connected)
+
+                Button("Access Tokens...") {
+                    store.activeModal = .accessTokens
+                }
+                .disabled(store.connectionStatus != .connected)
+
+                Button("Registered Users...") {
+                    store.activeModal = .registeredUsers
+                }
+                .disabled(store.connectionStatus != .connected)
+
+                Button("Ban List...") {
+                    store.activeModal = .banList
+                }
+                .disabled(store.connectionStatus != .connected)
+            }
+
+            CommandMenu("Self") {
+                Button(store.isSelfMuted ? "Unmute Self" : "Mute Self") {
+                    store.toggleSelfMute()
+                }
+                .keyboardShortcut("m", modifiers: [.command, .shift])
+
+                Button(store.isSelfDeafened ? "Undeafen Self" : "Deafen Self") {
+                    store.toggleSelfDeaf()
+                }
+                .keyboardShortcut("d", modifiers: [.command, .shift])
+
+                Divider()
+
+                Button(store.isMyPrioritySpeaker ? "Disable Priority Speaker" : "Enable Priority Speaker") {
+                    store.toggleSelfPrioritySpeaker()
+                }
+                .disabled(store.connectionStatus != .connected)
+
+                Button(store.isRecordingAudio ? "Stop Recording" : "Start Recording") {
+                    store.toggleAudioRecording()
+                }
+                .keyboardShortcut("r", modifiers: [.command, .shift])
+
+                Divider()
+
+                Button("Change Comment...") {
+                    store.activeModal = .changeComment
+                }
+                .disabled(store.connectionStatus != .connected)
+
+                Button("Remove Avatar") {
+                    store.removeAvatar()
+                }
+                .disabled(store.connectionStatus != .connected)
+
+                Button(store.isSelfRegistered ? "Registered" : "Register...") {
+                    store.registerSelf()
+                }
+                .disabled(store.connectionStatus != .connected || store.isSelfRegistered)
+
+                Divider()
+
+                Button("Audio Statistics...") {
+                    store.activeModal = .audioStatistics
+                }
+                .keyboardShortcut("s", modifiers: [.command, .option])
+            }
+
+            CommandMenu("Configure") {
+                Button("Audio Wizard...") {
+                    store.activeModal = .audioWizard
+                }
+
+                Button("Certificate Wizard...") {
+                    store.activeModal = .certificateWizard
+                }
+
+                Button("Text-to-Speech (TTS)...") {
+                    store.activeModal = .ttsSettings
+                }
+
+                Button("Overlay...") {
+                    store.activeModal = .overlaySettings
+                }
+
+                Divider()
+
+                Button("Settings...") {
+                    NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+                }
+                .keyboardShortcut(",", modifiers: [.command])
+            }
+        }
 
         // Native Dedicated Settings Window (Cmd+,)
         Settings {
@@ -21,72 +131,22 @@ struct SwimbleApp: App {
 
         // Menu Bar Companion for Gaming & Background Control
         MenuBarExtra("Swimble", systemImage: store.isSelfMuted ? "mic.slash.fill" : "waveform.circle.fill") {
-            VStack {
-                // Settings Shortcut
-                Button("Settings...") {
-                    NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+            // Connection & Channel Status
+            if store.connectionStatus == .connected {
+                Text(store.activeBookmark?.name ?? "Connected")
+                if let channelId = store.myChannelId {
+                    Text("#\(store.channelName(for: channelId))")
                 }
-                .keyboardShortcut(",", modifiers: [.command])
+            } else if store.connectionStatus == .connecting {
+                Text("Connecting...")
+            } else {
+                Text("Disconnected")
+            }
 
-                Divider()
-                // Connection & Channel Status
-                if store.connectionStatus == .connected {
-                    Text("\(store.activeBookmark?.name ?? "Connected")")
-                        .font(.headline)
+            Divider()
 
-                    let channelName: String = {
-                        if let myId = store.mySessionId,
-                           let me = store.users.first(where: { $0.sessionId == myId }),
-                           let ch = store.channels.first(where: { $0.id == me.channelId }) {
-                            return "#\(ch.name)"
-                        }
-                        return "#Root"
-                    }()
-                    Text(channelName)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                    // Speaking Indicators
-                    let speaking = store.users.filter { $0.isTalking }
-                    if !speaking.isEmpty {
-                        Divider()
-                        Text("Talking: \(speaking.map { $0.name }.joined(separator: ", "))")
-                            .font(.caption.bold())
-                            .foregroundStyle(.green)
-                    }
-                } else if store.connectionStatus == .connecting {
-                    Text("Connecting...")
-                        .font(.headline)
-                } else {
-                    Text("Disconnected")
-                        .font(.headline)
-                        .foregroundStyle(.secondary)
-                }
-
-                Divider()
-
-                // Quick Voice Toggles
-                Button(store.isSelfMuted ? "Unmute Microphone" : "Mute Microphone") {
-                    store.toggleSelfMute()
-                }
-                .keyboardShortcut("m", modifiers: [.command, .shift])
-
-                Button(store.isSelfDeafened ? "Undeafen Audio" : "Deafen Audio") {
-                    store.toggleSelfDeaf()
-                }
-                .keyboardShortcut("d", modifiers: [.command, .shift])
-
-                Divider()
-
-                // "Who's Talking" Game Overlay Toggle
-                Button("Toggle 'Who's Talking' Overlay") {
-                    FloatingOverlayManager.shared.toggle(store: store)
-                }
-                .keyboardShortcut("o", modifiers: [.command, .shift])
-
-                Divider()
-
-                // Connection Actions
+            // Server Submenu
+            Menu("Server") {
                 if store.connectionStatus == .connected {
                     Button("Disconnect") {
                         store.disconnect()
@@ -97,13 +157,127 @@ struct SwimbleApp: App {
                     }
                 }
 
+                Button("Server List...") {
+                    store.activeModal = .serverConnect
+                }
+
                 Divider()
 
-                Button("Quit Swimble") {
-                    NSApplication.shared.terminate(nil)
+                Button("Information") {
+                    store.activeModal = .serverInfo
                 }
-                .keyboardShortcut("q", modifiers: [.command])
+                .disabled(store.connectionStatus != .connected)
+
+                Button("Access Tokens...") {
+                    store.activeModal = .accessTokens
+                }
+                .disabled(store.connectionStatus != .connected)
+
+                Button("Registered Users...") {
+                    store.activeModal = .registeredUsers
+                }
+                .disabled(store.connectionStatus != .connected)
+
+                Button("Ban List...") {
+                    store.activeModal = .banList
+                }
+                .disabled(store.connectionStatus != .connected)
             }
+
+            // Self Submenu
+            Menu("Self") {
+                Button(store.isSelfMuted ? "Unmute Self" : "Mute Self") {
+                    store.toggleSelfMute()
+                }
+
+                Button(store.isSelfDeafened ? "Undeafen Self" : "Deafen Self") {
+                    store.toggleSelfDeaf()
+                }
+
+                Divider()
+
+                Button(store.isMyPrioritySpeaker ? "Disable Priority Speaker" : "Enable Priority Speaker") {
+                    store.toggleSelfPrioritySpeaker()
+                }
+                .disabled(store.connectionStatus != .connected)
+
+                Button(store.isRecordingAudio ? "Stop Recording" : "Start Recording") {
+                    store.toggleAudioRecording()
+                }
+
+                Divider()
+
+                Button("Change Comment...") {
+                    store.activeModal = .changeComment
+                }
+                .disabled(store.connectionStatus != .connected)
+
+                Button("Remove Avatar") {
+                    store.removeAvatar()
+                }
+                .disabled(store.connectionStatus != .connected)
+
+                Button(store.isSelfRegistered ? "Registered" : "Register...") {
+                    store.registerSelf()
+                }
+                .disabled(store.connectionStatus != .connected || store.isSelfRegistered)
+
+                Divider()
+
+                Button("Audio Statistics...") {
+                    store.activeModal = .audioStatistics
+                }
+            }
+
+            // Configure Submenu
+            Menu("Configure") {
+                Button("Audio Wizard...") {
+                    store.activeModal = .audioWizard
+                }
+
+                Button("Certificate Wizard...") {
+                    store.activeModal = .certificateWizard
+                }
+
+                Button("Text-to-Speech (TTS)...") {
+                    store.activeModal = .ttsSettings
+                }
+
+                Button("Overlay...") {
+                    store.activeModal = .overlaySettings
+                }
+
+                Divider()
+
+                Button("Settings...") {
+                    NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+                }
+            }
+
+            Divider()
+
+            // Quick Voice Toggles
+            Button(store.isSelfMuted ? "Unmute Microphone" : "Mute Microphone") {
+                store.toggleSelfMute()
+            }
+            .keyboardShortcut("m", modifiers: [.command, .shift])
+
+            Button(store.isSelfDeafened ? "Undeafen Audio" : "Deafen Audio") {
+                store.toggleSelfDeaf()
+            }
+            .keyboardShortcut("d", modifiers: [.command, .shift])
+
+            Button("Toggle 'Who's Talking' Overlay") {
+                FloatingOverlayManager.shared.toggle(store: store)
+            }
+            .keyboardShortcut("o", modifiers: [.command, .shift])
+
+            Divider()
+
+            Button("Quit Swimble") {
+                NSApplication.shared.terminate(nil)
+            }
+            .keyboardShortcut("q", modifiers: [.command])
         }
     }
 }

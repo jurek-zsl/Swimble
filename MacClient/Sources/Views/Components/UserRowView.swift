@@ -239,6 +239,9 @@ public struct UserRowView: View {
                 Button(store.isSelfDeafened ? "Undeafen Self" : "Deafen Self") {
                     store.toggleSelfDeaf()
                 }
+                Button(store.isMyPrioritySpeaker ? "Disable Priority Speaker" : "Enable Priority Speaker") {
+                    store.toggleSelfPrioritySpeaker()
+                }
             }
         }
         .alert("Change Comment", isPresented: $showingCommentAlert) {

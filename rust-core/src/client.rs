@@ -1,4 +1,5 @@
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::collections::HashSet;
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::io::AsyncWriteExt;
@@ -11,9 +12,10 @@ use crate::connection::connect_tls;
 use crate::crypt_ocb2::CryptStateOCB2;
 use crate::framing::{
     read_packet, write_raw_packet,
-    TYPE_AUTHENTICATE, TYPE_CHANNEL_REMOVE, TYPE_CHANNEL_STATE, TYPE_CRYPT_SETUP,
-    TYPE_PING, TYPE_REJECT, TYPE_SERVER_CONFIG, TYPE_SERVER_SYNC, TYPE_TEXT_MESSAGE,
-    TYPE_UDP_TUNNEL, TYPE_USER_REMOVE, TYPE_USER_STATE, TYPE_VERSION, TYPE_VOICE_TARGET,
+    TYPE_AUTHENTICATE, TYPE_BAN_LIST, TYPE_CHANNEL_REMOVE, TYPE_CHANNEL_STATE, TYPE_CRYPT_SETUP,
+    TYPE_PERMISSION_DENIED, TYPE_PERMISSION_QUERY, TYPE_PING, TYPE_REJECT, TYPE_SERVER_CONFIG, TYPE_SERVER_SYNC,
+    TYPE_TEXT_MESSAGE, TYPE_UDP_TUNNEL, TYPE_USER_LIST, TYPE_USER_REMOVE, TYPE_USER_STATE,
+    TYPE_VERSION, TYPE_VOICE_TARGET,
 };
 use crate::proto;
 use crate::state::ClientState;
@@ -21,9 +23,51 @@ use crate::voice_packet::{
     decode_server_voice, decode_udp_ping_reply, encode_client_voice, encode_udp_ping,
 };
 use crate::{
-    ChannelInfo, ChatMessage, ConnectionStatus, MumbleEventHandler, ServerConnectionInfo,
-    UserInfo, VoiceTargetConfig,
+    BanEntryInfo, ChannelInfo, ChatMessage, ConnectionStatus, MumbleEventHandler, RegisteredUser,
+    ServerConnectionInfo, UserInfo, VoiceTargetConfig,
 };
+
+fn is_ipv4_mapped(addr: &[u8]) -> bool {
+    if addr.len() != 16 {
+        return false;
+    }
+    addr[0..10].iter().all(|&b| b == 0) && addr[10] == 0xff && addr[11] == 0xff
+}
+
+fn decode_ban_ip(addr: &[u8]) -> String {
+    if addr.len() == 16 {
+        if is_ipv4_mapped(addr) {
+            format!("{}.{}.{}.{}", addr[12], addr[13], addr[14], addr[15])
+        } else {
+            let mut octets = [0u8; 16];
+            octets.copy_from_slice(addr);
+            std::net::Ipv6Addr::from(octets).to_string()
+        }
+    } else if addr.len() == 4 {
+        format!("{}.{}.{}.{}", addr[0], addr[1], addr[2], addr[3])
+    } else {
+        String::new()
+    }
+}
+
+fn encode_ban_ip(ip: &str, mask: u32) -> (Vec<u8>, u32) {
+    let trimmed = ip.trim();
+    if let Ok(ipv4) = trimmed.parse::<std::net::Ipv4Addr>() {
+        let octets = ipv4.octets();
+        let mut bytes = vec![0u8; 16];
+        bytes[10] = 0xff;
+        bytes[11] = 0xff;
+        bytes[12..16].copy_from_slice(&octets);
+        let effective_mask = if mask <= 32 { 96 + mask } else { 128 };
+        (bytes, effective_mask)
+    } else if let Ok(ipv6) = trimmed.parse::<std::net::Ipv6Addr>() {
+        let bytes = ipv6.octets().to_vec();
+        let effective_mask = if mask <= 128 { mask } else { 128 };
+        (bytes, effective_mask)
+    } else {
+        (vec![0u8; 16], 128)
+    }
+}
 
 pub struct TokioRunner {
     handle: tokio::runtime::Handle,
@@ -80,6 +124,7 @@ pub struct MumbleClient {
     active_voice_target_id: Arc<RwLock<u8>>,
     tcp_packets_sent: Arc<AtomicU32>,
     udp_packets_sent: Arc<AtomicU32>,
+    self_priority_transmitting: Arc<AtomicBool>,
 }
 
 #[uniffi::export]
@@ -106,6 +151,7 @@ impl MumbleClient {
             active_voice_target_id: Arc::new(RwLock::new(0)),
             tcp_packets_sent: Arc::new(AtomicU32::new(0)),
             udp_packets_sent: Arc::new(AtomicU32::new(0)),
+            self_priority_transmitting: Arc::new(AtomicBool::new(false)),
         })
     }
 
@@ -140,6 +186,7 @@ impl MumbleClient {
             Instant::now().checked_sub(Duration::from_secs(60)).unwrap_or_else(Instant::now);
         self.tcp_packets_sent.store(0, Ordering::Relaxed);
         self.udp_packets_sent.store(0, Ordering::Relaxed);
+        self.self_priority_transmitting.store(false, Ordering::Relaxed);
 
         let state_arc = Arc::clone(&self.state);
         let handler_arc = Arc::clone(&self.handler);
@@ -149,6 +196,8 @@ impl MumbleClient {
         let last_udp_ping_arc = Arc::clone(&self.last_udp_ping_received);
         let tcp_sent_arc = Arc::clone(&self.tcp_packets_sent);
         let udp_sent_arc = Arc::clone(&self.udp_packets_sent);
+        let self_priority_for_udp = Arc::clone(&self.self_priority_transmitting);
+        let self_priority_for_tcp = Arc::clone(&self.self_priority_transmitting);
 
         let host_for_udp = host.clone();
         let initial_tokens = self.tokens.read().unwrap().clone();
@@ -378,12 +427,40 @@ impl MumbleClient {
                         match packet.type_id {
                             TYPE_SERVER_SYNC => {
                                 if let Ok(sync) = proto::ServerSync::decode(&packet.payload[..]) {
-                                    {
+                                    let (info, welcome_opt) = {
                                         let mut state = state_arc.write().unwrap();
                                         state.my_session = sync.session;
                                         state.connection_status = ConnectionStatus::Connected;
-                                    }
+                                        if let Some(max_band) = sync.max_bandwidth {
+                                            state.server_info.max_bandwidth_kbps = max_band / 1000;
+                                        }
+                                        if let Some(ref welcome) = sync.welcome_text {
+                                            if !welcome.is_empty() {
+                                                state.server_info.welcome_text = welcome.clone();
+                                            }
+                                        }
+                                        (state.server_info.clone(), sync.welcome_text)
+                                    };
                                     handler_arc.on_connection_status_changed(ConnectionStatus::Connected);
+                                    handler_arc.on_server_connection_info_updated(info);
+
+                                    if let Some(welcome) = welcome_opt {
+                                        let trimmed = welcome.trim();
+                                        if !trimmed.is_empty() {
+                                            let timestamp = SystemTime::now()
+                                                .duration_since(UNIX_EPOCH)
+                                                .unwrap_or_default()
+                                                .as_millis() as u64;
+                                            let chat = ChatMessage {
+                                                sender_session: 0,
+                                                sender_name: "Server".to_string(),
+                                                channel_id: None,
+                                                html_body: welcome,
+                                                timestamp,
+                                            };
+                                            handler_arc.on_chat_message(chat);
+                                        }
+                                    }
                                 }
                             }
                             TYPE_CHANNEL_STATE => {
@@ -473,20 +550,43 @@ impl MumbleClient {
                             }
                             TYPE_SERVER_CONFIG => {
                                 if let Ok(cfg) = proto::ServerConfig::decode(&packet.payload[..]) {
-                                    let info = {
+                                    let (info, new_welcome) = {
                                         let mut state = state_arc.write().unwrap();
                                         if let Some(max_band) = cfg.max_bandwidth {
                                             state.server_info.max_bandwidth_kbps = max_band / 1000;
                                         }
-                                        if let Some(welcome) = cfg.welcome_text {
-                                            state.server_info.welcome_text = welcome;
-                                        }
+                                        let new_welcome = if let Some(ref welcome) = cfg.welcome_text {
+                                            let trimmed = welcome.trim();
+                                            if !trimmed.is_empty() && trimmed != state.server_info.welcome_text.trim() {
+                                                state.server_info.welcome_text = welcome.clone();
+                                                Some(welcome.clone())
+                                            } else {
+                                                None
+                                            }
+                                        } else {
+                                            None
+                                        };
                                         if let Some(max_users) = cfg.max_users {
                                             state.server_info.max_users = max_users;
                                         }
-                                        state.server_info.clone()
+                                        (state.server_info.clone(), new_welcome)
                                     };
                                     handler_arc.on_server_connection_info_updated(info);
+
+                                    if let Some(welcome) = new_welcome {
+                                        let timestamp = SystemTime::now()
+                                            .duration_since(UNIX_EPOCH)
+                                            .unwrap_or_default()
+                                            .as_millis() as u64;
+                                        let chat = ChatMessage {
+                                            sender_session: 0,
+                                            sender_name: "Server".to_string(),
+                                            channel_id: None,
+                                            html_body: welcome,
+                                            timestamp,
+                                        };
+                                        handler_arc.on_chat_message(chat);
+                                    }
                                 }
                             }
                             TYPE_PING => {
@@ -584,6 +684,7 @@ impl MumbleClient {
                                                     let mixer_recv = Arc::clone(&mixer_arc);
                                                     let state_recv = Arc::clone(&state_arc);
                                                     let handler_recv = Arc::clone(&handler_arc);
+                                                    let self_priority_recv = Arc::clone(&self_priority_for_udp);
                                                     let mut udp_recv_shutdown_rx = shutdown_rx.clone();
 
                                                     runner_arc.spawn(async move {
@@ -627,10 +728,20 @@ impl MumbleClient {
                                                                         } else if packet_type == 4 {
                                                                             // Opus Voice packet over UDP
                                                                             if let Ok(voice_pkt) = decode_server_voice(packet_data) {
-                                                                                let volumes = state_recv.read().unwrap().user_volumes.clone();
+                                                                                let (volumes, priority_speakers) = {
+                                                                                    let state = state_recv.read().unwrap();
+                                                                                    let prio = state
+                                                                                        .users
+                                                                                        .values()
+                                                                                        .filter(|u| u.is_priority_speaker)
+                                                                                        .map(|u| u.session_id)
+                                                                                        .collect::<HashSet<u32>>();
+                                                                                    (state.user_volumes.clone(), prio)
+                                                                                };
+                                                                                let self_priority_talking = self_priority_recv.load(Ordering::Relaxed);
                                                                                 let talking_change = {
                                                                                     if let Ok(mut mixer) = mixer_recv.lock() {
-                                                                                        mixer.process_incoming_voice(voice_pkt, &volumes)
+                                                                                        mixer.process_incoming_voice(voice_pkt, &volumes, &priority_speakers, self_priority_talking)
                                                                                     } else {
                                                                                         None
                                                                                     }
@@ -658,10 +769,20 @@ impl MumbleClient {
                             TYPE_UDP_TUNNEL => {
                                 // Raw voice packet tunneled through TCP
                                 if let Ok(voice_pkt) = decode_server_voice(&packet.payload) {
-                                    let volumes = state_arc.read().unwrap().user_volumes.clone();
+                                    let (volumes, priority_speakers) = {
+                                        let state = state_arc.read().unwrap();
+                                        let prio = state
+                                            .users
+                                            .values()
+                                            .filter(|u| u.is_priority_speaker)
+                                            .map(|u| u.session_id)
+                                            .collect::<HashSet<u32>>();
+                                        (state.user_volumes.clone(), prio)
+                                    };
+                                    let self_priority_talking = self_priority_for_tcp.load(Ordering::Relaxed);
                                     let talking_change = {
                                         if let Ok(mut mixer) = mixer_arc.lock() {
-                                            mixer.process_incoming_voice(voice_pkt, &volumes)
+                                            mixer.process_incoming_voice(voice_pkt, &volumes, &priority_speakers, self_priority_talking)
                                         } else {
                                             None
                                         }
@@ -672,12 +793,137 @@ impl MumbleClient {
                                     }
                                 }
                             }
+                            TYPE_PERMISSION_DENIED => {
+                                if let Ok(denied) = proto::PermissionDenied::decode(&packet.payload[..]) {
+                                    let reason = denied.reason.unwrap_or_else(|| {
+                                        match denied.r#type {
+                                            Some(1) => "Permission denied.".to_string(),
+                                            Some(2) => "Cannot modify SuperUser.".to_string(),
+                                            Some(3) => "Invalid channel name.".to_string(),
+                                            Some(4) => "Text message too long.".to_string(),
+                                            Some(6) => "Operation not permitted in temporary channel.".to_string(),
+                                            Some(7) => "Operation requires certificate.".to_string(),
+                                            Some(8) => "Invalid username.".to_string(),
+                                            Some(9) => "Channel is full.".to_string(),
+                                            Some(10) => "Nesting limit reached.".to_string(),
+                                            Some(11) => "Channel count limit reached.".to_string(),
+                                            _ => "Permission denied by server.".to_string(),
+                                        }
+                                    });
+                                    eprintln!("PermissionDenied from server: {}", reason);
+                                    let timestamp = SystemTime::now()
+                                        .duration_since(UNIX_EPOCH)
+                                        .unwrap_or_default()
+                                        .as_millis() as u64;
+                                    let chat = ChatMessage {
+                                        sender_session: 0,
+                                        sender_name: "System".to_string(),
+                                        channel_id: None,
+                                        html_body: format!("Permission denied: {}", reason),
+                                        timestamp,
+                                    };
+                                    handler_arc.on_chat_message(chat);
+                                    let users = state_arc.read().unwrap().users_list();
+                                    handler_arc.on_users_updated(users);
+
+                                    // If permission denied was for a specific channel, mark it as locked
+                                    if let Some(cid) = denied.channel_id {
+                                        let mut updated = false;
+                                        {
+                                            let mut state = state_arc.write().unwrap();
+                                            if let Some(ch) = state.channels.get_mut(&cid) {
+                                                ch.is_enter_restricted = true;
+                                                ch.can_enter = false;
+                                                updated = true;
+                                            }
+                                        }
+                                        if updated {
+                                            let channels = state_arc.read().unwrap().channels_list();
+                                            handler_arc.on_channels_updated(channels);
+                                        }
+                                    }
+                                }
+                            }
+                            TYPE_PERMISSION_QUERY => {
+                                if let Ok(pq) = proto::PermissionQuery::decode(&packet.payload[..]) {
+                                    let mut trigger_channel_update = false;
+                                    if let (Some(cid), Some(perms)) = (pq.channel_id, pq.permissions) {
+                                        let can_enter = (perms & 0x4) != 0 || (perms & 0x1) != 0;
+                                        let mut state = state_arc.write().unwrap();
+                                        if let Some(ch) = state.channels.get_mut(&cid) {
+                                            if !can_enter {
+                                                ch.is_enter_restricted = true;
+                                            }
+                                            if ch.can_enter != can_enter {
+                                                ch.can_enter = can_enter;
+                                                trigger_channel_update = true;
+                                            }
+                                        }
+                                    }
+                                    if trigger_channel_update {
+                                        let channels = state_arc.read().unwrap().channels_list();
+                                        handler_arc.on_channels_updated(channels);
+                                    }
+                                }
+                            }
                             TYPE_REJECT => {
                                 if let Ok(reject) = proto::Reject::decode(&packet.payload[..]) {
                                     eprintln!("Mumble connection rejected: {:?}", reject.reason);
                                     state_arc.write().unwrap().connection_status = ConnectionStatus::Failed;
                                     handler_arc.on_connection_status_changed(ConnectionStatus::Failed);
                                     break;
+                                }
+                            }
+                            TYPE_USER_LIST => {
+                                if let Ok(ul) = proto::UserList::decode(&packet.payload[..]) {
+                                    let users: Vec<RegisteredUser> = ul
+                                        .users
+                                        .into_iter()
+                                        .map(|u| RegisteredUser {
+                                            user_id: u.user_id,
+                                            name: u.name.unwrap_or_default(),
+                                            last_seen: u.last_seen,
+                                            last_channel_id: u.last_channel,
+                                        })
+                                        .collect();
+                                    {
+                                        let mut state = state_arc.write().unwrap();
+                                        state.registered_users = users.clone();
+                                    }
+                                    handler_arc.on_registered_users_updated(users);
+                                }
+                            }
+                            TYPE_BAN_LIST => {
+                                if let Ok(bl) = proto::BanList::decode(&packet.payload[..]) {
+                                    let bans: Vec<BanEntryInfo> = bl
+                                        .bans
+                                        .into_iter()
+                                        .map(|b| {
+                                            let ip_str = decode_ban_ip(&b.address);
+                                            let effective_mask = if b.mask >= 96
+                                                && b.address.len() == 16
+                                                && is_ipv4_mapped(&b.address)
+                                            {
+                                                b.mask - 96
+                                            } else {
+                                                b.mask
+                                            };
+                                            BanEntryInfo {
+                                                ip: ip_str,
+                                                mask: effective_mask,
+                                                name: b.name.unwrap_or_default(),
+                                                hash: b.hash.unwrap_or_default(),
+                                                reason: b.reason.unwrap_or_default(),
+                                                start: b.start.unwrap_or_default(),
+                                                duration: b.duration.unwrap_or(0),
+                                            }
+                                        })
+                                        .collect();
+                                    {
+                                        let mut state = state_arc.write().unwrap();
+                                        state.ban_list = bans.clone();
+                                    }
+                                    handler_arc.on_ban_list_updated(bans);
                                 }
                             }
                             _ => {}
@@ -696,6 +942,7 @@ impl MumbleClient {
     }
 
     pub fn disconnect(&self) {
+        self.self_priority_transmitting.store(false, Ordering::Relaxed);
         if let Some(tx) = self.shutdown_tx.write().unwrap().take() {
             let _ = tx.send(true);
         }
@@ -769,6 +1016,16 @@ impl MumbleClient {
     }
 
     pub fn push_mic_pcm(&self, samples: Vec<f32>, target: Option<u8>) {
+        let is_priority = {
+            let state = self.state.read().unwrap();
+            state
+                .my_session
+                .and_then(|sid| state.users.get(&sid))
+                .map(|u| u.is_priority_speaker)
+                .unwrap_or(false)
+        };
+        self.self_priority_transmitting.store(is_priority, Ordering::Relaxed);
+
         let effective_target = target.unwrap_or_else(|| *self.active_voice_target_id.read().unwrap());
         let packets = {
             if let Ok(mut mixer) = self.audio_mixer.lock() {
@@ -789,6 +1046,8 @@ impl MumbleClient {
     }
 
     pub fn finish_mic_stream(&self, target: Option<u8>) {
+        self.self_priority_transmitting.store(false, Ordering::Relaxed);
+
         let effective_target = target.unwrap_or_else(|| *self.active_voice_target_id.read().unwrap());
         let maybe_pkt = {
             if let Ok(mut mixer) = self.audio_mixer.lock() {
@@ -891,6 +1150,28 @@ impl MumbleClient {
         }
     }
 
+    pub fn remove_avatar(&self) {
+        if let Some(session) = self.state.read().unwrap().my_session {
+            let ustate = proto::UserState {
+                session: Some(session),
+                texture: Some(vec![]),
+                ..Default::default()
+            };
+            self.send_proto(TYPE_USER_STATE, &ustate);
+        }
+    }
+
+    pub fn set_recording_state(&self, recording: bool) {
+        if let Some(session) = self.state.read().unwrap().my_session {
+            let ustate = proto::UserState {
+                session: Some(session),
+                recording: Some(recording),
+                ..Default::default()
+            };
+            self.send_proto(TYPE_USER_STATE, &ustate);
+        }
+    }
+
     pub fn send_user_message(&self, session_id: u32, message: String) {
         let msg = proto::TextMessage {
             session: vec![session_id],
@@ -901,8 +1182,9 @@ impl MumbleClient {
     }
 
     pub fn set_user_priority_speaker(&self, session_id: u32, priority: bool) {
+        let is_self = self.state.read().unwrap().my_session == Some(session_id);
         let ustate = proto::UserState {
-            session: Some(session_id),
+            session: if is_self { None } else { Some(session_id) },
             priority_speaker: Some(priority),
             ..Default::default()
         };
@@ -991,6 +1273,105 @@ impl MumbleClient {
 
     pub fn get_tokens(&self) -> Vec<String> {
         self.tokens.read().unwrap().clone()
+    }
+
+    pub fn request_registered_users(&self) {
+        let ul = proto::UserList {
+            users: vec![],
+        };
+        self.send_proto(TYPE_USER_LIST, &ul);
+    }
+
+    pub fn remove_registered_user(&self, user_id: u32) {
+        let ul = proto::UserList {
+            users: vec![proto::user_list::User {
+                user_id,
+                name: None,
+                last_seen: None,
+                last_channel: None,
+            }],
+        };
+        self.send_proto(TYPE_USER_LIST, &ul);
+        self.request_registered_users();
+    }
+
+    pub fn rename_registered_user(&self, user_id: u32, new_name: String) {
+        let ul = proto::UserList {
+            users: vec![proto::user_list::User {
+                user_id,
+                name: Some(new_name),
+                last_seen: None,
+                last_channel: None,
+            }],
+        };
+        self.send_proto(TYPE_USER_LIST, &ul);
+        self.request_registered_users();
+    }
+
+    pub fn request_ban_list(&self) {
+        let bl = proto::BanList {
+            bans: vec![],
+            query: Some(true),
+        };
+        self.send_proto(TYPE_BAN_LIST, &bl);
+    }
+
+    pub fn set_ban_list(&self, bans: Vec<BanEntryInfo>) {
+        let proto_bans: Vec<proto::ban_list::BanEntry> = bans
+            .iter()
+            .map(|b| {
+                let (addr_bytes, proto_mask) = encode_ban_ip(&b.ip, b.mask);
+                proto::ban_list::BanEntry {
+                    address: addr_bytes,
+                    mask: proto_mask,
+                    name: if b.name.is_empty() { None } else { Some(b.name.clone()) },
+                    hash: if b.hash.is_empty() { None } else { Some(b.hash.clone()) },
+                    reason: if b.reason.is_empty() { None } else { Some(b.reason.clone()) },
+                    start: if b.start.is_empty() { None } else { Some(b.start.clone()) },
+                    duration: Some(b.duration),
+                }
+            })
+            .collect();
+
+        let bl = proto::BanList {
+            bans: proto_bans,
+            query: Some(false),
+        };
+        self.send_proto(TYPE_BAN_LIST, &bl);
+
+        {
+            let mut state = self.state.write().unwrap();
+            state.ban_list = bans.clone();
+        }
+        self.handler.on_ban_list_updated(bans);
+    }
+
+    pub fn add_ban(&self, ip: String, mask: u32, reason: String, duration_seconds: u32) {
+        let mut bans = self.state.read().unwrap().ban_list.clone();
+        bans.push(BanEntryInfo {
+            ip,
+            mask,
+            name: String::new(),
+            hash: String::new(),
+            reason,
+            start: String::new(),
+            duration: duration_seconds,
+        });
+        self.set_ban_list(bans);
+    }
+
+    pub fn remove_ban(&self, ip: String, mask: u32) {
+        let mut bans = self.state.read().unwrap().ban_list.clone();
+        bans.retain(|b| !(b.ip == ip && b.mask == mask));
+        self.set_ban_list(bans);
+    }
+
+    pub fn get_registered_users(&self) -> Vec<RegisteredUser> {
+        self.state.read().unwrap().registered_users.clone()
+    }
+
+    pub fn get_ban_list(&self) -> Vec<BanEntryInfo> {
+        self.state.read().unwrap().ban_list.clone()
     }
 }
 

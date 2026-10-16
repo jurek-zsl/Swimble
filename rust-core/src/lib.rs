@@ -56,6 +56,8 @@ pub struct ChannelInfo {
     pub description: String,
     pub position: i32,
     pub is_temporary: bool,
+    pub is_enter_restricted: bool,
+    pub can_enter: bool,
 }
 
 #[derive(uniffi::Record, Clone, Debug, PartialEq)]
@@ -132,6 +134,25 @@ pub struct ServerPingInfo {
     pub version: String,
 }
 
+#[derive(uniffi::Record, Clone, Debug, PartialEq)]
+pub struct RegisteredUser {
+    pub user_id: u32,
+    pub name: String,
+    pub last_seen: Option<String>,
+    pub last_channel_id: Option<u32>,
+}
+
+#[derive(uniffi::Record, Clone, Debug, PartialEq)]
+pub struct BanEntryInfo {
+    pub ip: String,
+    pub mask: u32,
+    pub name: String,
+    pub hash: String,
+    pub reason: String,
+    pub start: String,
+    pub duration: u32,
+}
+
 #[uniffi::export(callback_interface)]
 pub trait MumbleEventHandler: Send + Sync {
     fn on_connection_status_changed(&self, status: ConnectionStatus);
@@ -141,4 +162,6 @@ pub trait MumbleEventHandler: Send + Sync {
     fn on_chat_message(&self, message: ChatMessage);
     fn on_ping_updated(&self, tcp_ms: f32, udp_ms: f32, using_udp_tunnel: bool);
     fn on_server_connection_info_updated(&self, info: ServerConnectionInfo);
+    fn on_registered_users_updated(&self, users: Vec<RegisteredUser>);
+    fn on_ban_list_updated(&self, bans: Vec<BanEntryInfo>);
 }

@@ -657,6 +657,8 @@ fileprivate struct FfiConverterData: FfiConverterRustBuffer {
 
 public protocol MumbleClientProtocol: AnyObject, Sendable {
     
+    func addBan(ip: String, mask: UInt32, reason: String, durationSeconds: UInt32) 
+    
     func banUser(sessionId: UInt32, reason: String?) 
     
     func connect(host: String, port: UInt16, username: String, password: String?, clientCertPem: String?, clientKeyPem: String?) 
@@ -669,11 +671,15 @@ public protocol MumbleClientProtocol: AnyObject, Sendable {
     
     func getActiveVoiceTargetId()  -> UInt8
     
+    func getBanList()  -> [BanEntryInfo]
+    
     func getChannels()  -> [ChannelInfo]
     
     func getConnectionStatus()  -> ConnectionStatus
     
     func getMySession()  -> UInt32?
+    
+    func getRegisteredUsers()  -> [RegisteredUser]
     
     func getServerConnectionInfo()  -> ServerConnectionInfo
     
@@ -693,7 +699,19 @@ public protocol MumbleClientProtocol: AnyObject, Sendable {
     
     func registerUser(sessionId: UInt32?) 
     
+    func removeAvatar() 
+    
+    func removeBan(ip: String, mask: UInt32) 
+    
     func removeChannel(channelId: UInt32) 
+    
+    func removeRegisteredUser(userId: UInt32) 
+    
+    func renameRegisteredUser(userId: UInt32, newName: String) 
+    
+    func requestBanList() 
+    
+    func requestRegisteredUsers() 
     
     func sendChatMessage(channelId: UInt32, message: String) 
     
@@ -701,9 +719,13 @@ public protocol MumbleClientProtocol: AnyObject, Sendable {
     
     func setActiveVoiceTargetId(targetId: UInt8) 
     
+    func setBanList(bans: [BanEntryInfo]) 
+    
     func setChannelDescription(channelId: UInt32, description: String) 
     
     func setComment(comment: String) 
+    
+    func setRecordingState(recording: Bool) 
     
     func setSelfDeaf(deafened: Bool) 
     
@@ -782,6 +804,18 @@ public convenience init(handler: MumbleEventHandler) {
     
 
     
+open func addBan(ip: String, mask: UInt32, reason: String, durationSeconds: UInt32)  {try! rustCall() {
+        uniffiCallStatus in
+    uniffi_mumble_core_fn_method_mumbleclient_add_ban(
+            self.uniffiCloneHandle(),
+        FfiConverterString.lower(ip),
+        FfiConverterUInt32.lower(mask),
+        FfiConverterString.lower(reason),
+        FfiConverterUInt32.lower(durationSeconds),uniffiCallStatus
+    )
+}
+}
+    
 open func banUser(sessionId: UInt32, reason: String?)  {try! rustCall() {
         uniffiCallStatus in
     uniffi_mumble_core_fn_method_mumbleclient_ban_user(
@@ -845,6 +879,15 @@ open func getActiveVoiceTargetId() -> UInt8  {
 })
 }
     
+open func getBanList() -> [BanEntryInfo]  {
+    return try!  FfiConverterSequenceTypeBanEntryInfo.lift(try! rustCall() {
+        uniffiCallStatus in
+    uniffi_mumble_core_fn_method_mumbleclient_get_ban_list(
+            self.uniffiCloneHandle(),uniffiCallStatus
+    )
+})
+}
+    
 open func getChannels() -> [ChannelInfo]  {
     return try!  FfiConverterSequenceTypeChannelInfo.lift(try! rustCall() {
         uniffiCallStatus in
@@ -867,6 +910,15 @@ open func getMySession() -> UInt32?  {
     return try!  FfiConverterOptionUInt32.lift(try! rustCall() {
         uniffiCallStatus in
     uniffi_mumble_core_fn_method_mumbleclient_get_my_session(
+            self.uniffiCloneHandle(),uniffiCallStatus
+    )
+})
+}
+    
+open func getRegisteredUsers() -> [RegisteredUser]  {
+    return try!  FfiConverterSequenceTypeRegisteredUser.lift(try! rustCall() {
+        uniffiCallStatus in
+    uniffi_mumble_core_fn_method_mumbleclient_get_registered_users(
             self.uniffiCloneHandle(),uniffiCallStatus
     )
 })
@@ -957,11 +1009,64 @@ open func registerUser(sessionId: UInt32?)  {try! rustCall() {
 }
 }
     
+open func removeAvatar()  {try! rustCall() {
+        uniffiCallStatus in
+    uniffi_mumble_core_fn_method_mumbleclient_remove_avatar(
+            self.uniffiCloneHandle(),uniffiCallStatus
+    )
+}
+}
+    
+open func removeBan(ip: String, mask: UInt32)  {try! rustCall() {
+        uniffiCallStatus in
+    uniffi_mumble_core_fn_method_mumbleclient_remove_ban(
+            self.uniffiCloneHandle(),
+        FfiConverterString.lower(ip),
+        FfiConverterUInt32.lower(mask),uniffiCallStatus
+    )
+}
+}
+    
 open func removeChannel(channelId: UInt32)  {try! rustCall() {
         uniffiCallStatus in
     uniffi_mumble_core_fn_method_mumbleclient_remove_channel(
             self.uniffiCloneHandle(),
         FfiConverterUInt32.lower(channelId),uniffiCallStatus
+    )
+}
+}
+    
+open func removeRegisteredUser(userId: UInt32)  {try! rustCall() {
+        uniffiCallStatus in
+    uniffi_mumble_core_fn_method_mumbleclient_remove_registered_user(
+            self.uniffiCloneHandle(),
+        FfiConverterUInt32.lower(userId),uniffiCallStatus
+    )
+}
+}
+    
+open func renameRegisteredUser(userId: UInt32, newName: String)  {try! rustCall() {
+        uniffiCallStatus in
+    uniffi_mumble_core_fn_method_mumbleclient_rename_registered_user(
+            self.uniffiCloneHandle(),
+        FfiConverterUInt32.lower(userId),
+        FfiConverterString.lower(newName),uniffiCallStatus
+    )
+}
+}
+    
+open func requestBanList()  {try! rustCall() {
+        uniffiCallStatus in
+    uniffi_mumble_core_fn_method_mumbleclient_request_ban_list(
+            self.uniffiCloneHandle(),uniffiCallStatus
+    )
+}
+}
+    
+open func requestRegisteredUsers()  {try! rustCall() {
+        uniffiCallStatus in
+    uniffi_mumble_core_fn_method_mumbleclient_request_registered_users(
+            self.uniffiCloneHandle(),uniffiCallStatus
     )
 }
 }
@@ -995,6 +1100,15 @@ open func setActiveVoiceTargetId(targetId: UInt8)  {try! rustCall() {
 }
 }
     
+open func setBanList(bans: [BanEntryInfo])  {try! rustCall() {
+        uniffiCallStatus in
+    uniffi_mumble_core_fn_method_mumbleclient_set_ban_list(
+            self.uniffiCloneHandle(),
+        FfiConverterSequenceTypeBanEntryInfo.lower(bans),uniffiCallStatus
+    )
+}
+}
+    
 open func setChannelDescription(channelId: UInt32, description: String)  {try! rustCall() {
         uniffiCallStatus in
     uniffi_mumble_core_fn_method_mumbleclient_set_channel_description(
@@ -1010,6 +1124,15 @@ open func setComment(comment: String)  {try! rustCall() {
     uniffi_mumble_core_fn_method_mumbleclient_set_comment(
             self.uniffiCloneHandle(),
         FfiConverterString.lower(comment),uniffiCallStatus
+    )
+}
+}
+    
+open func setRecordingState(recording: Bool)  {try! rustCall() {
+        uniffiCallStatus in
+    uniffi_mumble_core_fn_method_mumbleclient_set_recording_state(
+            self.uniffiCloneHandle(),
+        FfiConverterBool.lower(recording),uniffiCallStatus
     )
 }
 }
@@ -1129,6 +1252,80 @@ public func FfiConverterTypeMumbleClient_lower(_ value: MumbleClient) -> UInt64 
 
 
 
+public struct BanEntryInfo: Equatable, Hashable {
+    public var ip: String
+    public var mask: UInt32
+    public var name: String
+    public var hash: String
+    public var reason: String
+    public var start: String
+    public var duration: UInt32
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(ip: String, mask: UInt32, name: String, hash: String, reason: String, start: String, duration: UInt32) {
+        self.ip = ip
+        self.mask = mask
+        self.name = name
+        self.hash = hash
+        self.reason = reason
+        self.start = start
+        self.duration = duration
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension BanEntryInfo: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeBanEntryInfo: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> BanEntryInfo {
+        return
+            try BanEntryInfo(
+                ip: FfiConverterString.read(from: &buf), 
+                mask: FfiConverterUInt32.read(from: &buf), 
+                name: FfiConverterString.read(from: &buf), 
+                hash: FfiConverterString.read(from: &buf), 
+                reason: FfiConverterString.read(from: &buf), 
+                start: FfiConverterString.read(from: &buf), 
+                duration: FfiConverterUInt32.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: BanEntryInfo, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.ip, into: &buf)
+        FfiConverterUInt32.write(value.mask, into: &buf)
+        FfiConverterString.write(value.name, into: &buf)
+        FfiConverterString.write(value.hash, into: &buf)
+        FfiConverterString.write(value.reason, into: &buf)
+        FfiConverterString.write(value.start, into: &buf)
+        FfiConverterUInt32.write(value.duration, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeBanEntryInfo_lift(_ buf: RustBuffer) throws -> BanEntryInfo {
+    return try FfiConverterTypeBanEntryInfo.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeBanEntryInfo_lower(_ value: BanEntryInfo) -> RustBuffer {
+    return FfiConverterTypeBanEntryInfo.lower(value)
+}
+
+
 public struct ChannelInfo: Equatable, Hashable {
     public var id: UInt32
     public var parentId: UInt32?
@@ -1136,16 +1333,20 @@ public struct ChannelInfo: Equatable, Hashable {
     public var description: String
     public var position: Int32
     public var isTemporary: Bool
+    public var isEnterRestricted: Bool
+    public var canEnter: Bool
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(id: UInt32, parentId: UInt32?, name: String, description: String, position: Int32, isTemporary: Bool) {
+    public init(id: UInt32, parentId: UInt32?, name: String, description: String, position: Int32, isTemporary: Bool, isEnterRestricted: Bool, canEnter: Bool) {
         self.id = id
         self.parentId = parentId
         self.name = name
         self.description = description
         self.position = position
         self.isTemporary = isTemporary
+        self.isEnterRestricted = isEnterRestricted
+        self.canEnter = canEnter
     }
 
     
@@ -1169,7 +1370,9 @@ public struct FfiConverterTypeChannelInfo: FfiConverterRustBuffer {
                 name: FfiConverterString.read(from: &buf), 
                 description: FfiConverterString.read(from: &buf), 
                 position: FfiConverterInt32.read(from: &buf), 
-                isTemporary: FfiConverterBool.read(from: &buf)
+                isTemporary: FfiConverterBool.read(from: &buf), 
+                isEnterRestricted: FfiConverterBool.read(from: &buf), 
+                canEnter: FfiConverterBool.read(from: &buf)
         )
     }
 
@@ -1180,6 +1383,8 @@ public struct FfiConverterTypeChannelInfo: FfiConverterRustBuffer {
         FfiConverterString.write(value.description, into: &buf)
         FfiConverterInt32.write(value.position, into: &buf)
         FfiConverterBool.write(value.isTemporary, into: &buf)
+        FfiConverterBool.write(value.isEnterRestricted, into: &buf)
+        FfiConverterBool.write(value.canEnter, into: &buf)
     }
 }
 
@@ -1316,6 +1521,68 @@ public func FfiConverterTypeClientIdentity_lift(_ buf: RustBuffer) throws -> Cli
 #endif
 public func FfiConverterTypeClientIdentity_lower(_ value: ClientIdentity) -> RustBuffer {
     return FfiConverterTypeClientIdentity.lower(value)
+}
+
+
+public struct RegisteredUser: Equatable, Hashable {
+    public var userId: UInt32
+    public var name: String
+    public var lastSeen: String?
+    public var lastChannelId: UInt32?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(userId: UInt32, name: String, lastSeen: String?, lastChannelId: UInt32?) {
+        self.userId = userId
+        self.name = name
+        self.lastSeen = lastSeen
+        self.lastChannelId = lastChannelId
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension RegisteredUser: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeRegisteredUser: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> RegisteredUser {
+        return
+            try RegisteredUser(
+                userId: FfiConverterUInt32.read(from: &buf), 
+                name: FfiConverterString.read(from: &buf), 
+                lastSeen: FfiConverterOptionString.read(from: &buf), 
+                lastChannelId: FfiConverterOptionUInt32.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: RegisteredUser, into buf: inout [UInt8]) {
+        FfiConverterUInt32.write(value.userId, into: &buf)
+        FfiConverterString.write(value.name, into: &buf)
+        FfiConverterOptionString.write(value.lastSeen, into: &buf)
+        FfiConverterOptionUInt32.write(value.lastChannelId, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeRegisteredUser_lift(_ buf: RustBuffer) throws -> RegisteredUser {
+    return try FfiConverterTypeRegisteredUser.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeRegisteredUser_lower(_ value: RegisteredUser) -> RustBuffer {
+    return FfiConverterTypeRegisteredUser.lower(value)
 }
 
 
@@ -1943,6 +2210,10 @@ public protocol MumbleEventHandler: AnyObject, Sendable {
     
     func onServerConnectionInfoUpdated(info: ServerConnectionInfo) 
     
+    func onRegisteredUsersUpdated(users: [RegisteredUser]) 
+    
+    func onBanListUpdated(bans: [BanEntryInfo]) 
+    
 }
 
 
@@ -2133,6 +2404,54 @@ fileprivate struct UniffiCallbackInterfaceMumbleEventHandler {
                 }
                 return uniffiObj.onServerConnectionInfoUpdated(
                      info: try FfiConverterTypeServerConnectionInfo_lift(info)
+                )
+            }
+
+            
+            let writeReturn = { () }
+            uniffiTraitInterfaceCall(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn
+            )
+        },
+        onRegisteredUsersUpdated: { (
+            uniffiHandle: UInt64,
+            users: RustBuffer,
+            uniffiOutReturn: UnsafeMutableRawPointer,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let makeCall = {
+                () throws -> () in
+                guard let uniffiObj = try? FfiConverterCallbackInterfaceMumbleEventHandler.handleMap.get(handle: uniffiHandle) else {
+                    throw UniffiInternalError.unexpectedStaleHandle
+                }
+                return uniffiObj.onRegisteredUsersUpdated(
+                     users: try FfiConverterSequenceTypeRegisteredUser.lift(users)
+                )
+            }
+
+            
+            let writeReturn = { () }
+            uniffiTraitInterfaceCall(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn
+            )
+        },
+        onBanListUpdated: { (
+            uniffiHandle: UInt64,
+            bans: RustBuffer,
+            uniffiOutReturn: UnsafeMutableRawPointer,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let makeCall = {
+                () throws -> () in
+                guard let uniffiObj = try? FfiConverterCallbackInterfaceMumbleEventHandler.handleMap.get(handle: uniffiHandle) else {
+                    throw UniffiInternalError.unexpectedStaleHandle
+                }
+                return uniffiObj.onBanListUpdated(
+                     bans: try FfiConverterSequenceTypeBanEntryInfo.lift(bans)
                 )
             }
 
@@ -2373,6 +2692,31 @@ fileprivate struct FfiConverterSequenceString: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterSequenceTypeBanEntryInfo: FfiConverterRustBuffer {
+    typealias SwiftType = [BanEntryInfo]
+
+    public static func write(_ value: [BanEntryInfo], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeBanEntryInfo.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [BanEntryInfo] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [BanEntryInfo]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeBanEntryInfo.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterSequenceTypeChannelInfo: FfiConverterRustBuffer {
     typealias SwiftType = [ChannelInfo]
 
@@ -2390,6 +2734,31 @@ fileprivate struct FfiConverterSequenceTypeChannelInfo: FfiConverterRustBuffer {
         seq.reserveCapacity(Int(len))
         for _ in 0 ..< len {
             seq.append(try FfiConverterTypeChannelInfo.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeRegisteredUser: FfiConverterRustBuffer {
+    typealias SwiftType = [RegisteredUser]
+
+    public static func write(_ value: [RegisteredUser], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeRegisteredUser.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [RegisteredUser] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [RegisteredUser]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeRegisteredUser.read(from: &buf))
         }
         return seq
     }
@@ -2477,6 +2846,16 @@ public func exportIdentityToPkcs12(certPem: String, keyPem: String, password: St
     )
 })
 }
+public func exportPkcs12ViaOpenssl(certPem: String, keyPem: String, password: String)throws  -> Data  {
+    return try  FfiConverterData.lift(try rustCallWithError(FfiConverterTypeMumbleError_lift) {
+        uniffiCallStatus in
+    uniffi_mumble_core_fn_func_export_pkcs12_via_openssl(
+        FfiConverterString.lower(certPem),
+        FfiConverterString.lower(keyPem),
+        FfiConverterString.lower(password),uniffiCallStatus
+    )
+})
+}
 public func generateClientIdentity(commonName: String) -> ClientIdentity  {
     return try!  FfiConverterTypeClientIdentity_lift(try! rustCall() {
         uniffiCallStatus in
@@ -2527,6 +2906,9 @@ private let initializationResult: InitializationResult = {
     if (uniffi_mumble_core_checksum_func_export_identity_to_pkcs12() != 3741) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_mumble_core_checksum_func_export_pkcs12_via_openssl() != 2143) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_mumble_core_checksum_func_generate_client_identity() != 56389) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -2534,6 +2916,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_mumble_core_checksum_func_ping_mumble_server() != 61090) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_mumble_core_checksum_method_mumbleclient_add_ban() != 45975) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_mumble_core_checksum_method_mumbleclient_ban_user() != 6515) {
@@ -2554,6 +2939,9 @@ private let initializationResult: InitializationResult = {
     if (uniffi_mumble_core_checksum_method_mumbleclient_get_active_voice_target_id() != 44603) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_mumble_core_checksum_method_mumbleclient_get_ban_list() != 7027) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_mumble_core_checksum_method_mumbleclient_get_channels() != 21529) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -2561,6 +2949,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_mumble_core_checksum_method_mumbleclient_get_my_session() != 17434) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_mumble_core_checksum_method_mumbleclient_get_registered_users() != 61165) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_mumble_core_checksum_method_mumbleclient_get_server_connection_info() != 34639) {
@@ -2590,7 +2981,25 @@ private let initializationResult: InitializationResult = {
     if (uniffi_mumble_core_checksum_method_mumbleclient_register_user() != 9871) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_mumble_core_checksum_method_mumbleclient_remove_avatar() != 16144) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_mumble_core_checksum_method_mumbleclient_remove_ban() != 9082) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_mumble_core_checksum_method_mumbleclient_remove_channel() != 19881) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_mumble_core_checksum_method_mumbleclient_remove_registered_user() != 60828) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_mumble_core_checksum_method_mumbleclient_rename_registered_user() != 16460) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_mumble_core_checksum_method_mumbleclient_request_ban_list() != 48848) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_mumble_core_checksum_method_mumbleclient_request_registered_users() != 23351) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_mumble_core_checksum_method_mumbleclient_send_chat_message() != 59388) {
@@ -2602,10 +3011,16 @@ private let initializationResult: InitializationResult = {
     if (uniffi_mumble_core_checksum_method_mumbleclient_set_active_voice_target_id() != 37431) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_mumble_core_checksum_method_mumbleclient_set_ban_list() != 8610) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_mumble_core_checksum_method_mumbleclient_set_channel_description() != 1452) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_mumble_core_checksum_method_mumbleclient_set_comment() != 3351) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_mumble_core_checksum_method_mumbleclient_set_recording_state() != 10487) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_mumble_core_checksum_method_mumbleclient_set_self_deaf() != 32669) {
@@ -2651,6 +3066,12 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_mumble_core_checksum_method_mumbleeventhandler_on_server_connection_info_updated() != 45055) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_mumble_core_checksum_method_mumbleeventhandler_on_registered_users_updated() != 54098) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_mumble_core_checksum_method_mumbleeventhandler_on_ban_list_updated() != 34707) {
         return InitializationResult.apiChecksumMismatch
     }
 

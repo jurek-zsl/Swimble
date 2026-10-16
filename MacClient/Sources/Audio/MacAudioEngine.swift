@@ -50,6 +50,23 @@ public final class MacAudioEngine: @unchecked Sendable {
         }
     }
 
+    /// Controls whether macOS VoiceProcessingIO ducks (quiets) background applications like Spotify, games, or YouTube.
+    /// Default is false so background music and games remain at 100% volume.
+    public var isAudioDuckingEnabled: Bool = false {
+        didSet {
+            UserDefaults.standard.set(isAudioDuckingEnabled, forKey: "Swimble_AudioDucking")
+            applyAudioDuckingConfig()
+        }
+    }
+
+    /// Controls hardware voice processing (Acoustic Echo Cancellation, AGC, and Voice Isolation).
+    public var isVoiceProcessingEnabled: Bool = true {
+        didSet {
+            UserDefaults.standard.set(isVoiceProcessingEnabled, forKey: "Swimble_VoiceProcessing")
+            applyVoiceProcessingConfig()
+        }
+    }
+
     // Loopback Audio Test
     private let loopbackBuffer = LoopbackBuffer()
     public var isLoopbackTestEnabled: Bool = false {
@@ -68,6 +85,43 @@ public final class MacAudioEngine: @unchecked Sendable {
         } else {
             self.isAirPodsAudioLockEnabled = true
         }
+
+        if UserDefaults.standard.object(forKey: "Swimble_AudioDucking") != nil {
+            self.isAudioDuckingEnabled = UserDefaults.standard.bool(forKey: "Swimble_AudioDucking")
+        } else {
+            self.isAudioDuckingEnabled = false
+        }
+
+        if UserDefaults.standard.object(forKey: "Swimble_VoiceProcessing") != nil {
+            self.isVoiceProcessingEnabled = UserDefaults.standard.bool(forKey: "Swimble_VoiceProcessing")
+        } else {
+            self.isVoiceProcessingEnabled = true
+        }
+    }
+
+    public func applyAudioDuckingConfig() {
+        updateDuckingConfig(on: engine.inputNode)
+    }
+
+    private func updateDuckingConfig(on node: AVAudioInputNode) {
+        if #available(macOS 14.0, *) {
+            var duckConfig = node.voiceProcessingOtherAudioDuckingConfiguration
+            duckConfig.enableAdvancedDucking = false
+            duckConfig.duckingLevel = isAudioDuckingEnabled ? .default : .min
+            node.voiceProcessingOtherAudioDuckingConfiguration = duckConfig
+        }
+    }
+
+    public func applyVoiceProcessingConfig() {
+        guard isRunning else { return }
+        do {
+            try engine.inputNode.setVoiceProcessingEnabled(isVoiceProcessingEnabled)
+            if isVoiceProcessingEnabled {
+                applyAudioDuckingConfig()
+            }
+        } catch {
+            print("[MacAudioEngine] Notice: applyVoiceProcessingConfig error: \(error)")
+        }
     }
 
     public func start() throws {
@@ -75,11 +129,20 @@ public final class MacAudioEngine: @unchecked Sendable {
 
         let inputNode = engine.inputNode
 
-        // 1. Enable Hardware Voice Processing (AEC, AGC, Voice Isolation)
-        do {
-            try inputNode.setVoiceProcessingEnabled(true)
-        } catch {
-            print("[MacAudioEngine] Notice: setVoiceProcessingEnabled error: \(error)")
+        // 1. Enable Hardware Voice Processing (AEC, AGC, Voice Isolation) & Configure Ducking
+        if isVoiceProcessingEnabled {
+            do {
+                try inputNode.setVoiceProcessingEnabled(true)
+                updateDuckingConfig(on: inputNode)
+            } catch {
+                print("[MacAudioEngine] Notice: setVoiceProcessingEnabled error: \(error)")
+            }
+        } else {
+            do {
+                try inputNode.setVoiceProcessingEnabled(false)
+            } catch {
+                print("[MacAudioEngine] Notice: setVoiceProcessingEnabled(false) error: \(error)")
+            }
         }
 
         // 2. Configure AirPods Audio Lock if enabled
@@ -146,6 +209,11 @@ public final class MacAudioEngine: @unchecked Sendable {
             let ablPointer = UnsafeMutableAudioBufferListPointer(audioBufferList)
             let samples = client.pullSpeakerPcm(frameCount: frameCount)
             let count = min(Int(frameCount), samples.count)
+
+            AudioSpectrumAnalyzer.shared.processSpeaker(samples: samples)
+            if AudioRecorder.shared.isRecording {
+                AudioRecorder.shared.writeFrames(mic: [], speaker: samples, frameCount: Int(frameCount))
+            }
 
             var loopbackSamples = [Float](repeating: 0.0, count: Int(frameCount))
             let loopbackCount = loopbackSamples.withUnsafeMutableBufferPointer { ptr in
@@ -221,6 +289,12 @@ public final class MacAudioEngine: @unchecked Sendable {
 
         // Write to loopback buffer if monitoring is enabled
         self.loopbackBuffer.write(samples: outputSamples)
+
+        // Feed to Audio Statistics spectrum analyzer and WAV recorder
+        AudioSpectrumAnalyzer.shared.processMic(samples: outputSamples, db: db)
+        if AudioRecorder.shared.isRecording {
+            AudioRecorder.shared.writeFrames(mic: outputSamples, speaker: [], frameCount: outputSamples.count)
+        }
 
         // Process transmission synchronously on the audio thread with zero latency
         let now = CACurrentMediaTime()

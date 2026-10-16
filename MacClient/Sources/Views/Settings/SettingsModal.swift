@@ -38,14 +38,6 @@ public struct SettingsModal: View {
         self._selectedTab = State(initialValue: initialTab)
     }
 
-    private var audioEngine: MacAudioEngine {
-        store.audioEngine
-    }
-
-    private var globalPTT: GlobalPTT {
-        store.globalPTT
-    }
-
     public var body: some View {
         VStack(spacing: 0) {
             // Header Bar
@@ -74,31 +66,25 @@ public struct SettingsModal: View {
             }
             .padding(.horizontal, 24)
             .padding(.vertical, 16)
-            .background(Color(NSColor.windowBackgroundColor).opacity(0.8))
+            .background(Color(NSColor.windowBackgroundColor).opacity(0.85))
 
             Divider()
 
-            // Tab Content
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    switch selectedTab {
-                    case .general:
-                        GeneralSettingsTab(store: store)
-                    case .audio:
-                        AudioSettingsTab(store: store, deviceManager: deviceManager)
-                    case .shortcuts:
-                        ShortcutsSettingsTab(store: store)
-                    case .tokens:
-                        AccessTokensSettingsTab(store: store, newTokenText: $newTokenText)
-                    case .certificates:
-                        CertificatesSettingsTab(store: store)
-                    }
-                }
-                .padding(24)
+            // Tab Content (each tab manages its own ScrollView with side padding)
+            switch selectedTab {
+            case .general:
+                GeneralSettingsTab(store: store)
+            case .audio:
+                AudioSettingsTab(store: store, deviceManager: deviceManager)
+            case .shortcuts:
+                ShortcutsSettingsTab(store: store)
+            case .tokens:
+                AccessTokensSettingsTab(store: store, newTokenText: $newTokenText)
+            case .certificates:
+                CertificatesSettingsTab(store: store)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .frame(width: 640, height: 540)
+        .frame(minWidth: 680, idealWidth: 720, minHeight: 580, idealHeight: 640)
     }
 }
 
@@ -113,183 +99,251 @@ struct AudioSettingsTab: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            // Devices Section
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Audio Devices")
-                    .font(.headline)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                // 1. Devices Section
+                SettingsCard {
+                    SettingsSectionHeader(
+                        "Audio Devices",
+                        systemImage: "speaker.wave.2.fill",
+                        subtitle: "Select the microphone and audio output devices used for voice chat."
+                    )
 
-                // Input Device Picker
-                HStack {
-                    Label("Input Device", systemImage: "mic.fill")
-                        .frame(width: 140, alignment: .leading)
-                        .foregroundStyle(.secondary)
-
-                    Picker("", selection: Binding(
-                        get: { deviceManager.selectedInputDeviceID },
-                        set: { deviceManager.setInputDevice($0) }
-                    )) {
-                        ForEach(deviceManager.inputDevices) { dev in
-                            Text(dev.name).tag(dev.id)
-                        }
-                    }
-                    .labelsHidden()
-                }
-
-                // Output Device Picker
-                HStack {
-                    Label("Output Device", systemImage: "speaker.wave.2.fill")
-                        .frame(width: 140, alignment: .leading)
-                        .foregroundStyle(.secondary)
-
-                    Picker("", selection: Binding(
-                        get: { deviceManager.selectedOutputDeviceID },
-                        set: { deviceManager.setOutputDevice($0) }
-                    )) {
-                        ForEach(deviceManager.outputDevices) { dev in
-                            Text(dev.name).tag(dev.id)
-                        }
-                    }
-                    .labelsHidden()
-                }
-            }
-            .padding(16)
-            .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
-
-            // Transmit Mode & Calibration
-            VStack(alignment: .leading, spacing: 14) {
-                Text("Voice Activation & Calibration")
-                    .font(.headline)
-
-                Picker("Mode", selection: Binding(
-                    get: { audioEngine.isPushToTalk ? 1 : 0 },
-                    set: { audioEngine.isPushToTalk = ($0 == 1) }
-                )) {
-                    Text("Voice Activity (VAD)").tag(0)
-                    Text("Push-to-Talk (PTT)").tag(1)
-                }
-                .pickerStyle(.segmented)
-
-                if !audioEngine.isPushToTalk {
-                    // Draggable VAD threshold slider
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(spacing: 12) {
                         HStack {
-                            Text("Activation Threshold")
-                                .font(.subheadline.bold())
+                            Label("Input Device", systemImage: "mic.fill")
+                                .frame(width: 140, alignment: .leading)
+                                .foregroundStyle(.secondary)
+
                             Spacer()
-                            Text("\(Int(audioEngine.vadThresholdDb)) dB")
-                                .font(.subheadline.monospacedDigit().bold())
+
+                            Picker("", selection: Binding(
+                                get: { deviceManager.selectedInputDeviceID },
+                                set: { deviceManager.setInputDevice($0) }
+                            )) {
+                                ForEach(deviceManager.inputDevices) { dev in
+                                    Text(dev.name).tag(dev.id)
+                                }
+                            }
+                            .labelsHidden()
+                            .frame(maxWidth: 320)
+                        }
+
+                        Divider()
+
+                        HStack {
+                            Label("Output Device", systemImage: "speaker.2.fill")
+                                .frame(width: 140, alignment: .leading)
+                                .foregroundStyle(.secondary)
+
+                            Spacer()
+
+                            Picker("", selection: Binding(
+                                get: { deviceManager.selectedOutputDeviceID },
+                                set: { deviceManager.setOutputDevice($0) }
+                            )) {
+                                ForEach(deviceManager.outputDevices) { dev in
+                                    Text(dev.name).tag(dev.id)
+                                }
+                            }
+                            .labelsHidden()
+                            .frame(maxWidth: 320)
+                        }
+                    }
+                }
+
+                // 2. Transmit Mode & Calibration
+                SettingsCard {
+                    SettingsSectionHeader(
+                        "Voice Activation & Calibration",
+                        systemImage: "waveform",
+                        subtitle: "Choose how your microphone transmits audio and calibrate sensitivity threshold."
+                    )
+
+                    Picker("Mode", selection: Binding(
+                        get: { audioEngine.isPushToTalk ? 1 : 0 },
+                        set: { audioEngine.isPushToTalk = ($0 == 1) }
+                    )) {
+                        Text("Voice Activity (VAD)").tag(0)
+                        Text("Push-to-Talk (PTT)").tag(1)
+                    }
+                    .pickerStyle(.segmented)
+                    .padding(.vertical, 2)
+
+                    if !audioEngine.isPushToTalk {
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack {
+                                Text("Activation Threshold")
+                                    .font(.subheadline.bold())
+                                Spacer()
+                                Text("\(Int(audioEngine.vadThresholdDb)) dB")
+                                    .font(.subheadline.monospacedDigit().bold())
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 2)
+                                    .background(Color.secondary.opacity(0.12), in: Capsule())
+                            }
+
+                            Slider(
+                                value: Binding(
+                                    get: { Double(audioEngine.vadThresholdDb) },
+                                    set: { audioEngine.vadThresholdDb = Float($0) }
+                                ),
+                                in: -60.0 ... -20.0,
+                                step: 1.0
+                            )
+
+                            // Live Level Meter Bar
+                            VStack(alignment: .leading, spacing: 6) {
+                                Canvas { context, size in
+                                    // Background track
+                                    let trackPath = Path(roundedRect: CGRect(origin: .zero, size: size), cornerRadius: size.height / 2)
+                                    context.fill(trackPath, with: .color(Color.secondary.opacity(0.15)))
+
+                                    // Current mic level
+                                    let levelFraction = max(0.0, min(1.0, Double((audioEngine.inputLevelDb + 80) / 80)))
+                                    let fillWidth = size.width * CGFloat(levelFraction)
+                                    if fillWidth > 0 {
+                                        let fillRect = CGRect(x: 0, y: 0, width: fillWidth, height: size.height)
+                                        let fillPath = Path(roundedRect: fillRect, cornerRadius: size.height / 2)
+                                        let fillColor = audioEngine.isTransmitting ? Color.green : Color.secondary.opacity(0.5)
+                                        context.fill(fillPath, with: .color(fillColor))
+                                    }
+
+                                    // Threshold gate marker
+                                    let threshFraction = max(0.0, min(1.0, Double((audioEngine.vadThresholdDb + 80) / 80)))
+                                    let gateX = size.width * CGFloat(threshFraction)
+                                    let markerRect = CGRect(x: max(0, gateX - 1.5), y: 0, width: 3, height: size.height)
+                                    context.fill(Path(roundedRect: markerRect, cornerRadius: 1), with: .color(Color.red))
+                                }
+                                .frame(height: 12)
+
+                                HStack {
+                                    Text("-80 dB (Silent)")
+                                    Spacer()
+                                    HStack(spacing: 4) {
+                                        Circle().fill(Color.red).frame(width: 6, height: 6)
+                                        Text("Gate: \(Int(audioEngine.vadThresholdDb)) dB")
+                                            .foregroundStyle(.red)
+                                            .font(.caption2.bold())
+                                    }
+                                    Spacer()
+                                    Text("0 dB (Max)")
+                                }
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+
+                    Divider()
+
+                    // Loopback Test Toggle
+                    SettingsToggleRow(isOn: Binding(
+                        get: { audioEngine.isLoopbackTestEnabled },
+                        set: { audioEngine.isLoopbackTestEnabled = $0 }
+                    )) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            HStack(spacing: 6) {
+                                Image(systemName: audioEngine.isLoopbackTestEnabled ? "ear.fill" : "ear")
+                                    .foregroundStyle(audioEngine.isLoopbackTestEnabled ? Color.green : Color.primary)
+                                Text("Loopback Mic Test")
+                                    .font(.subheadline.bold())
+                                if audioEngine.isLoopbackTestEnabled {
+                                    Text("ACTIVE")
+                                        .font(.system(size: 9, weight: .bold))
+                                        .padding(.horizontal, 5)
+                                        .padding(.vertical, 1)
+                                        .background(Color.green.opacity(0.18), in: Capsule())
+                                        .foregroundStyle(.green)
+                                }
+                            }
+                            Text("Monitors your voice locally in real-time through the selected output device to check mic quality and test gate sensitivity.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                }
+
+                // 3. Gaming & Hardware Quality Features
+                SettingsCard {
+                    SettingsSectionHeader(
+                        "Hardware & Audio Processing",
+                        systemImage: "slider.horizontal.3",
+                        subtitle: "Acoustic echo cancellation, background audio ducking, and Bluetooth protection."
+                    )
+
+                    // 1. Ducking Toggle
+                    SettingsToggleRow(
+                        "Lower Background Apps Volume (Ducking)",
+                        subtitle: "When enabled, macOS ducks Spotify, YouTube, games, and other apps during voice chat. Kept off so background audio stays at 100% volume.",
+                        isOn: Binding(
+                            get: { audioEngine.isAudioDuckingEnabled },
+                            set: { audioEngine.isAudioDuckingEnabled = $0 }
+                        )
+                    )
+
+                    Divider()
+
+                    // 2. AirPods / Bluetooth Lock
+                    SettingsToggleRow(
+                        "AirPods / Bluetooth High-Quality Lock",
+                        subtitle: "Locks mic to Mac's built-in mic so macOS never degrades Bluetooth stereo game audio into 16kHz Hands-Free mode.",
+                        isOn: Binding(
+                            get: { audioEngine.isAirPodsAudioLockEnabled },
+                            set: { audioEngine.isAirPodsAudioLockEnabled = $0 }
+                        )
+                    )
+
+                    Divider()
+
+                    // 3. Hardware Echo Cancellation
+                    SettingsToggleRow(
+                        "Hardware Echo Cancellation & Voice Isolation",
+                        subtitle: "Uses Apple VoiceProcessingIO to filter speaker echo and isolate speech from background noise.",
+                        isOn: Binding(
+                            get: { audioEngine.isVoiceProcessingEnabled },
+                            set: { audioEngine.isVoiceProcessingEnabled = $0 }
+                        )
+                    )
+
+                    Divider()
+
+                    // VoiceProcessingIO Status Banner
+                    HStack(spacing: 12) {
+                        Image(systemName: audioEngine.isVoiceProcessingEnabled ? "checkmark.seal.fill" : "waveform.badge.magnifyingglass")
+                            .font(.title2)
+                            .foregroundStyle(audioEngine.isVoiceProcessingEnabled ? .green : .blue)
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(audioEngine.isVoiceProcessingEnabled ? "Apple VoiceProcessingIO Active" : "Direct CoreAudio Pipeline Active")
+                                .font(.subheadline.bold())
+                            Text(audioEngine.isVoiceProcessingEnabled ?
+                                 "48,000 Hz Mono • AEC • Voice Isolation • \(audioEngine.isAudioDuckingEnabled ? "Ducking Active" : "Zero Background Ducking")" :
+                                 "48,000 Hz Mono • Raw Audio • Zero Ducking • Lowest Latency")
+                                .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
 
-                        Slider(
-                            value: Binding(
-                                get: { Double(audioEngine.vadThresholdDb) },
-                                set: { audioEngine.vadThresholdDb = Float($0) }
-                            ),
-                            in: -60.0 ... -20.0,
-                            step: 1.0
-                        )
+                        Spacer()
 
-                        // Live Level Meter Bar
-                        VStack(alignment: .leading, spacing: 4) {
-                            Canvas { context, size in
-                                // Background track
-                                let trackPath = Path(roundedRect: CGRect(origin: .zero, size: size), cornerRadius: size.height / 2)
-                                context.fill(trackPath, with: .color(Color.secondary.opacity(0.2)))
-
-                                // Current mic level
-                                let levelFraction = max(0.0, min(1.0, Double((audioEngine.inputLevelDb + 80) / 80)))
-                                let fillWidth = size.width * CGFloat(levelFraction)
-                                if fillWidth > 0 {
-                                    let fillRect = CGRect(x: 0, y: 0, width: fillWidth, height: size.height)
-                                    let fillPath = Path(roundedRect: fillRect, cornerRadius: size.height / 2)
-                                    let fillColor = audioEngine.isTransmitting ? Color.green : Color.secondary
-                                    context.fill(fillPath, with: .color(fillColor))
-                                }
-
-                                // Threshold gate marker
-                                let threshFraction = max(0.0, min(1.0, Double((audioEngine.vadThresholdDb + 80) / 80)))
-                                let gateX = size.width * CGFloat(threshFraction)
-                                let markerRect = CGRect(x: max(0, gateX - 1), y: 0, width: 2, height: size.height)
-                                context.fill(Path(markerRect), with: .color(Color.red))
-                            }
-                            .frame(height: 10)
-
-                            HStack {
-                                Text("-80 dB")
-                                Spacer()
-                                Text("Gate: \(Int(audioEngine.vadThresholdDb)) dB")
-                                    .foregroundStyle(.red)
-                                    .font(.caption2.bold())
-                                Spacer()
-                                Text("0 dB")
-                            }
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
-                        }
+                        Text(audioEngine.isVoiceProcessingEnabled ? "AEC ON" : "RAW")
+                            .font(.system(size: 10, weight: .bold))
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 3)
+                            .background((audioEngine.isVoiceProcessingEnabled ? Color.green : Color.blue).opacity(0.15), in: Capsule())
+                            .foregroundStyle(audioEngine.isVoiceProcessingEnabled ? .green : .blue)
                     }
-                }
-
-                Divider()
-
-                // Loopback Test Toggle
-                Toggle(isOn: Binding(
-                    get: { audioEngine.isLoopbackTestEnabled },
-                    set: { audioEngine.isLoopbackTestEnabled = $0 }
-                )) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        HStack(spacing: 6) {
-                            Image(systemName: audioEngine.isLoopbackTestEnabled ? "ear.fill" : "ear")
-                                .foregroundStyle(audioEngine.isLoopbackTestEnabled ? Color.green : Color.primary)
-                            Text("Loopback Mic Test")
-                                .font(.subheadline.bold())
-                        }
-                        Text("Monitors your voice locally in real-time through the selected output device to check mic quality and test gate sensitivity.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .toggleStyle(.switch)
-            }
-            .padding(16)
-            .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
-
-            // Gaming & Hardware Quality Features
-            VStack(alignment: .leading, spacing: 14) {
-                Text("Bluetooth & Hardware Audio")
-                    .font(.headline)
-
-                Toggle(isOn: Binding(
-                    get: { audioEngine.isAirPodsAudioLockEnabled },
-                    set: { audioEngine.isAirPodsAudioLockEnabled = $0 }
-                )) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("AirPods / Bluetooth High-Quality Lock")
-                            .font(.subheadline.bold())
-                        Text("Locks mic to Mac's built-in mic so macOS never degrades Bluetooth stereo game audio into 16kHz Hands-Free mode.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .toggleStyle(.switch)
-
-                Divider()
-
-                HStack(spacing: 8) {
-                    Image(systemName: "checkmark.seal.fill")
-                        .foregroundStyle(.green)
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text("Hardware VoiceProcessingIO Active")
-                            .font(.caption.bold())
-                        Text("48,000 Hz Mono • Acoustic Echo Cancellation • Voice Isolation")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
+                    .padding(12)
+                    .background((audioEngine.isVoiceProcessingEnabled ? Color.green : Color.blue).opacity(0.06), in: RoundedRectangle(cornerRadius: 10))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 10)
+                            .strokeBorder((audioEngine.isVoiceProcessingEnabled ? Color.green : Color.blue).opacity(0.2), lineWidth: 0.5)
                     }
                 }
             }
-            .padding(16)
-            .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
+            .padding(.horizontal, 36)
+            .padding(.vertical, 24)
         }
     }
 }
@@ -317,13 +371,14 @@ struct ShortcutRowView: View {
     }
 
     var body: some View {
-        HStack {
+        HStack(alignment: .center) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.subheadline.bold())
                 Text(subtitle)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             Spacer()
@@ -343,7 +398,7 @@ struct ShortcutRowView: View {
                     Text(displayLabel)
                         .bold()
                 }
-                .frame(minWidth: 130)
+                .frame(minWidth: 140)
             }
             .buttonStyle(.borderedProminent)
             .tint(isRecording ? .orange : (keybind != nil ? .accentColor : .secondary.opacity(0.3)))
@@ -354,12 +409,14 @@ struct ShortcutRowView: View {
                         onResetOrClear()
                     }
                     .buttonStyle(.bordered)
+                    .controlSize(.small)
                 }
             } else if keybind != nil {
                 Button("Clear") {
                     onResetOrClear()
                 }
                 .buttonStyle(.bordered)
+                .controlSize(.small)
             }
         }
     }
@@ -373,126 +430,133 @@ struct ShortcutsSettingsTab: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            // Keybinds Section
-            VStack(alignment: .leading, spacing: 16) {
-                Text("Global Hotkeys")
-                    .font(.headline)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                // Keybinds Section
+                SettingsCard {
+                    SettingsSectionHeader(
+                        "Global Hotkeys",
+                        systemImage: "keyboard",
+                        subtitle: "Configure single keys or multi-key combinations that work globally even while gaming."
+                    )
 
-                // 1. Push-to-Talk Shortcut
-                ShortcutRowView(
-                    title: "Push-to-Talk",
-                    subtitle: "Hold key combination to transmit audio while gaming.",
-                    action: .ptt,
-                    keybind: globalPTT.currentKeybind,
-                    defaultKeybind: .defaultGrave,
-                    globalPTT: globalPTT,
-                    onResetOrClear: { globalPTT.currentKeybind = .defaultGrave }
-                )
+                    // 1. Push-to-Talk Shortcut
+                    ShortcutRowView(
+                        title: "Push-to-Talk",
+                        subtitle: "Hold key combination to transmit audio while gaming.",
+                        action: .ptt,
+                        keybind: globalPTT.currentKeybind,
+                        defaultKeybind: .defaultGrave,
+                        globalPTT: globalPTT,
+                        onResetOrClear: { globalPTT.currentKeybind = .defaultGrave }
+                    )
 
-                Divider()
+                    Divider()
 
-                // 2. Push-to-Whisper Shortcut
-                ShortcutRowView(
-                    title: "Push-to-Whisper",
-                    subtitle: "Hold key combination to whisper directly to active target.",
-                    action: .whisper,
-                    keybind: globalPTT.whisperKeybind,
-                    defaultKeybind: nil,
-                    globalPTT: globalPTT,
-                    onResetOrClear: { globalPTT.whisperKeybind = nil }
-                )
+                    // 2. Push-to-Whisper Shortcut
+                    ShortcutRowView(
+                        title: "Push-to-Whisper",
+                        subtitle: "Hold key combination to whisper directly to active target.",
+                        action: .whisper,
+                        keybind: globalPTT.whisperKeybind,
+                        defaultKeybind: nil,
+                        globalPTT: globalPTT,
+                        onResetOrClear: { globalPTT.whisperKeybind = nil }
+                    )
 
-                Divider()
+                    Divider()
 
-                // 3. Global Mute Shortcut
-                ShortcutRowView(
-                    title: "Toggle Mute",
-                    subtitle: "Mute or unmute your microphone globally (e.g. Ctrl + Shift + Z).",
-                    action: .mute,
-                    keybind: globalPTT.muteToggleKeybind,
-                    defaultKeybind: nil,
-                    globalPTT: globalPTT,
-                    onResetOrClear: { globalPTT.muteToggleKeybind = nil }
-                )
+                    // 3. Global Mute Shortcut
+                    ShortcutRowView(
+                        title: "Toggle Mute",
+                        subtitle: "Mute or unmute your microphone globally (e.g. Ctrl + Shift + Z).",
+                        action: .mute,
+                        keybind: globalPTT.muteToggleKeybind,
+                        defaultKeybind: nil,
+                        globalPTT: globalPTT,
+                        onResetOrClear: { globalPTT.muteToggleKeybind = nil }
+                    )
 
-                Divider()
+                    Divider()
 
-                // 4. Global Deafen Shortcut
-                ShortcutRowView(
-                    title: "Toggle Deafen",
-                    subtitle: "Mute all incoming audio and your microphone globally.",
-                    action: .deafen,
-                    keybind: globalPTT.deafenToggleKeybind,
-                    defaultKeybind: nil,
-                    globalPTT: globalPTT,
-                    onResetOrClear: { globalPTT.deafenToggleKeybind = nil }
-                )
+                    // 4. Global Deafen Shortcut
+                    ShortcutRowView(
+                        title: "Toggle Deafen",
+                        subtitle: "Mute all incoming audio and your microphone globally.",
+                        action: .deafen,
+                        keybind: globalPTT.deafenToggleKeybind,
+                        defaultKeybind: nil,
+                        globalPTT: globalPTT,
+                        onResetOrClear: { globalPTT.deafenToggleKeybind = nil }
+                    )
 
-                Divider()
+                    Divider()
 
-                // 5. Global Overlay Shortcut
-                ShortcutRowView(
-                    title: "Toggle Game Overlay",
-                    subtitle: "Show or hide the floating in-game speaking HUD overlay.",
-                    action: .overlay,
-                    keybind: globalPTT.overlayToggleKeybind,
-                    defaultKeybind: nil,
-                    globalPTT: globalPTT,
-                    onResetOrClear: { globalPTT.overlayToggleKeybind = nil }
-                )
+                    // 5. Global Overlay Shortcut
+                    ShortcutRowView(
+                        title: "Toggle Game Overlay",
+                        subtitle: "Show or hide the floating in-game speaking HUD overlay.",
+                        action: .overlay,
+                        keybind: globalPTT.overlayToggleKeybind,
+                        defaultKeybind: nil,
+                        globalPTT: globalPTT,
+                        onResetOrClear: { globalPTT.overlayToggleKeybind = nil }
+                    )
 
-                Divider()
+                    Divider()
 
-                // Instructions / Tip banner
-                HStack(spacing: 8) {
-                    Image(systemName: "keyboard.badge.ellipsis")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                    Text("Tip: Click a shortcut button, then press any single key or combination of 2, 3 or more keys (e.g. Ctrl + Shift + Z). Press Escape to cancel or Delete to clear.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.top, 4)
-            }
-            .padding(16)
-            .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
-
-            // Accessibility Permission Status Card
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(spacing: 8) {
-                    Image(systemName: globalPTT.isAccessibilityTrusted ? "checkmark.shield.fill" : "exclamationmark.shield.fill")
-                        .font(.title3)
-                        .foregroundStyle(globalPTT.isAccessibilityTrusted ? .green : .orange)
-
-                    Text(globalPTT.isAccessibilityTrusted ? "Accessibility Permission Granted" : "Accessibility Permission Required")
-                        .font(.headline)
-
-                    Spacer()
-
-                    Button("Check Again") {
-                        globalPTT.refreshAccessibilityStatus()
+                    // Instructions / Tip banner
+                    HStack(spacing: 8) {
+                        Image(systemName: "keyboard.badge.ellipsis")
+                            .font(.subheadline)
+                            .foregroundStyle(Color.accentColor)
+                        Text("Tip: Click a shortcut button, then press any single key or combination of 2, 3 or more keys (e.g. Ctrl + Shift + Z). Press Escape to cancel or Delete to clear.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
-                    .buttonStyle(.bordered)
+                    .padding(.top, 2)
                 }
 
-                Text("macOS requires Accessibility permissions for Swimble to intercept Push-to-Talk and hotkeys in the background while full-screen games or other applications are focused.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                // Accessibility Permission Status Card
+                SettingsCard {
+                    HStack(spacing: 12) {
+                        Image(systemName: globalPTT.isAccessibilityTrusted ? "checkmark.shield.fill" : "exclamationmark.shield.fill")
+                            .font(.title2)
+                            .foregroundStyle(globalPTT.isAccessibilityTrusted ? .green : .orange)
 
-                if !globalPTT.isAccessibilityTrusted {
-                    Button(action: {
-                        globalPTT.openAccessibilitySettings()
-                    }) {
-                        Label("Open macOS System Settings", systemImage: "gearshape")
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(globalPTT.isAccessibilityTrusted ? "Accessibility Permission Granted" : "Accessibility Permission Required")
+                                .font(.headline)
+                            Text("macOS requires Accessibility permissions for Swimble to intercept Push-to-Talk and hotkeys in the background while full-screen games or other applications are focused.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+
+                        Spacer()
+
+                        Button("Check Again") {
+                            globalPTT.refreshAccessibilityStatus()
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.orange)
-                    .padding(.top, 4)
+
+                    if !globalPTT.isAccessibilityTrusted {
+                        Button(action: {
+                            globalPTT.openAccessibilitySettings()
+                        }) {
+                            Label("Open macOS System Settings", systemImage: "gearshape")
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.orange)
+                        .padding(.top, 4)
+                    }
                 }
             }
-            .padding(16)
-            .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
+            .padding(.horizontal, 36)
+            .padding(.vertical, 24)
         }
     }
 }
@@ -504,77 +568,79 @@ struct AccessTokensSettingsTab: View {
     @Binding var newTokenText: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Server Access Tokens")
-                    .font(.headline)
-                Text("Access tokens grant permissions to password-protected channels and private groups on Mumble servers without needing server administrator status.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                SettingsCard {
+                    SettingsSectionHeader(
+                        "Server Access Tokens",
+                        systemImage: "key.fill",
+                        subtitle: "Access tokens grant access to password-protected channels and private groups on Mumble servers without needing server administrator status."
+                    )
 
-            // Add Token Field
-            HStack(spacing: 10) {
-                TextField("Enter new access token (password)...", text: $newTokenText)
-                    .textFieldStyle(.roundedBorder)
-                    .onSubmit {
-                        submitToken()
-                    }
-
-                Button(action: submitToken) {
-                    Label("Add Token", systemImage: "plus.circle.fill")
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(newTokenText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            }
-
-            Divider()
-
-            // Token List
-            if store.accessTokens.isEmpty {
-                VStack(spacing: 10) {
-                    Image(systemName: "key.slash")
-                        .font(.system(size: 32))
-                        .foregroundStyle(.tertiary)
-                    Text("No access tokens configured")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                    Text("Add tokens above to automatically unlock restricted channels on connect.")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 30)
-            } else {
-                VStack(spacing: 8) {
-                    ForEach(Array(store.accessTokens.enumerated()), id: \.offset) { index, token in
-                        HStack {
-                            Image(systemName: "key.fill")
-                                .foregroundStyle(Color.accentColor)
-
-                            Text(token)
-                                .font(.body.monospaced())
-
-                            Spacer()
-
-                            Button(action: {
-                                store.removeAccessToken(at: index)
-                            }) {
-                                Image(systemName: "trash")
-                                    .foregroundStyle(.red)
+                    // Add Token Field
+                    HStack(spacing: 10) {
+                        TextField("Enter new access token (password)...", text: $newTokenText)
+                            .textFieldStyle(.roundedBorder)
+                            .onSubmit {
+                                submitToken()
                             }
-                            .buttonStyle(.plain)
-                            .help("Remove Token")
+
+                        Button(action: submitToken) {
+                            Label("Add Token", systemImage: "plus.circle.fill")
                         }
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 10)
-                        .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+                        .buttonStyle(.borderedProminent)
+                        .disabled(newTokenText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+
+                    Divider()
+
+                    // Token List
+                    if store.accessTokens.isEmpty {
+                        VStack(spacing: 10) {
+                            Image(systemName: "key.slash")
+                                .font(.system(size: 32))
+                                .foregroundStyle(.tertiary)
+                            Text("No access tokens configured")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                            Text("Add tokens above to automatically unlock restricted channels on connect.")
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 30)
+                    } else {
+                        VStack(spacing: 8) {
+                            ForEach(Array(store.accessTokens.enumerated()), id: \.offset) { index, token in
+                                HStack {
+                                    Image(systemName: "key.fill")
+                                        .foregroundStyle(Color.accentColor)
+
+                                    Text(token)
+                                        .font(.body.monospaced())
+
+                                    Spacer()
+
+                                    Button(action: {
+                                        store.removeAccessToken(at: index)
+                                    }) {
+                                        Image(systemName: "trash")
+                                            .foregroundStyle(.red)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .help("Remove Token")
+                                }
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 10)
+                                .background(Color.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+                            }
+                        }
                     }
                 }
             }
+            .padding(.horizontal, 36)
+            .padding(.vertical, 24)
         }
-        .padding(16)
-        .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
     }
 
     private func submitToken() {
@@ -597,87 +663,105 @@ struct CertificatesSettingsTab: View {
     @State private var statusMessage: String? = nil
     @State private var isError: Bool = false
     @State private var showingRegenConfirmation = false
+    @State private var didCopyFingerprint = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            // Certificate Identity Card
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Client Identity & Certificate")
-                    .font(.headline)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                // Certificate Identity Card
+                SettingsCard {
+                    SettingsSectionHeader(
+                        "Client Identity & Certificate",
+                        systemImage: "person.badge.shield.checkmark.fill",
+                        subtitle: "Swimble uses client-side X.509 certificates to authenticate with Murmur servers without passwords. Your certificate is stored securely in the macOS Keychain."
+                    )
 
-                Text("Swimble uses client-side X.509 certificates to authenticate with Murmur servers without passwords. Your certificate is stored securely in the macOS Keychain.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    Divider()
 
-                Divider()
-
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("SHA-1 Fingerprint:")
-                        .font(.caption.bold())
-                        .foregroundStyle(.secondary)
-
-                    Text(store.certFingerprint)
-                        .font(.system(.caption, design: .monospaced))
-                        .padding(10)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color.secondary.opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
-                        .textSelection(.enabled)
-                }
-
-                if let msg = statusMessage {
-                    Text(msg)
-                        .font(.caption.bold())
-                        .foregroundStyle(isError ? .red : .green)
-                }
-            }
-            .padding(16)
-            .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
-
-            // Actions: Export, Import, Generate
-            VStack(alignment: .leading, spacing: 14) {
-                Text("Certificate Backup & Transfer")
-                    .font(.headline)
-
-                Text("Export your certificate as a standard PKCS#12 (.p12) bundle to back it up or transfer your registered identity from classic Mumble.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                HStack(spacing: 12) {
-                    Button(action: {
-                        exportPassword = ""
-                        showingExportAlert = true
-                    }) {
-                        Label("Export Certificate (.p12)...", systemImage: "square.and.arrow.up")
-                    }
-                    .buttonStyle(.bordered)
-
-                    Button(action: {
-                        let panel = NSOpenPanel()
-                        panel.allowedContentTypes = [.pkcs12, .data]
-                        panel.allowsMultipleSelection = false
-                        panel.canChooseDirectories = false
-                        if panel.runModal() == .OK, let url = panel.url {
-                            selectedImportUrl = url
-                            importPassword = ""
-                            showingImportAlert = true
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("SHA-1 Fingerprint:")
+                                .font(.caption.bold())
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Button {
+                                NSPasteboard.general.clearContents()
+                                NSPasteboard.general.setString(store.certFingerprint, forType: .string)
+                                didCopyFingerprint = true
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                                    didCopyFingerprint = false
+                                }
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Image(systemName: didCopyFingerprint ? "checkmark" : "doc.on.doc")
+                                    Text(didCopyFingerprint ? "Copied" : "Copy")
+                                }
+                                .font(.caption)
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
                         }
-                    }) {
-                        Label("Import Certificate (.p12)...", systemImage: "square.and.arrow.down")
-                    }
-                    .buttonStyle(.bordered)
 
-                    Spacer()
-
-                    Button(role: .destructive, action: {
-                        showingRegenConfirmation = true
-                    }) {
-                        Label("Generate New...", systemImage: "arrow.triangle.2.circlepath")
+                        Text(store.certFingerprint)
+                            .font(.system(.caption, design: .monospaced))
+                            .padding(12)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+                            .textSelection(.enabled)
                     }
-                    .buttonStyle(.bordered)
+
+                    if let msg = statusMessage {
+                        Text(msg)
+                            .font(.caption.bold())
+                            .foregroundStyle(isError ? .red : .green)
+                    }
+                }
+
+                // Actions: Export, Import, Generate
+                SettingsCard {
+                    SettingsSectionHeader(
+                        "Certificate Backup & Transfer",
+                        systemImage: "arrow.triangle.2.circlepath",
+                        subtitle: "Export your certificate as a standard PKCS#12 (.p12) bundle to back it up or transfer your registered identity from classic Mumble."
+                    )
+
+                    HStack(spacing: 12) {
+                        Button(action: {
+                            exportPassword = ""
+                            showingExportAlert = true
+                        }) {
+                            Label("Export Certificate (.p12)...", systemImage: "square.and.arrow.up")
+                        }
+                        .buttonStyle(.bordered)
+
+                        Button(action: {
+                            let panel = NSOpenPanel()
+                            panel.allowedContentTypes = [.pkcs12, .data]
+                            panel.allowsMultipleSelection = false
+                            panel.canChooseDirectories = false
+                            if panel.runModal() == .OK, let url = panel.url {
+                                selectedImportUrl = url
+                                importPassword = ""
+                                showingImportAlert = true
+                            }
+                        }) {
+                            Label("Import Certificate (.p12)...", systemImage: "square.and.arrow.down")
+                        }
+                        .buttonStyle(.bordered)
+
+                        Spacer()
+
+                        Button(role: .destructive, action: {
+                            showingRegenConfirmation = true
+                        }) {
+                            Label("Generate New...", systemImage: "arrow.triangle.2.circlepath")
+                        }
+                        .buttonStyle(.bordered)
+                    }
                 }
             }
-            .padding(16)
-            .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
+            .padding(.horizontal, 36)
+            .padding(.vertical, 24)
         }
         .alert("Export Certificate (.p12)", isPresented: $showingExportAlert) {
             SecureField("Password (optional)", text: $exportPassword)

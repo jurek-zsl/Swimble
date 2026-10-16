@@ -27,29 +27,28 @@ public struct GeneralSettingsTab: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 // 1. Startup & Connectivity
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Startup & Connectivity")
-                        .font(.headline)
+                SettingsCard {
+                    SettingsSectionHeader(
+                        "Startup & Connectivity",
+                        systemImage: "bolt.fill",
+                        subtitle: "Configure automatic connection behavior on application launch."
+                    )
 
-                    Toggle(isOn: $store.autoReconnectOnLaunch) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Auto-Connect to Favorite Server")
-                                .font(.subheadline.bold())
-                            Text("Automatically connects to your favorite server bookmark when Swimble launches.")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    .toggleStyle(.switch)
+                    SettingsToggleRow(
+                        "Auto-Connect to Favorite Server",
+                        subtitle: "Automatically connects to your favorite server bookmark when Swimble launches.",
+                        isOn: $store.autoReconnectOnLaunch
+                    )
                 }
-                .padding(16)
-                .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
 
                 // 2. Audio Cues & Sound Alerts
-                VStack(alignment: .leading, spacing: 14) {
+                SettingsCard {
                     HStack {
-                        Text("Audio Cues & Sound Alerts")
-                            .font(.headline)
+                        SettingsSectionHeader(
+                            "Audio Cues & Sound Alerts",
+                            systemImage: "bell.badge.fill",
+                            subtitle: "Play subtle audio chimes for voice actions and incoming messages."
+                        )
                         Spacer()
                         Toggle("", isOn: $audioCuesEnabled)
                             .toggleStyle(.switch)
@@ -60,117 +59,159 @@ public struct GeneralSettingsTab: View {
                     }
 
                     if audioCuesEnabled {
-                        VStack(alignment: .leading, spacing: 10) {
-                            Toggle("Mute & Deafen Chimes", isOn: $muteCueEnabled)
-                                .onChange(of: muteCueEnabled) { _, newValue in
-                                    SoundManager.shared.isMuteCueEnabled = newValue
-                                }
+                        VStack(alignment: .leading, spacing: 14) {
+                            SettingsToggleRow(
+                                "Mute & Deafen Chimes",
+                                subtitle: "Play chimes when self or global mute/deafen status changes.",
+                                isOn: Binding(
+                                    get: { muteCueEnabled },
+                                    set: {
+                                        muteCueEnabled = $0
+                                        SoundManager.shared.isMuteCueEnabled = $0
+                                    }
+                                )
+                            )
 
-                            Toggle("User Join & Leave Chimes", isOn: $userActivityCueEnabled)
-                                .onChange(of: userActivityCueEnabled) { _, newValue in
-                                    SoundManager.shared.isUserActivityCueEnabled = newValue
-                                }
+                            SettingsToggleRow(
+                                "User Join & Leave Chimes",
+                                subtitle: "Play sound effect when other users connect, disconnect, or switch channels.",
+                                isOn: Binding(
+                                    get: { userActivityCueEnabled },
+                                    set: {
+                                        userActivityCueEnabled = $0
+                                        SoundManager.shared.isUserActivityCueEnabled = $0
+                                    }
+                                )
+                            )
 
-                            Toggle("Incoming Whisper Alert", isOn: $whisperCueEnabled)
-                                .onChange(of: whisperCueEnabled) { _, newValue in
-                                    SoundManager.shared.isWhisperCueEnabled = newValue
-                                }
+                            SettingsToggleRow(
+                                "Incoming Whisper Alert",
+                                subtitle: "Play unique notification tone when receiving a direct voice whisper.",
+                                isOn: Binding(
+                                    get: { whisperCueEnabled },
+                                    set: {
+                                        whisperCueEnabled = $0
+                                        SoundManager.shared.isWhisperCueEnabled = $0
+                                    }
+                                )
+                            )
 
-                            Toggle("Incoming Chat Message Ping", isOn: $messageCueEnabled)
-                                .onChange(of: messageCueEnabled) { _, newValue in
-                                    SoundManager.shared.isMessageCueEnabled = newValue
-                                }
+                            SettingsToggleRow(
+                                "Incoming Chat Message Ping",
+                                subtitle: "Play subtle message chime when text chat arrives in your channel.",
+                                isOn: Binding(
+                                    get: { messageCueEnabled },
+                                    set: {
+                                        messageCueEnabled = $0
+                                        SoundManager.shared.isMessageCueEnabled = $0
+                                    }
+                                )
+                            )
 
                             Divider()
 
-                            HStack {
-                                Text("Preview System Cues:")
+                            HStack(spacing: 8) {
+                                Text("Preview Cues:")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                                 Spacer()
-                                Button("Mute") { SoundManager.shared.playMute(isMuted: true) }
-                                    .buttonStyle(.bordered)
-                                    .controlSize(.small)
-                                Button("Join") { SoundManager.shared.playUserJoined() }
-                                    .buttonStyle(.bordered)
-                                    .controlSize(.small)
-                                Button("Whisper") { SoundManager.shared.playWhisper() }
-                                    .buttonStyle(.bordered)
-                                    .controlSize(.small)
-                                Button("Ping") { SoundManager.shared.playMessageReceived() }
-                                    .buttonStyle(.bordered)
-                                    .controlSize(.small)
+                                Button {
+                                    SoundManager.shared.playMute(isMuted: true)
+                                } label: {
+                                    Label("Mute", systemImage: "mic.slash.fill")
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+
+                                Button {
+                                    SoundManager.shared.playUserJoined()
+                                } label: {
+                                    Label("Join", systemImage: "person.badge.plus")
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+
+                                Button {
+                                    SoundManager.shared.playWhisper()
+                                } label: {
+                                    Label("Whisper", systemImage: "bubble.left.fill")
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+
+                                Button {
+                                    SoundManager.shared.playMessageReceived()
+                                } label: {
+                                    Label("Ping", systemImage: "bell.fill")
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
                             }
                         }
                         .font(.subheadline)
+                        .padding(.top, 4)
                     }
                 }
-                .padding(16)
-                .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
 
-                // 3. Liquid Glass Accent Theme
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Liquid Glass Appearance")
-                        .font(.headline)
+                // 3. Liquid Glass Appearance
+                SettingsCard {
+                    SettingsSectionHeader(
+                        "Liquid Glass Appearance",
+                        systemImage: "paintpalette.fill",
+                        subtitle: "Tints speaking orbs, active VAD meters, and interactive Liquid Glass buttons."
+                    )
 
-                    HStack(spacing: 12) {
+                    HStack(spacing: 16) {
                         Text("Accent Tint:")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
 
-                        HStack(spacing: 10) {
+                        HStack(spacing: 12) {
                             ForEach(accentColors, id: \.name) { item in
                                 Button(action: {
                                     store.accentColorName = item.name
                                 }) {
                                     Circle()
                                         .fill(item.color)
-                                        .frame(width: 22, height: 22)
+                                        .frame(width: 26, height: 26)
                                         .overlay {
                                             if store.accentColorName == item.name {
                                                 Circle()
-                                                    .strokeBorder(Color.white, lineWidth: 2)
+                                                    .strokeBorder(Color.white, lineWidth: 2.5)
                                                 Image(systemName: "checkmark")
-                                                    .font(.system(size: 10, weight: .bold))
+                                                    .font(.system(size: 11, weight: .bold))
                                                     .foregroundStyle(.white)
                                             }
                                         }
+                                        .shadow(color: item.color.opacity(store.accentColorName == item.name ? 0.4 : 0.1), radius: 4)
                                 }
                                 .buttonStyle(.plain)
                                 .help(item.name)
                             }
                         }
                     }
-
-                    Text("Tints speaking orbs, VAD active indicators, and interactive Liquid Glass buttons.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    .padding(.vertical, 4)
                 }
-                .padding(16)
-                .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
 
-                // 4. Game Overlay
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Full-Screen Game Overlay")
-                                .font(.headline)
-                            Text("Displays a compact, always-on-top Liquid Glass pill showing who is speaking in full-screen games.")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
+                // 4. Game Overlay HUD
+                SettingsCard {
+                    HStack(alignment: .center) {
+                        SettingsSectionHeader(
+                            "Full-Screen Game Overlay",
+                            systemImage: "rectangle.inset.filled.and.cursorarrow",
+                            subtitle: "Displays a compact, always-on-top speaking HUD overlay over full-screen games."
+                        )
                         Spacer()
                         Button(FloatingOverlayManager.shared.isVisible ? "Hide Overlay" : "Show Overlay") {
                             FloatingOverlayManager.shared.toggle(store: store)
                         }
                         .buttonStyle(.borderedProminent)
-                        .controlSize(.small)
+                        .controlSize(.regular)
                     }
                 }
-                .padding(16)
-                .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
             }
-            .padding(24)
+            .padding(.horizontal, 36)
+            .padding(.vertical, 24)
         }
     }
 }

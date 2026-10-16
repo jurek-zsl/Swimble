@@ -42,6 +42,6 @@ public struct SettingsView: View {
                 }
                 .tag(SettingsTab.certificates)
         }
-        .frame(width: 620, height: 560)
+        .frame(minWidth: 680, idealWidth: 720, minHeight: 580, idealHeight: 640)
     }
 }

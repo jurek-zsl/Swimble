@@ -24,6 +24,8 @@ opus = "0.4"
 rtrb = "0.3"
 p12 = "0.6.3"
 base64 = "0.22"
+ribergshamra-pkcs12 = "0.11.0"
+tempfile = "3.27.0"
 
 [build-dependencies]
 prost-build = "0.13"

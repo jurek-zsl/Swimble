@@ -79,6 +79,27 @@ public struct FloatingVoiceHUD: View {
                     .glassEffectID("whisperPill", in: glassNamespace)
                 }
 
+                // 0b. Live Priority Speaker Indicator
+                if store.isMyPrioritySpeaker {
+                    Button(action: {
+                        store.toggleSelfPrioritySpeaker()
+                    }) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "star.fill")
+                                .font(.system(size: 13))
+                            Text("PRIORITY")
+                                .font(.caption.bold())
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .contentShape(Capsule())
+                    }
+                    .buttonStyle(HUDCapsuleButtonStyle())
+                    .glassEffect(.regular.tint(.yellow).interactive(), in: .capsule)
+                    .glassEffectID("prioritySpeakerPill", in: glassNamespace)
+                    .help("Priority Speaker Active (Click to toggle off)")
+                }
+
                 // 1. Transmit Mode Pill (VAD meter vs PTT Button)
                 if audioEngine.isPushToTalk {
                     Button(action: {}) {

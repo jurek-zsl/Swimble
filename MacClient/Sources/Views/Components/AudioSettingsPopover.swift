@@ -152,35 +152,40 @@ public struct AudioSettingsPopover: View {
                 }
             }
 
+            // 4. Background Audio Ducking
+            SettingsToggleRow(
+                "Lower Background Audio (Ducking)",
+                subtitle: "macOS lowers Spotify and game audio when connected. Kept off for 100% volume.",
+                isOn: Binding(
+                    get: { audioEngine.isAudioDuckingEnabled },
+                    set: { audioEngine.isAudioDuckingEnabled = $0 }
+                )
+            )
+
             Divider()
 
-            // 4. Bluetooth / AirPods High-Quality Audio Lock
-            VStack(alignment: .leading, spacing: 6) {
-                Toggle(isOn: Binding(
+            // 5. Bluetooth / AirPods High-Quality Audio Lock
+            SettingsToggleRow(
+                "AirPods / Bluetooth High-Quality Lock",
+                subtitle: "Locks mic to Mac's built-in mic so macOS never degrades Bluetooth stereo game audio into 16kHz Hands-Free mode.",
+                isOn: Binding(
                     get: { audioEngine.isAirPodsAudioLockEnabled },
                     set: { audioEngine.isAirPodsAudioLockEnabled = $0 }
-                )) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("AirPods / Bluetooth High-Quality Lock")
-                            .font(.subheadline.bold())
-                        Text("Locks mic to Mac's built-in mic so macOS never degrades Bluetooth stereo game audio into 16kHz Hands-Free mode.")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .toggleStyle(.switch)
-            }
+                )
+            )
 
             Divider()
 
-            // 5. Hardware Echo Cancellation & Voice Isolation Info
+            // 6. Hardware Echo Cancellation & Voice Isolation Info
             HStack(spacing: 8) {
-                Image(systemName: "waveform.and.person.filled")
-                    .foregroundStyle(.green)
+                Image(systemName: audioEngine.isVoiceProcessingEnabled ? "waveform.and.person.filled" : "waveform")
+                    .foregroundStyle(audioEngine.isVoiceProcessingEnabled ? .green : .blue)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("Hardware VoiceProcessingIO Active")
+                    Text(audioEngine.isVoiceProcessingEnabled ? "Hardware VoiceProcessingIO Active" : "Direct CoreAudio Active")
                         .font(.caption.bold())
-                    Text("48,000 Hz Mono • Acoustic Echo Cancellation • macOS Voice Isolation")
+                    Text(audioEngine.isVoiceProcessingEnabled ?
+                         "48 kHz Mono • AEC • Voice Isolation • \(audioEngine.isAudioDuckingEnabled ? "Ducking On" : "Zero Ducking")" :
+                         "48 kHz Mono • Raw Audio • Zero Ducking")
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
                 }

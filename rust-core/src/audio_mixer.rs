@@ -1,4 +1,4 @@
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::time::{Duration, Instant};
 
 use crate::voice_packet::{ClientVoicePacket, ServerVoicePacket};
@@ -8,6 +8,7 @@ const SAMPLE_RATE: u32 = 48000;
 const FRAME_SIZE: usize = 480; // 10ms frame at 48kHz
 const BITRATE_BPS: i32 = 64000;
 const TALKING_TIMEOUT: Duration = Duration::from_millis(350);
+const PRIORITY_SPEAKER_ATTENUATION: f32 = 0.125; // -18 dB standard Mumble attenuation
 
 pub struct UserAudioState {
     pub session_id: u32,
@@ -109,9 +110,17 @@ impl AudioMixer {
         &mut self,
         packet: ServerVoicePacket,
         volumes: &HashMap<u32, f32>,
+        priority_speakers: &HashSet<u32>,
+        self_priority_talking: bool,
     ) -> Option<(u32, bool, TalkingState)> {
         let session_id = packet.session_id;
         let is_terminator = packet.is_terminator;
+
+        // Priority speaker ducking:
+        // Check if any other priority speaker is talking before borrowing self.users mutably.
+        let is_packet_priority = priority_speakers.contains(&session_id);
+        let any_other_priority = self.users.iter().any(|(sid, u)| *sid != session_id && priority_speakers.contains(sid) && u.is_talking);
+        let any_priority_active = self_priority_talking || is_packet_priority || any_other_priority;
 
         let user = self.users.entry(session_id).or_insert_with(|| {
             UserAudioState::new(session_id).expect("Failed to initialize user Opus decoder")
@@ -142,16 +151,23 @@ impl AudioMixer {
             talking_event = Some((session_id, true, new_state));
         }
 
+        let effective_ducking = if any_priority_active && !is_packet_priority {
+            PRIORITY_SPEAKER_ATTENUATION
+        } else {
+            1.0
+        };
+
         // Decode packet into PCM
         let mut pcm_out = [0.0f32; 1920];
         let volume_multiplier = volumes.get(&session_id).copied().unwrap_or(1.0);
+        let effective_volume = volume_multiplier * effective_ducking;
 
         if let Ok(samples_decoded) =
             user.decoder.decode_float(&packet.opus_payload, &mut pcm_out, false)
         {
-            // Apply volume multiplier and soft-clipping, then push to ring buffer
+            // Apply volume multiplier, priority ducking, and soft-clipping, then push to ring buffer
             for &sample in &pcm_out[..samples_decoded] {
-                let scaled = sample * volume_multiplier;
+                let scaled = sample * effective_volume;
                 let clipped = soft_clip(scaled);
                 let _ = self.speaker_producer.push(clipped);
             }

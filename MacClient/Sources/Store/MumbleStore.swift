@@ -3,6 +3,23 @@ import CryptoKit
 import Observation
 import SwiftUI
 
+/// Active modal sheet displayed in the application
+public enum ActiveModal: String, Identifiable {
+    case serverConnect
+    case serverInfo
+    case accessTokens
+    case registeredUsers
+    case banList
+    case changeComment
+    case audioStatistics
+    case audioWizard
+    case certificateWizard
+    case ttsSettings
+    case overlaySettings
+
+    public var id: String { rawValue }
+}
+
 /// Main application state store managing Mumble server networking, channel hierarchies,
 /// user speaking states, chat activity, and audio hardware synchronization.
 @Observable
@@ -21,6 +38,7 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
     // Channel & User Tree
     public var channels: [ChannelInfo] = []
     public var channelTree: [ChannelTreeNode] = []
+    public var previouslyLockedChannelIds: Set<UInt32> = []
     public var users: [UserInfo] = []
     public var selectedChannelId: UInt32? = nil
     public var mySessionId: UInt32? = nil
@@ -53,12 +71,19 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
     // Server ACL Access Tokens
     public var accessTokens: [String] = []
 
+    // Server Registered Users & Ban List
+    public var registeredUsers: [RegisteredUser] = []
+    public var banList: [BanEntryInfo] = []
+
     // Whisper & Shout
     public var isWhispering: Bool = false
     public var whisperTargetConfig: VoiceTargetConfig? = nil
 
     // Ignored Users for Chat
     public var ignoredTextMessageUsers: Set<UInt32> = []
+
+    // Active Modal Sheet
+    public var activeModal: ActiveModal? = nil
 
     // User Settings & UI Preferences
     public var selectedSettingsTab: SettingsTab = .general
@@ -79,6 +104,49 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
     public var myChannelId: UInt32? {
         guard let myId = mySessionId, let me = users.first(where: { $0.sessionId == myId }) else { return nil }
         return me.channelId
+    }
+
+    // System Event & Channel Move Tracking
+    private var hasLoggedInitialJoin: Bool = false
+    private var lastKnownMyChannelId: UInt32? = nil
+    private var pendingUserMoves: [UInt32: UInt32] = [:]
+    private var previousUserChannelMap: [UInt32: UInt32] = [:]
+    private var previousUserNames: [UInt32: String] = [:]
+    private var previousUserMuteMap: [UInt32: Bool] = [:]
+    private var previousUserDeafMap: [UInt32: Bool] = [:]
+    private var previousUserPriorityMap: [UInt32: Bool] = [:]
+
+    public func channelName(for channelId: UInt32) -> String {
+        if let ch = channels.first(where: { $0.id == channelId }) {
+            return ch.name
+        }
+        if channelId == 0, let bm = activeBookmark {
+            return bm.name
+        }
+        return "Root"
+    }
+
+    public func logSystemMessage(_ text: String, icon: String = "info.circle.fill") {
+        let sysMsg = ChatMessage(
+            senderSession: 0,
+            senderName: "System",
+            channelId: self.selectedChannelId ?? self.myChannelId,
+            htmlBody: text,
+            timestamp: UInt64(Date().timeIntervalSince1970 * 1000)
+        )
+        self.chatMessages.append(sysMsg)
+        TTSEngine.shared.speakEvent(text)
+    }
+
+    private func checkInitialJoin(with usersList: [UserInfo]? = nil) {
+        guard !hasLoggedInitialJoin, let myId = mySessionId else { return }
+        let currentUsers = usersList ?? self.users
+        guard let me = currentUsers.first(where: { $0.sessionId == myId }) else { return }
+        guard !channels.isEmpty || activeBookmark != nil else { return }
+        hasLoggedInitialJoin = true
+        lastKnownMyChannelId = me.channelId
+        let chName = channelName(for: me.channelId)
+        logSystemMessage("You joined \(chName).", icon: "arrow.right.circle.fill")
     }
 
     public var myChannel: ChannelInfo? {
@@ -199,6 +267,13 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
         self.users = []
         self.mySessionId = nil
         self.selectedChannelId = nil
+        self.hasLoggedInitialJoin = false
+        self.lastKnownMyChannelId = nil
+        self.pendingUserMoves.removeAll()
+        self.previousUserChannelMap.removeAll()
+        self.previousUserNames.removeAll()
+        self.previousUserMuteMap.removeAll()
+        self.previousUserDeafMap.removeAll()
     }
 
     // MARK: - Channel & User Actions
@@ -289,10 +364,25 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
 
     public func registerUser(sessionId: UInt32? = nil) {
         client.registerUser(sessionId: sessionId)
+        logSystemMessage("Registered nickname with server certificate.", icon: "checkmark.seal.fill")
+    }
+
+    public func registerSelf() {
+        registerUser(sessionId: nil)
+    }
+
+    public var isSelfRegistered: Bool {
+        guard let myId = mySessionId, let me = users.first(where: { $0.sessionId == myId }) else { return false }
+        return me.userId != nil && me.userId! > 0
     }
 
     public func setComment(comment: String) {
         client.setComment(comment: comment)
+    }
+
+    public func removeAvatar() {
+        client.removeAvatar()
+        logSystemMessage("Avatar removed.", icon: "person.crop.circle.badge.minus")
     }
 
     public func sendUserMessage(sessionId: UInt32, message: String) {
@@ -300,8 +390,42 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
         client.sendUserMessage(sessionId: sessionId, message: message)
     }
 
+    public var isMyPrioritySpeaker: Bool {
+        guard let myId = mySessionId, let me = users.first(where: { $0.sessionId == myId }) else { return false }
+        return me.isPrioritySpeaker
+    }
+
+    public func toggleSelfPrioritySpeaker() {
+        guard let myId = mySessionId else { return }
+        let current = isMyPrioritySpeaker
+        client.setUserPrioritySpeaker(sessionId: myId, priority: !current)
+    }
+
     public func setUserPrioritySpeaker(sessionId: UInt32, priority: Bool) {
         client.setUserPrioritySpeaker(sessionId: sessionId, priority: priority)
+    }
+
+    // Audio Recording
+    public var isRecordingAudio: Bool {
+        AudioRecorder.shared.isRecording
+    }
+
+    public var recordingDuration: TimeInterval {
+        AudioRecorder.shared.durationSeconds
+    }
+
+    public func toggleAudioRecording() {
+        if AudioRecorder.shared.isRecording {
+            if let savedUrl = AudioRecorder.shared.stopRecording() {
+                client.setRecordingState(recording: false)
+                logSystemMessage("Finished recording: \(savedUrl.lastPathComponent) (saved to ~/Music/Swimble/)", icon: "stop.circle.fill")
+            }
+        } else {
+            if AudioRecorder.shared.startRecording() {
+                client.setRecordingState(recording: true)
+                logSystemMessage("Started recording conversation to ~/Music/Swimble/", icon: "record.circle")
+            }
+        }
     }
 
     public func setUserServerMuteDeaf(sessionId: UInt32, mute: Bool, deaf: Bool) {
@@ -309,6 +433,7 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
     }
 
     public func moveUser(sessionId: UInt32, channelId: UInt32) {
+        pendingUserMoves[sessionId] = channelId
         client.moveUser(sessionId: sessionId, channelId: channelId)
     }
 
@@ -479,6 +604,43 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
         UserDefaults.standard.set(accessTokens, forKey: "Swimble_AccessTokens")
     }
 
+    // MARK: - Server Registered Users Management
+
+    public func requestRegisteredUsers() {
+        guard connectionStatus == .connected else { return }
+        client.requestRegisteredUsers()
+    }
+
+    public func removeRegisteredUser(userId: UInt32) {
+        client.removeRegisteredUser(userId: userId)
+        registeredUsers.removeAll { $0.userId == userId }
+    }
+
+    public func renameRegisteredUser(userId: UInt32, newName: String) {
+        let trimmed = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        client.renameRegisteredUser(userId: userId, newName: trimmed)
+    }
+
+    // MARK: - Server Ban List Management
+
+    public func requestBanList() {
+        guard connectionStatus == .connected else { return }
+        client.requestBanList()
+    }
+
+    public func addBan(ip: String, mask: UInt32 = 32, reason: String = "", durationHours: UInt32 = 24) {
+        let trimmedIp = ip.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedIp.isEmpty else { return }
+        let durationSeconds = durationHours * 3600
+        client.addBan(ip: trimmedIp, mask: mask, reason: reason, durationSeconds: durationSeconds)
+    }
+
+    public func removeBan(ip: String, mask: UInt32) {
+        client.removeBan(ip: ip, mask: mask)
+        banList.removeAll { $0.ip == ip && $0.mask == mask }
+    }
+
     // MARK: - Helpers
 
     public static func computeFingerprint(pem: String) -> String {
@@ -507,6 +669,10 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
             if status == .connected {
                 self.mySessionId = self.client.getMySession()
                 self.client.setTokens(tokens: self.accessTokens)
+            } else if status == .disconnected || status == .failed {
+                self.registeredUsers = []
+                self.banList = []
+                self.previouslyLockedChannelIds.removeAll()
             }
         }
     }
@@ -514,11 +680,17 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
     nonisolated public func onChannelsUpdated(channels: [ChannelInfo]) {
         Task { @MainActor [weak self] in
             guard let self = self else { return }
+            for ch in channels {
+                if !ch.canEnter {
+                    self.previouslyLockedChannelIds.insert(ch.id)
+                }
+            }
             self.channels = channels
             if self.selectedChannelId == nil, let first = channels.first {
                 self.selectedChannelId = first.id
             }
             self.rebuildTree()
+            self.checkInitialJoin()
         }
     }
 
@@ -527,20 +699,114 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
             guard let self = self else { return }
             let oldSessions = Set(self.users.map { $0.sessionId })
             let newSessions = Set(users.map { $0.sessionId })
+            let myId = self.mySessionId ?? 0
 
+            // 1. Initial join tracking
+            if !self.hasLoggedInitialJoin {
+                self.checkInitialJoin(with: users)
+            } else if let me = users.first(where: { $0.sessionId == myId }) {
+                if let lastCh = self.lastKnownMyChannelId, lastCh != me.channelId {
+                    self.lastKnownMyChannelId = me.channelId
+                    let chName = self.channelName(for: me.channelId)
+                    self.logSystemMessage("You joined \(chName).", icon: "arrow.right.circle.fill")
+                }
+            }
+
+            // 2. User connect / disconnect events
             if !self.users.isEmpty {
                 let joined = newSessions.subtracting(oldSessions)
                 let left = oldSessions.subtracting(newSessions)
-                let myId = self.mySessionId ?? 0
-                if !joined.isEmpty && !joined.contains(myId) {
-                    SoundManager.shared.playUserJoined()
-                } else if !left.isEmpty && !left.contains(myId) {
+
+                for sid in joined where sid != myId {
+                    if let u = users.first(where: { $0.sessionId == sid }) {
+                        self.logSystemMessage("\(u.name) connected.", icon: "person.badge.plus")
+                        SoundManager.shared.playUserJoined()
+                    }
+                }
+
+                for sid in left where sid != myId {
+                    let name = self.previousUserNames[sid] ?? "User"
+                    self.logSystemMessage("\(name) left channel and disconnected.", icon: "person.badge.minus")
                     SoundManager.shared.playUserLeft()
                 }
             }
 
+            // 3. User channel moves
+            for u in users where u.sessionId != myId {
+                if let prevChannelId = self.previousUserChannelMap[u.sessionId], prevChannelId != u.channelId {
+                    let targetChName = self.channelName(for: u.channelId)
+                    // Check if WE moved this user
+                    if let pendingTarget = self.pendingUserMoves[u.sessionId], pendingTarget == u.channelId {
+                        self.pendingUserMoves.removeValue(forKey: u.sessionId)
+                        self.logSystemMessage("You moved \(u.name) to \(targetChName).", icon: "arrow.turn.down.right")
+                    } else if u.channelId == self.myChannelId {
+                        self.logSystemMessage("\(u.name) joined the channel.", icon: "arrow.right.circle.fill")
+                    } else if prevChannelId == self.myChannelId {
+                        self.logSystemMessage("\(u.name) moved to \(targetChName).", icon: "arrow.turn.down.right")
+                    }
+                }
+            }
+
+            // 4. User mute & deafen state changes
+            if self.hasLoggedInitialJoin {
+                for u in users {
+                    let isMuted = u.isSelfMuted || u.isMuted
+                    let isDeafened = u.isSelfDeafened || u.isDeafened
+                    let subject = (u.sessionId == myId) ? "You are" : "\(u.name) is"
+
+                    if let prevMuted = self.previousUserMuteMap[u.sessionId] {
+                        if !prevMuted && isMuted {
+                            self.logSystemMessage("\(subject) now muted.", icon: "mic.slash.fill")
+                        } else if prevMuted && !isMuted {
+                            self.logSystemMessage("\(subject) now unmuted.", icon: "mic.fill")
+                        }
+                    }
+
+                    if let prevDeaf = self.previousUserDeafMap[u.sessionId] {
+                        if !prevDeaf && isDeafened {
+                            self.logSystemMessage("\(subject) now deafened.", icon: "speaker.slash.fill")
+                        } else if prevDeaf && !isDeafened {
+                            self.logSystemMessage("\(subject) now undeafened.", icon: "speaker.wave.2.fill")
+                        }
+                    }
+
+                    if let prevPriority = self.previousUserPriorityMap[u.sessionId] {
+                        if !prevPriority && u.isPrioritySpeaker {
+                            self.logSystemMessage("\(subject) now a Priority Speaker.", icon: "star.fill")
+                            if u.sessionId == myId {
+                                SoundManager.shared.playPrioritySpeaker(isActive: true)
+                            }
+                        } else if prevPriority && !u.isPrioritySpeaker {
+                            self.logSystemMessage("\(subject) no longer a Priority Speaker.", icon: "star.slash")
+                            if u.sessionId == myId {
+                                SoundManager.shared.playPrioritySpeaker(isActive: false)
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Update cache maps
+            var newChannelMap: [UInt32: UInt32] = [:]
+            var newNameMap: [UInt32: String] = [:]
+            var newMuteMap: [UInt32: Bool] = [:]
+            var newDeafMap: [UInt32: Bool] = [:]
+            var newPriorityMap: [UInt32: Bool] = [:]
+            for u in users {
+                newChannelMap[u.sessionId] = u.channelId
+                newNameMap[u.sessionId] = u.name
+                newMuteMap[u.sessionId] = u.isSelfMuted || u.isMuted
+                newDeafMap[u.sessionId] = u.isSelfDeafened || u.isDeafened
+                newPriorityMap[u.sessionId] = u.isPrioritySpeaker
+            }
+            self.previousUserChannelMap = newChannelMap
+            self.previousUserNames = newNameMap
+            self.previousUserMuteMap = newMuteMap
+            self.previousUserDeafMap = newDeafMap
+            self.previousUserPriorityMap = newPriorityMap
+
             self.users = users
-            if let myId = self.mySessionId, let me = users.first(where: { $0.sessionId == myId }) {
+            if let me = users.first(where: { $0.sessionId == myId }) {
                 self.isSelfMuted = me.isSelfMuted
                 self.isSelfDeafened = me.isSelfDeafened
                 self.audioEngine.isMuted = me.isSelfMuted
@@ -576,8 +842,11 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
                 }
             }
             self.chatMessages.append(message)
-            if message.senderSession != self.mySessionId {
+            if message.senderSession != self.mySessionId && message.senderSession != 0 {
                 SoundManager.shared.playMessageReceived()
+                TTSEngine.shared.speakChatMessage(sender: message.senderName, htmlBody: message.htmlBody)
+            } else if message.senderSession == 0 && message.htmlBody.contains("Permission denied") {
+                SoundManager.shared.playPermissionDenied()
             }
         }
     }
@@ -595,6 +864,42 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
         Task { @MainActor [weak self] in
             guard let self = self else { return }
             self.connectionInfo = info
+            let trimmed = info.welcomeText.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                let alreadyHasWelcome = self.chatMessages.contains { $0.senderSession == 0 && $0.senderName == "Server" && $0.htmlBody.trimmingCharacters(in: .whitespacesAndNewlines) == trimmed }
+                if !alreadyHasWelcome {
+                    let welcomeMsg = ChatMessage(
+                        senderSession: 0,
+                        senderName: "Server",
+                        channelId: nil,
+                        htmlBody: trimmed,
+                        timestamp: UInt64(Date().timeIntervalSince1970 * 1000)
+                    )
+                    self.chatMessages.append(welcomeMsg)
+                }
+            }
         }
     }
+
+    nonisolated public func onRegisteredUsersUpdated(users: [RegisteredUser]) {
+        Task { @MainActor [weak self] in
+            guard let self = self else { return }
+            self.registeredUsers = users
+        }
+    }
+
+    nonisolated public func onBanListUpdated(bans: [BanEntryInfo]) {
+        Task { @MainActor [weak self] in
+            guard let self = self else { return }
+            self.banList = bans
+        }
+    }
+}
+
+extension RegisteredUser: Identifiable {
+    public var id: UInt32 { userId }
+}
+
+extension BanEntryInfo: Identifiable {
+    public var id: String { "\(ip)/\(mask)-\(hash)-\(start)" }
 }

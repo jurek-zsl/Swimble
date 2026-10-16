@@ -1,5 +1,8 @@
 use std::collections::HashMap;
-use crate::{ChannelInfo, ConnectionStatus, ServerConnectionInfo, TalkingState, UserInfo};
+use crate::{
+    BanEntryInfo, ChannelInfo, ConnectionStatus, RegisteredUser, ServerConnectionInfo,
+    TalkingState, UserInfo,
+};
 use crate::proto;
 
 #[derive(Clone, Debug)]
@@ -10,6 +13,8 @@ pub struct ClientState {
     pub connection_status: ConnectionStatus,
     pub user_volumes: HashMap<u32, f32>,
     pub server_info: ServerConnectionInfo,
+    pub registered_users: Vec<RegisteredUser>,
+    pub ban_list: Vec<BanEntryInfo>,
 }
 
 impl Default for ClientState {
@@ -44,6 +49,8 @@ impl ClientState {
                 udp_packets_sent: 0,
                 tcp_packets_sent: 0,
             },
+            registered_users: Vec::new(),
+            ban_list: Vec::new(),
         }
     }
 
@@ -51,6 +58,8 @@ impl ClientState {
         self.my_session = None;
         self.channels.clear();
         self.users.clear();
+        self.registered_users.clear();
+        self.ban_list.clear();
         self.connection_status = ConnectionStatus::Disconnected;
         self.server_info = Self::new().server_info;
     }
@@ -64,6 +73,8 @@ impl ClientState {
             description: String::new(),
             position: 0,
             is_temporary: false,
+            is_enter_restricted: false,
+            can_enter: true,
         });
 
         if let Some(parent) = state.parent {
@@ -80,6 +91,15 @@ impl ClientState {
         }
         if let Some(temp) = state.temporary {
             entry.is_temporary = temp;
+        }
+        if let Some(restricted) = state.is_enter_restricted {
+            entry.is_enter_restricted = restricted;
+        }
+        if let Some(can) = state.can_enter {
+            entry.can_enter = can;
+            if !can {
+                entry.is_enter_restricted = true;
+            }
         }
 
         Some(entry.clone())

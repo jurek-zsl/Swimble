@@ -394,7 +394,7 @@ public struct ChatAndActivityView: View {
                             .padding(.top, 60)
                         } else {
                             ForEach(Array(store.chatMessages.enumerated()), id: \.offset) { index, msg in
-                                ChatMessageRow(message: msg)
+                                ChatMessageRow(message: msg, accentTint: store.accentTint)
                                     .id("msg_\(index)")
                             }
 
@@ -980,10 +980,210 @@ struct RemoteChatImageView: View {
     }
 }
 
-/// Single chat message row with sanitized HTML/Markdown, base64 data URI and remote image previews.
+/// Compact, elegant pill for server system events (e.g. "You joined #Channel", "You moved User to #Channel")
+struct SystemEventPillView: View {
+    let message: ChatMessage
+    let accentTint: Color
+
+    private var timeString: String {
+        let date = Date(timeIntervalSince1970: Double(message.timestamp) / 1000.0)
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm:ss"
+        return formatter.string(from: date)
+    }
+
+    private var iconName: String {
+        let text = message.htmlBody
+        if text.contains("You joined") || text.contains("joined the channel") {
+            return "arrow.right.circle.fill"
+        } else if text.contains("moved") {
+            return "arrow.turn.down.right"
+        } else if text.contains("disconnected") {
+            return "person.badge.minus"
+        } else if text.contains("connected") {
+            return "person.badge.plus"
+        } else if text.contains("muted") {
+            return text.contains("unmuted") ? "mic.fill" : "mic.slash.fill"
+        } else if text.contains("deafened") {
+            return text.contains("undeafened") ? "speaker.wave.2.fill" : "speaker.slash.fill"
+        } else if text.contains("Permission denied") || text.contains("denied") {
+            return "exclamationmark.triangle.fill"
+        } else {
+            return "info.circle.fill"
+        }
+    }
+
+    private var iconColor: Color {
+        let text = message.htmlBody
+        if text.contains("Permission denied") || text.contains("denied") {
+            return .red
+        } else if text.contains("You joined") {
+            return accentTint
+        } else if text.contains("moved") {
+            return .orange
+        } else if text.contains("disconnected") {
+            return .secondary
+        } else if text.contains("connected") {
+            return .green
+        } else if text.contains("muted") {
+            return text.contains("unmuted") ? .green : .red
+        } else if text.contains("deafened") {
+            return text.contains("undeafened") ? .green : .red
+        } else {
+            return accentTint
+        }
+    }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text("[\(timeString)]")
+                .font(.system(size: 11, weight: .medium, design: .monospaced))
+                .foregroundStyle(.tertiary)
+
+            Image(systemName: iconName)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(iconColor)
+
+            Text(cleanChatMessageText(from: message.htmlBody))
+                .font(.system(size: 12.5, weight: .medium))
+                .foregroundStyle(message.htmlBody.contains("Permission denied") ? .red : .primary)
+                .textSelection(.enabled)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 6)
+        .background {
+            Capsule(style: .continuous)
+                .fill(Color(NSColor.controlBackgroundColor).opacity(0.6))
+                .overlay {
+                    Capsule(style: .continuous)
+                        .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5)
+                }
+                .shadow(color: Color.black.opacity(0.03), radius: 3, x: 0, y: 1)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 2)
+    }
+}
+
+/// Formatted server welcome message card rendering Markdown with active links and Liquid Glass styling.
+struct ServerWelcomeCardView: View {
+    let message: ChatMessage
+    let accentTint: Color
+
+    private var timeString: String {
+        let date = Date(timeIntervalSince1970: Double(message.timestamp) / 1000.0)
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm:ss"
+        return formatter.string(from: date)
+    }
+
+    private var isPreformatted: Bool {
+        message.htmlBody.contains("<pre") ||
+        message.htmlBody.contains("<code") ||
+        message.htmlBody.contains("<tt") ||
+        message.htmlBody.contains("Courier") ||
+        message.htmlBody.contains("Menlo") ||
+        message.htmlBody.contains("Consolas") ||
+        message.htmlBody.contains("monospace") ||
+        message.htmlBody.contains("font-family") ||
+        message.htmlBody.contains("╔") ||
+        message.htmlBody.contains("║") ||
+        message.htmlBody.contains("╚") ||
+        message.htmlBody.contains("═") ||
+        message.htmlBody.contains("┌") ||
+        message.htmlBody.contains("─") ||
+        message.htmlBody.contains("│") ||
+        message.htmlBody.contains("└") ||
+        message.htmlBody.contains(".----.") ||
+        message.htmlBody.contains(".--.") ||
+        message.htmlBody.contains("---") ||
+        message.htmlBody.contains("___") ||
+        message.htmlBody.contains("===") ||
+        message.htmlBody.contains("/\\") ||
+        message.htmlBody.contains("\\/") ||
+        message.htmlBody.contains("  ")
+    }
+
+    private var parsedWelcomeText: AttributedString {
+        parseChatMessageBody(cleanChatMessageText(from: message.htmlBody), isPreformatted: isPreformatted)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            // Header Bar
+            HStack(spacing: 8) {
+                Image(systemName: "server.rack")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(accentTint)
+
+                Text("Server Welcome Message")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(.primary)
+
+                Text("SERVER")
+                    .font(.system(size: 9, weight: .heavy))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(accentTint.opacity(0.18), in: Capsule())
+                    .foregroundStyle(accentTint)
+
+                Spacer()
+
+                Text("[\(timeString)]")
+                    .font(.system(size: 11, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.tertiary)
+            }
+
+            Divider()
+
+            // Preformatted / Rich Welcome Message
+            if isPreformatted {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    Text(parsedWelcomeText)
+                        .font(.system(size: 12.5, design: .monospaced))
+                        .multilineTextAlignment(.leading)
+                        .lineSpacing(1)
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: true, vertical: false)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .padding(.vertical, 2)
+                }
+            } else {
+                Text(parsedWelcomeText)
+                    .multilineTextAlignment(.leading)
+                    .lineSpacing(3)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .padding(16)
+        .background {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color(NSColor.controlBackgroundColor).opacity(0.65))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .strokeBorder(accentTint.opacity(0.25), lineWidth: 0.8)
+                }
+                .shadow(color: Color.black.opacity(0.04), radius: 4, x: 0, y: 1)
+        }
+        .padding(.vertical, 4)
+    }
+}
+
+/// Single chat message row supporting system event pills, server welcome cards, and user messages.
 struct ChatMessageRow: View {
     let message: ChatMessage
+    let accentTint: Color
     @State private var previewImageItem: IdentifiableImage? = nil
+
+    private var isSystemMessage: Bool {
+        (message.senderSession == 0 && message.senderName == "System") ||
+        message.htmlBody.contains("Permission denied")
+    }
+
+    private var isServerWelcome: Bool {
+        message.senderSession == 0 && message.senderName == "Server" && !message.htmlBody.contains("Permission denied")
+    }
 
     private var timeString: String {
         let date = Date(timeIntervalSince1970: Double(message.timestamp) / 1000.0)
@@ -1001,247 +1201,348 @@ struct ChatMessageRow: View {
     }
 
     private var cleanAttributedText: AttributedString {
-        let stripped = cleanText(from: message.htmlBody)
-        return parseBody(stripped)
+        let stripped = cleanChatMessageText(from: message.htmlBody)
+        return parseChatMessageBody(stripped)
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 8) {
-                Text(message.senderName)
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(Color.accentColor)
+        if isSystemMessage {
+            SystemEventPillView(message: message, accentTint: accentTint)
+        } else if isServerWelcome {
+            ServerWelcomeCardView(message: message, accentTint: accentTint)
+        } else {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 8) {
+                    Text(message.senderName)
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(accentTint)
 
-                Text(timeString)
-                    .font(.system(size: 11))
-                    .foregroundStyle(.tertiary)
-            }
+                    Text(timeString)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.tertiary)
+                }
 
-            if !cleanAttributedText.characters.isEmpty {
-                Text(cleanAttributedText)
-                    .font(.system(size: 13.5, weight: .regular))
-                    .lineSpacing(3)
-                    .textSelection(.enabled)
-            }
+                if !cleanAttributedText.characters.isEmpty {
+                    Text(cleanAttributedText)
+                        .font(.system(size: 13.5, weight: .regular))
+                        .lineSpacing(3)
+                        .textSelection(.enabled)
+                }
 
-            // Inline Base64 Data URI Images (from classic Mumble & Swimble users)
-            if !dataUriImages.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    ForEach(Array(dataUriImages.enumerated()), id: \.offset) { _, nsImg in
-                        Image(nsImage: nsImg)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(maxHeight: 260)
-                            .clipShape(RoundedRectangle(cornerRadius: 10))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 10)
-                                    .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
-                            )
-                            .shadow(color: Color.black.opacity(0.12), radius: 4, x: 0, y: 2)
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                                previewImageItem = IdentifiableImage(image: nsImg)
-                            }
-                            .help("Click to view full size")
-                            .contextMenu {
-                                Button("View Full Size") {
+                // Inline Base64 Data URI Images (from classic Mumble & Swimble users)
+                if !dataUriImages.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(Array(dataUriImages.enumerated()), id: \.offset) { _, nsImg in
+                            Image(nsImage: nsImg)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(maxHeight: 260)
+                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 10)
+                                        .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
+                                )
+                                .shadow(color: Color.black.opacity(0.12), radius: 4, x: 0, y: 2)
+                                .contentShape(Rectangle())
+                                .onTapGesture {
                                     previewImageItem = IdentifiableImage(image: nsImg)
                                 }
-                                Button("Copy Image") {
-                                    NSPasteboard.general.clearContents()
-                                    NSPasteboard.general.writeObjects([nsImg])
+                                .help("Click to view full size")
+                                .contextMenu {
+                                    Button("View Full Size") {
+                                        previewImageItem = IdentifiableImage(image: nsImg)
+                                    }
+                                    Button("Copy Image") {
+                                        NSPasteboard.general.clearContents()
+                                        NSPasteboard.general.writeObjects([nsImg])
+                                    }
+                                    Button("Save Image As...") {
+                                        ChatImageHelper.saveImageToDisk(nsImg)
+                                    }
                                 }
-                                Button("Save Image As...") {
-                                    ChatImageHelper.saveImageToDisk(nsImg)
-                                }
-                            }
-                    }
-                }
-                .padding(.top, 2)
-            }
-
-            // Remote HTTP(S) Images
-            if !remoteImageUrls.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    ForEach(remoteImageUrls, id: \.self) { url in
-                        RemoteChatImageView(url: url) { selectedImg in
-                            previewImageItem = IdentifiableImage(image: selectedImg)
                         }
                     }
+                    .padding(.top, 2)
                 }
-                .padding(.top, 2)
+
+                // Remote HTTP(S) Images
+                if !remoteImageUrls.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(remoteImageUrls, id: \.self) { url in
+                            RemoteChatImageView(url: url) { selectedImg in
+                                previewImageItem = IdentifiableImage(image: selectedImg)
+                            }
+                        }
+                    }
+                    .padding(.top, 2)
+                }
+            }
+            .sheet(item: $previewImageItem) { item in
+                ImagePreviewModal(image: item.image)
             }
         }
-        .sheet(item: $previewImageItem) { item in
-            ImagePreviewModal(image: item.image)
+    }
+}
+
+fileprivate func cleanChatMessageText(from text: String) -> String {
+    return text
+        // Remove full <img> tags
+        .replacingOccurrences(of: #"(?i)<img\b[^>]*>"#, with: "", options: .regularExpression)
+        // Remove markdown images
+        .replacingOccurrences(of: #"!\[.*?\]\([^\)]+\)"#, with: "", options: .regularExpression)
+        // Remove <a> tags that wrap data: URIs
+        .replacingOccurrences(of: #"(?i)<a\b[^>]*?\bhref=["\']data:image\/[^"\']+["\'][^>]*>.*?<\/a>"#, with: "", options: .regularExpression)
+        // Remove raw data:image URIs that might remain in chat
+        .replacingOccurrences(of: #"(?i)data:image\/[^;,]+(?:;[^;,]+)*;base64,[A-Za-z0-9+\/=\s%]+"#, with: "", options: .regularExpression)
+        // Remove empty <a> tags
+        .replacingOccurrences(of: #"(?i)<a\b[^>]*?>\s*<\/a>"#, with: "", options: .regularExpression)
+        // Remove trailing line breaks
+        .replacingOccurrences(of: #"(?i)<br\s*\/?>\s*$"#, with: "", options: .regularExpression)
+        .trimmingCharacters(in: .newlines)
+}
+
+fileprivate func parseChatMessageBody(_ raw: String, isPreformatted: Bool? = nil) -> AttributedString {
+    guard !raw.isEmpty else { return AttributedString("") }
+
+    let preformatted = isPreformatted ?? (
+        raw.contains("<pre") ||
+        raw.contains("<code") ||
+        raw.contains("<tt") ||
+        raw.contains("Courier") ||
+        raw.contains("Menlo") ||
+        raw.contains("Consolas") ||
+        raw.contains("monospace") ||
+        raw.contains("╔") ||
+        raw.contains("║") ||
+        raw.contains("╚") ||
+        raw.contains("═") ||
+        raw.contains("┌") ||
+        raw.contains("─") ||
+        raw.contains("│") ||
+        raw.contains("└") ||
+        raw.contains(".----.") ||
+        raw.contains(".--.")
+    )
+
+    // Plain text messages (no HTML tags) render directly with native typography
+    if !raw.contains("<") || !raw.contains(">") {
+        if preformatted {
+            var attr = AttributedString(raw)
+            attr.font = .system(size: 12.5, design: .monospaced)
+            attr.foregroundColor = .primary
+            return attr
+        }
+        if let md = try? AttributedString(markdown: raw) {
+            return md
+        }
+        return AttributedString(raw)
+    }
+
+    let fontDeclaration: String
+    let whiteSpaceDeclaration: String
+    let lineHeight: String
+
+    if preformatted {
+        fontDeclaration = "font-family: Menlo, Monaco, Consolas, \"Courier New\", monospace !important;"
+        whiteSpaceDeclaration = "white-space: pre !important;"
+        lineHeight = "line-height: 1.2;"
+    } else {
+        fontDeclaration = "font-family: -apple-system, BlinkMacSystemFont, \"SF Pro Text\", \"SF Pro\", \"Helvetica Neue\", Helvetica, Arial, sans-serif;"
+        whiteSpaceDeclaration = "white-space: pre-wrap !important;"
+        lineHeight = "line-height: 1.35;"
+    }
+
+    let styledHtml = """
+    <!DOCTYPE html><html><head><meta charset="utf-8"><style>
+    body {
+        \(fontDeclaration)
+        \(whiteSpaceDeclaration)
+        \(lineHeight)
+        font-size: 12.5px;
+        margin: 0;
+        padding: 0;
+    }
+    pre, code, tt, kbd, samp {
+        font-family: Menlo, Monaco, Consolas, "Courier New", monospace !important;
+        white-space: pre !important;
+    }
+    </style></head><body>\(raw)</body></html>
+    """
+
+    guard let data = styledHtml.data(using: .utf8),
+          let nsAttr = try? NSMutableAttributedString(
+            data: data,
+            options: [
+                .documentType: NSAttributedString.DocumentType.html,
+                .characterEncoding: String.Encoding.utf8.rawValue
+            ],
+            documentAttributes: nil
+          ) else {
+        if preformatted {
+            var attr = AttributedString(raw)
+            attr.font = .system(size: 12.5, design: .monospaced)
+            return attr
+        }
+        return (try? AttributedString(markdown: raw)) ?? AttributedString(raw)
+    }
+
+    // Sanitize fonts and preserve colors from HTML
+    nsAttr.enumerateAttributes(in: NSRange(location: 0, length: nsAttr.length)) { attrs, range, _ in
+        if let font = attrs[.font] as? NSFont {
+            let isBold = font.fontDescriptor.symbolicTraits.contains(.bold)
+            let isItalic = font.fontDescriptor.symbolicTraits.contains(.italic)
+            let isMono = preformatted ||
+                         font.isFixedPitch ||
+                         font.fontDescriptor.symbolicTraits.contains(.monoSpace) ||
+                         font.fontName.lowercased().contains("courier") ||
+                         font.fontName.lowercased().contains("menlo") ||
+                         font.fontName.lowercased().contains("mono")
+            let weight: NSFont.Weight = isBold ? .bold : .regular
+            let pointSize: CGFloat = font.pointSize > 0 ? font.pointSize : 12.5
+
+            var newFont: NSFont
+            if isMono {
+                if let menlo = NSFont(name: "Menlo", size: pointSize) {
+                    if isBold {
+                        let boldDesc = menlo.fontDescriptor.withSymbolicTraits(.bold)
+                        newFont = NSFont(descriptor: boldDesc, size: pointSize) ?? menlo
+                    } else {
+                        newFont = menlo
+                    }
+                } else if let courier = NSFont(name: "Courier New", size: pointSize) {
+                    if isBold {
+                        let boldDesc = courier.fontDescriptor.withSymbolicTraits(.bold)
+                        newFont = NSFont(descriptor: boldDesc, size: pointSize) ?? courier
+                    } else {
+                        newFont = courier
+                    }
+                } else {
+                    newFont = NSFont.monospacedSystemFont(ofSize: pointSize, weight: weight)
+                }
+            } else {
+                newFont = NSFont.systemFont(ofSize: pointSize, weight: weight)
+            }
+            if isItalic {
+                let italicDesc = newFont.fontDescriptor.withSymbolicTraits(.italic)
+                newFont = NSFont(descriptor: italicDesc, size: pointSize) ?? newFont
+            }
+            nsAttr.addAttribute(.font, value: newFont, range: range)
+        }
+
+        // Preserve colors from HTML: if no color or if near-black in dark mode, use dynamic labelColor
+        if let fg = attrs[.foregroundColor] as? NSColor {
+            if let rgb = fg.usingColorSpace(.sRGB) {
+                if rgb.redComponent < 0.08 && rgb.greenComponent < 0.08 && rgb.blueComponent < 0.08 {
+                    nsAttr.addAttribute(.foregroundColor, value: NSColor.labelColor, range: range)
+                }
+            }
+        } else {
+            nsAttr.addAttribute(.foregroundColor, value: NSColor.labelColor, range: range)
+        }
+        nsAttr.removeAttribute(.strokeColor, range: range)
+        nsAttr.removeAttribute(.strokeWidth, range: range)
+    }
+
+    // Trim leading and trailing newlines added by HTML block elements (<p>, <div>, etc.)
+    while nsAttr.string.hasPrefix("\n") || nsAttr.string.hasPrefix("\r") {
+        nsAttr.deleteCharacters(in: NSRange(location: 0, length: 1))
+    }
+    while nsAttr.string.hasSuffix("\n") || nsAttr.string.hasSuffix("\r") {
+        nsAttr.deleteCharacters(in: NSRange(location: nsAttr.length - 1, length: 1))
+    }
+
+    var swiftUiAttr = AttributedString(nsAttr)
+    for run in swiftUiAttr.runs {
+        if let appKitFont = run.appKit.font {
+            swiftUiAttr[run.range].font = Font(appKitFont)
+        }
+        if let appKitColor = run.appKit.foregroundColor {
+            swiftUiAttr[run.range].foregroundColor = Color(nsColor: appKitColor)
         }
     }
 
-    private func cleanText(from text: String) -> String {
-        return text
-            // Remove full <img> tags
-            .replacingOccurrences(of: #"(?i)<img\b[^>]*>"#, with: "", options: .regularExpression)
-            // Remove markdown images
-            .replacingOccurrences(of: #"!\[.*?\]\([^\)]+\)"#, with: "", options: .regularExpression)
-            // Remove <a> tags that wrap data: URIs
-            .replacingOccurrences(of: #"(?i)<a\b[^>]*?\bhref=["\']data:image\/[^"\']+["\'][^>]*>.*?<\/a>"#, with: "", options: .regularExpression)
-            // Remove raw data:image URIs that might remain in chat
-            .replacingOccurrences(of: #"(?i)data:image\/[^;,]+(?:;[^;,]+)*;base64,[A-Za-z0-9+\/=\s%]+"#, with: "", options: .regularExpression)
-            // Remove empty <a> tags
-            .replacingOccurrences(of: #"(?i)<a\b[^>]*?>\s*<\/a>"#, with: "", options: .regularExpression)
-            // Remove trailing line breaks
-            .replacingOccurrences(of: #"(?i)<br\s*\/?>\s*$"#, with: "", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+    return swiftUiAttr
+}
+
+fileprivate func extractDataUriImages(from text: String) -> [NSImage] {
+    // Matches data:image/...;base64,<base64data> in src="...", src='...', src=..., href="...", or raw
+    let pattern = #"(?:data:image\/[^;,]+(?:;[^;,]+)*;base64,)([A-Za-z0-9+\/=\s%]+)"#
+    guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
+        return []
     }
+    let nsString = text as NSString
+    let matches = regex.matches(in: text, range: NSRange(location: 0, length: nsString.length))
 
-    private func parseBody(_ raw: String) -> AttributedString {
-        guard !raw.isEmpty else { return AttributedString("") }
+    var seenHashes = Set<Int>()
+    return matches.compactMap { match in
+        guard match.numberOfRanges > 1 else { return nil }
+        var rawB64 = nsString.substring(with: match.range(at: 1))
 
-        // Plain text messages (no HTML tags) render directly with native SF Pro system typography
-        if !raw.contains("<") || !raw.contains(">") {
-            if let md = try? AttributedString(markdown: raw) {
-                return md
-            }
-            return AttributedString(raw)
+        // Stop at any HTML tag delimiter, attribute quote, or parenthesis
+        if let termIdx = rawB64.firstIndex(where: { "\"'<>)".contains($0) }) {
+            rawB64 = String(rawB64[..<termIdx])
         }
 
-        let styledHtml = """
-        <!DOCTYPE html>
-        <html>
-        <head>
-        <meta charset="utf-8">
-        <style>
-        body, p, div, span, a {
-            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro", "Helvetica Neue", Helvetica, Arial, sans-serif;
-            font-size: 13.5px;
-            line-height: 1.35;
-        }
-        </style>
-        </head>
-        <body>\(raw)</body>
-        </html>
-        """
-
-        guard let data = styledHtml.data(using: .utf8),
-              let nsAttr = try? NSMutableAttributedString(
-                data: data,
-                options: [
-                    .documentType: NSAttributedString.DocumentType.html,
-                    .characterEncoding: String.Encoding.utf8.rawValue
-                ],
-                documentAttributes: nil
-              ) else {
-            return (try? AttributedString(markdown: raw)) ?? AttributedString(raw)
+        // Percent-decode if URL-encoded
+        if rawB64.contains("%"), let decoded = rawB64.removingPercentEncoding {
+            rawB64 = decoded
         }
 
-        // Sanitize any remaining WebKit default Times-Roman fonts and dark strokes
-        nsAttr.enumerateAttributes(in: NSRange(location: 0, length: nsAttr.length)) { attrs, range, _ in
-            if let font = attrs[.font] as? NSFont {
-                let isBold = font.fontDescriptor.symbolicTraits.contains(.bold)
-                let isItalic = font.fontDescriptor.symbolicTraits.contains(.italic)
-                let weight: NSFont.Weight = isBold ? .semibold : .regular
-                var newFont = NSFont.systemFont(ofSize: 13.5, weight: weight)
-                if isItalic {
-                    let italicDesc = newFont.fontDescriptor.withSymbolicTraits(.italic)
-                    newFont = NSFont(descriptor: italicDesc, size: 13.5) ?? newFont
-                }
-                nsAttr.addAttribute(.font, value: newFont, range: range)
-            }
-            if attrs[.link] == nil {
-                nsAttr.addAttribute(.foregroundColor, value: NSColor.labelColor, range: range)
-            }
-            nsAttr.removeAttribute(.strokeColor, range: range)
-            nsAttr.removeAttribute(.strokeWidth, range: range)
-        }
+        // Strip ALL whitespaces, newlines, tabs, and carriage returns (fixes Qt 80-col line wrapping)
+        let cleanB64 = rawB64.components(separatedBy: .whitespacesAndNewlines).joined()
+        guard !cleanB64.isEmpty else { return nil }
 
-        // Trim trailing newlines added by HTML block elements (<p>, <div>, etc.)
-        while nsAttr.string.hasSuffix("\n") || nsAttr.string.hasSuffix("\r") {
-            nsAttr.deleteCharacters(in: NSRange(location: nsAttr.length - 1, length: 1))
-        }
+        let hash = cleanB64.hashValue
+        guard seenHashes.insert(hash).inserted else { return nil }
 
-        return AttributedString(nsAttr)
+        guard let data = Data(base64Encoded: cleanB64, options: .ignoreUnknownCharacters),
+              let img = NSImage(data: data) else {
+            return nil
+        }
+        return img
     }
+}
 
-    private func extractDataUriImages(from text: String) -> [NSImage] {
-        // Matches data:image/...;base64,<base64data> in src="...", src='...', src=..., href="...", or raw
-        let pattern = #"(?:data:image\/[^;,]+(?:;[^;,]+)*;base64,)([A-Za-z0-9+\/=\s%]+)"#
-        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
-            return []
-        }
-        let nsString = text as NSString
-        let matches = regex.matches(in: text, range: NSRange(location: 0, length: nsString.length))
+fileprivate func extractRemoteImageUrls(from text: String) -> [URL] {
+    var urls: [URL] = []
 
-        var seenHashes = Set<Int>()
-        return matches.compactMap { match in
-            guard match.numberOfRanges > 1 else { return nil }
-            var rawB64 = nsString.substring(with: match.range(at: 1))
-
-            // Stop at any HTML tag delimiter, attribute quote, or parenthesis
-            if let termIdx = rawB64.firstIndex(where: { "\"'<>)".contains($0) }) {
-                rawB64 = String(rawB64[..<termIdx])
+    // Pattern A: <img ... src="url" ...> or <img ... src='url' ...>
+    let imgTagPattern = #"(?i)<img\b[^>]*?\bsrc\s*=\s*["\'](https?:\/\/[^"\']+)["\']"#
+    if let imgRegex = try? NSRegularExpression(pattern: imgTagPattern) {
+        let ns = text as NSString
+        let matches = imgRegex.matches(in: text, range: NSRange(location: 0, length: ns.length))
+        for m in matches where m.numberOfRanges > 1 {
+            if let u = URL(string: ns.substring(with: m.range(at: 1))) {
+                urls.append(u)
             }
-
-            // Percent-decode if URL-encoded
-            if rawB64.contains("%"), let decoded = rawB64.removingPercentEncoding {
-                rawB64 = decoded
-            }
-
-            // Strip ALL whitespaces, newlines, tabs, and carriage returns (fixes Qt 80-col line wrapping)
-            let cleanB64 = rawB64.components(separatedBy: .whitespacesAndNewlines).joined()
-            guard !cleanB64.isEmpty else { return nil }
-
-            let hash = cleanB64.hashValue
-            guard seenHashes.insert(hash).inserted else { return nil }
-
-            guard let data = Data(base64Encoded: cleanB64, options: .ignoreUnknownCharacters),
-                  let img = NSImage(data: data) else {
-                return nil
-            }
-            return img
         }
     }
 
-    private func extractRemoteImageUrls(from text: String) -> [URL] {
-        var urls: [URL] = []
-
-        // Pattern A: <img ... src="url" ...> or <img ... src='url' ...>
-        let imgTagPattern = #"(?i)<img\b[^>]*?\bsrc\s*=\s*["\'](https?:\/\/[^"\']+)["\']"#
-        if let imgRegex = try? NSRegularExpression(pattern: imgTagPattern) {
-            let ns = text as NSString
-            let matches = imgRegex.matches(in: text, range: NSRange(location: 0, length: ns.length))
-            for m in matches where m.numberOfRanges > 1 {
-                if let u = URL(string: ns.substring(with: m.range(at: 1))) {
-                    urls.append(u)
-                }
+    // Pattern B: Markdown image: ![...](https://...)
+    let mdPattern = #"!\[.*?\]\((https?:\/\/[^\s\)]+)\)"#
+    if let mdRegex = try? NSRegularExpression(pattern: mdPattern) {
+        let ns = text as NSString
+        let matches = mdRegex.matches(in: text, range: NSRange(location: 0, length: ns.length))
+        for m in matches where m.numberOfRanges > 1 {
+            if let u = URL(string: ns.substring(with: m.range(at: 1))) {
+                urls.append(u)
             }
         }
-
-        // Pattern B: Markdown image: ![...](https://...)
-        let mdPattern = #"!\[.*?\]\((https?:\/\/[^\s\)]+)\)"#
-        if let mdRegex = try? NSRegularExpression(pattern: mdPattern) {
-            let ns = text as NSString
-            let matches = mdRegex.matches(in: text, range: NSRange(location: 0, length: ns.length))
-            for m in matches where m.numberOfRanges > 1 {
-                if let u = URL(string: ns.substring(with: m.range(at: 1))) {
-                    urls.append(u)
-                }
-            }
-        }
-
-        // Pattern C: Standalone image URLs ending with image extensions (plus optional query string)
-        let urlPattern = #"(?i)https?:\/\/[^\s"'<>]+\.(?:png|jpg|jpeg|gif|webp|heic|bmp)(?:\?[^\s"'<>]*)?"#
-        if let urlRegex = try? NSRegularExpression(pattern: urlPattern) {
-            let ns = text as NSString
-            let matches = urlRegex.matches(in: text, range: NSRange(location: 0, length: ns.length))
-            for m in matches {
-                if let u = URL(string: ns.substring(with: m.range)) {
-                    urls.append(u)
-                }
-            }
-        }
-
-        // Deduplicate preserving order
-        var seen = Set<String>()
-        return urls.filter { seen.insert($0.absoluteString).inserted }
     }
+
+    // Pattern C: Standalone image URLs ending with image extensions (plus optional query string)
+    let urlPattern = #"(?i)https?:\/\/[^\s"'<>]+\.(?:png|jpg|jpeg|gif|webp|heic|bmp)(?:\?[^\s"'<>]*)?"#
+    if let urlRegex = try? NSRegularExpression(pattern: urlPattern) {
+        let ns = text as NSString
+        let matches = urlRegex.matches(in: text, range: NSRange(location: 0, length: ns.length))
+        for m in matches {
+            if let u = URL(string: ns.substring(with: m.range)) {
+                urls.append(u)
+            }
+        }
+    }
+
+    // Deduplicate preserving order
+    var seen = Set<String>()
+    return urls.filter { seen.insert($0.absoluteString).inserted }
 }

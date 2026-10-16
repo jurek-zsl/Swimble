@@ -32,6 +32,14 @@ public struct ChannelRowView: View {
         store.selectedChannelId == channel.id
     }
 
+    private var isLocked: Bool {
+        !channel.canEnter
+    }
+
+    private var isUnlockedRestricted: Bool {
+        channel.canEnter && (channel.isEnterRestricted || store.previouslyLockedChannelIds.contains(channel.id))
+    }
+
     public var body: some View {
         HStack(spacing: 8) {
             Image(systemName: isJoined ? "speaker.wave.2.fill" : "folder.fill")
@@ -40,7 +48,19 @@ public struct ChannelRowView: View {
 
             Text(channel.name)
                 .font(.system(size: 13, weight: isJoined ? .semibold : .medium))
-                .foregroundStyle(Color.primary)
+                .foregroundStyle(isLocked ? Color.secondary : Color.primary)
+
+            if isLocked {
+                Image(systemName: "lock.fill")
+                    .font(.caption2)
+                    .foregroundStyle(.red)
+                    .help("Locked channel: You cannot enter this channel")
+            } else if isUnlockedRestricted {
+                Image(systemName: "lock.open.fill")
+                    .font(.caption2)
+                    .foregroundStyle(.green)
+                    .help("Unlocked channel: You have permission to enter")
+            }
 
             if isJoined {
                 Text("YOU")
@@ -86,15 +106,25 @@ public struct ChannelRowView: View {
         }
         .simultaneousGesture(
             TapGesture(count: 2).onEnded {
-                store.joinChannel(channelId: channel.id)
+                if channel.canEnter {
+                    store.joinChannel(channelId: channel.id)
+                } else {
+                    store.logSystemMessage("Cannot enter \(channel.name): Channel is locked.", icon: "lock.fill")
+                    SoundManager.shared.playPermissionDenied()
+                }
             }
         )
         .onTapGesture {
             store.selectedChannelId = channel.id
         }
         .contextMenu {
-            Button("Join Channel") {
-                store.joinChannel(channelId: channel.id)
+            Button(channel.canEnter ? "Join Channel" : "Channel Locked (Cannot Enter)") {
+                if channel.canEnter {
+                    store.joinChannel(channelId: channel.id)
+                } else {
+                    store.logSystemMessage("Cannot enter \(channel.name): Channel is locked.", icon: "lock.fill")
+                    SoundManager.shared.playPermissionDenied()
+                }
             }
 
             Button("Whisper to Channel") {

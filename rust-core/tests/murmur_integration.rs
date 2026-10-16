@@ -3,8 +3,8 @@ use std::time::Duration;
 use tokio::sync::Notify;
 
 use mumble_core::{
-    generate_client_identity, ChannelInfo, ChatMessage, ConnectionStatus, MumbleClient,
-    MumbleEventHandler, ServerConnectionInfo, TalkingState, UserInfo,
+    generate_client_identity, BanEntryInfo, ChannelInfo, ChatMessage, ConnectionStatus, MumbleClient,
+    MumbleEventHandler, RegisteredUser, ServerConnectionInfo, TalkingState, UserInfo,
 };
 
 #[derive(Default)]
@@ -80,6 +80,14 @@ impl MumbleEventHandler for TestHandler {
 
     fn on_server_connection_info_updated(&self, info: ServerConnectionInfo) {
         println!("TestHandler: server info updated: {:?}", info);
+    }
+
+    fn on_registered_users_updated(&self, users: Vec<RegisteredUser>) {
+        println!("TestHandler: registered users updated (count: {})", users.len());
+    }
+
+    fn on_ban_list_updated(&self, bans: Vec<BanEntryInfo>) {
+        println!("TestHandler: ban list updated (count: {})", bans.len());
     }
 }
 

@@ -108,4 +108,18 @@ public final class SoundManager {
         guard isAudioCuesEnabled && isMessageCueEnabled else { return }
         NSSound(named: "Ping")?.play()
     }
+
+    public func playPrioritySpeaker(isActive: Bool) {
+        guard isAudioCuesEnabled && isMuteCueEnabled else { return }
+        if isActive {
+            NSSound(named: "Glass")?.play()
+        } else {
+            NSSound(named: "Pop")?.play()
+        }
+    }
+
+    public func playPermissionDenied() {
+        guard isAudioCuesEnabled else { return }
+        NSSound(named: "Sosumi")?.play()
+    }
 }
