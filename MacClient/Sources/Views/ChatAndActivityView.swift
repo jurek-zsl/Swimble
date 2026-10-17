@@ -538,10 +538,6 @@ public struct ChatAndActivityView: View {
                     .help("Attach an image (or drop / paste)")
 
                     HStack(spacing: 8) {
-                        Image(systemName: "text.bubble")
-                            .foregroundStyle(.secondary)
-                            .font(.system(size: 14))
-
                         ChatInputField(
                             text: $composeText,
                             placeholder: stagedImage != nil ? "Add a caption (optional)..." : "Message \(activeChannelName)...",
