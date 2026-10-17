@@ -2,6 +2,17 @@ import SwiftUI
 import AppKit
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        switch SettingsState.shared.uiTheme {
+        case "Dark":
+            NSApp.appearance = NSAppearance(named: .darkAqua)
+        case "Light":
+            NSApp.appearance = NSAppearance(named: .aqua)
+        default:
+            NSApp.appearance = nil
+        }
+    }
+
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         if SettingsState.shared.displayQuitConfirmation, let store = MumbleStore.shared, store.connectionStatus == .connected {
             let alert = NSAlert()
@@ -26,17 +37,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 struct SwimbleApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @State private var store = MumbleStore()
-
-    init() {
-        switch SettingsState.shared.uiTheme {
-        case "Dark":
-            NSApp.appearance = NSAppearance(named: .darkAqua)
-        case "Light":
-            NSApp.appearance = NSAppearance(named: .aqua)
-        default:
-            NSApp.appearance = nil
-        }
-    }
 
     private var trayIcon: String {
         if SettingsState.shared.showTalkingStatusInTray && (store.audioEngine?.isTransmitting == true || store.users.contains(where: { $0.isTalking })) {
