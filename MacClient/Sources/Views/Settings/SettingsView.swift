@@ -1,6 +1,25 @@
 import SwiftUI
 import AppKit
 
+private struct RemoveSettingsToolbar: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        DispatchQueue.main.async {
+            guard let window = view.window else { return }
+            window.toolbar = nil
+        }
+        return view
+    }
+    func updateNSView(_ nsView: NSView, context: Context) {
+        DispatchQueue.main.async {
+            guard let window = nsView.window else { return }
+            if window.toolbar != nil {
+                window.toolbar = nil
+            }
+        }
+    }
+}
+
 /// Native macOS Settings Window View hosting all configuration tabs and footer actions.
 public struct SettingsView: View {
     @Bindable public var store: MumbleStore
@@ -12,7 +31,7 @@ public struct SettingsView: View {
     }
 
     public var body: some View {
-        NavigationSplitView {
+        NavigationSplitView(columnVisibility: .constant(.all)) {
             List(SettingsTab.allCases, selection: $store.selectedSettingsTab) { tab in
                 Label(tab.rawValue, systemImage: tab.iconName)
                     .font(.system(size: 13, weight: .medium))
@@ -21,6 +40,7 @@ public struct SettingsView: View {
             }
             .listStyle(.sidebar)
             .navigationSplitViewColumnWidth(min: 170, ideal: 190, max: 220)
+            .toolbar(removing: .sidebarToggle)
         } detail: {
             VStack(spacing: 0) {
                 // Header Bar
@@ -73,6 +93,8 @@ public struct SettingsView: View {
                 }
             }
         }
+        .toolbar(removing: .sidebarToggle)
+        .background(RemoveSettingsToolbar())
         .frame(minWidth: 840, idealWidth: 900, minHeight: 620, idealHeight: 680)
     }
 }

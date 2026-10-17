@@ -50,7 +50,7 @@ public struct SettingsModal: View {
     }
 
     public var body: some View {
-        NavigationSplitView {
+        NavigationSplitView(columnVisibility: .constant(.all)) {
             List(SettingsTab.allCases, selection: $selectedTab) { tab in
                 Label(tab.rawValue, systemImage: tab.iconName)
                     .font(.system(size: 13, weight: .medium))
@@ -59,6 +59,7 @@ public struct SettingsModal: View {
             }
             .listStyle(.sidebar)
             .navigationSplitViewColumnWidth(min: 170, ideal: 190, max: 220)
+            .toolbar(removing: .sidebarToggle)
         } detail: {
             VStack(spacing: 0) {
                 // Header Bar
@@ -119,6 +120,7 @@ public struct SettingsModal: View {
                 }
             }
         }
+        .toolbar(removing: .sidebarToggle)
         .frame(minWidth: 840, idealWidth: 900, minHeight: 620, idealHeight: 680)
     }
 }
