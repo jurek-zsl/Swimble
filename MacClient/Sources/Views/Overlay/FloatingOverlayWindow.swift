@@ -109,17 +109,6 @@ public struct ChannelMemberOverlayRow: View {
     }
 }
 
-/// PreferenceKey to cleanly bubble up content size to the NSPanel without triggering AppKit Auto Layout loops.
-struct OverlayContentSizeKey: PreferenceKey {
-    static let defaultValue: CGSize = .zero
-    static func reduce(value: inout CGSize, nextValue: () -> CGSize) {
-        let next = nextValue()
-        if next != .zero {
-            value = next
-        }
-    }
-}
-
 /// Compact Liquid Glass "Who's Talking & Channel Members" overlay view for full-screen games.
 public struct FloatingOverlayPillView: View {
     @Bindable public var store: MumbleStore
@@ -194,30 +183,48 @@ public struct FloatingOverlayPillView: View {
         return "Root"
     }
 
-
     private var dragHandleView: some View {
-        ZStack {
-            Capsule()
-                .fill(Color.secondary.opacity(0.35))
-                .frame(width: 3.5, height: 13)
-            OverlayDragHandle()
-        }
-        .frame(width: 10, height: 20)
-        .contentShape(Rectangle())
-        .help("Drag to reposition overlay")
+        Capsule()
+            .fill(Color.secondary.opacity(0.35))
+            .frame(width: 3.5, height: 13)
+            .frame(width: 14, height: 20)
+            .contentShape(Rectangle())
+            .help("Drag to reposition overlay")
+            .gesture(
+                DragGesture(minimumDistance: 1)
+                    .onChanged { _ in
+                        FloatingOverlayManager.shared.handleDrag()
+                    }
+                    .onEnded { _ in
+                        FloatingOverlayManager.shared.endDrag()
+                    }
+            )
     }
 
     public var body: some View {
         mainContent
-            .background(
-                GeometryReader { geo in
-                    Color.clear.preference(key: OverlayContentSizeKey.self, value: geo.size)
-                }
-            )
-            .onPreferenceChange(OverlayContentSizeKey.self) { newSize in
-                guard newSize.width >= 10, newSize.height >= 10 else { return }
-                DispatchQueue.main.async {
-                    FloatingOverlayManager.shared.updateSize(newSize)
+            .onAppear {
+                FloatingOverlayManager.shared.updateLayout(
+                    isConnected: store.connectionStatus == .connected,
+                    isCollapsed: isCollapsed,
+                    memberCount: channelMembers.count,
+                    animate: false
+                )
+            }
+            .onChange(of: store.connectionStatus) { _, newStatus in
+                FloatingOverlayManager.shared.updateLayout(
+                    isConnected: newStatus == .connected,
+                    isCollapsed: isCollapsed,
+                    memberCount: channelMembers.count
+                )
+            }
+            .onChange(of: channelMembers.count) { _, newCount in
+                if !isCollapsed {
+                    FloatingOverlayManager.shared.updateLayout(
+                        isConnected: store.connectionStatus == .connected,
+                        isCollapsed: false,
+                        memberCount: newCount
+                    )
                 }
             }
             .contextMenu {
@@ -234,9 +241,15 @@ public struct FloatingOverlayPillView: View {
                     }
                     Divider()
                     Button(isCollapsed ? "Expand Member List" : "Collapse Member List") {
+                        let nextCollapsed = !isCollapsed
                         withAnimation(.spring(response: 0.28, dampingFraction: 0.8)) {
-                            isCollapsed.toggle()
+                            isCollapsed = nextCollapsed
                         }
+                        FloatingOverlayManager.shared.updateLayout(
+                            isConnected: store.connectionStatus == .connected,
+                            isCollapsed: nextCollapsed,
+                            memberCount: channelMembers.count
+                        )
                     }
                     Divider()
                 }
@@ -271,8 +284,8 @@ public struct FloatingOverlayPillView: View {
             }
             .padding(.leading, 8)
             .padding(.trailing, 8)
-            .padding(.vertical, 6)
-            .frame(width: 220)
+            .padding(.vertical, 5)
+            .frame(width: 220, height: 40)
             .glassEffect(.regular.interactive(), in: .capsule)
             .overlay(
                 Capsule()
@@ -305,6 +318,16 @@ public struct FloatingOverlayPillView: View {
                         .lineLimit(1)
                         .fixedSize(horizontal: true, vertical: true)
                 }
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 1)
+                        .onChanged { _ in
+                            FloatingOverlayManager.shared.handleDrag()
+                        }
+                        .onEnded { _ in
+                            FloatingOverlayManager.shared.endDrag()
+                        }
+                )
 
                 // Active speaker badge (if anyone is currently talking)
                 if let speaker = activeSpeakers.first {
@@ -356,7 +379,7 @@ public struct FloatingOverlayPillView: View {
             .padding(.leading, 8)
             .padding(.trailing, 8)
             .padding(.vertical, 5)
-            .frame(width: 330)
+            .frame(width: 330, height: 40)
             .glassEffect(
                 .regular.tint(!activeSpeakers.isEmpty ? Color.green.opacity(0.12) : nil).interactive(),
                 in: .capsule
@@ -391,6 +414,16 @@ public struct FloatingOverlayPillView: View {
                             .lineLimit(1)
                             .fixedSize(horizontal: true, vertical: true)
                     }
+                    .contentShape(Rectangle())
+                    .gesture(
+                        DragGesture(minimumDistance: 1)
+                            .onChanged { _ in
+                                FloatingOverlayManager.shared.handleDrag()
+                            }
+                            .onEnded { _ in
+                                FloatingOverlayManager.shared.endDrag()
+                            }
+                    )
 
                     Spacer(minLength: 4)
 
@@ -411,7 +444,7 @@ public struct FloatingOverlayPillView: View {
                     .padding(.horizontal, 6)
 
                 // Channel Members
-                if channelMembers.count > 8 {
+                if channelMembers.count > 7 {
                     ScrollView(.vertical, showsIndicators: true) {
                         VStack(alignment: .leading, spacing: 2) {
                             ForEach(channelMembers) { member in
@@ -507,9 +540,15 @@ public struct FloatingOverlayPillView: View {
             isActive: false,
             helpText: isCollapsed ? "Expand Member List" : "Collapse Member List",
             action: {
+                let nextCollapsed = !isCollapsed
                 withAnimation(.spring(response: 0.28, dampingFraction: 0.8)) {
-                    isCollapsed.toggle()
+                    isCollapsed = nextCollapsed
                 }
+                FloatingOverlayManager.shared.updateLayout(
+                    isConnected: store.connectionStatus == .connected,
+                    isCollapsed: nextCollapsed,
+                    memberCount: channelMembers.count
+                )
             }
         )
     }
@@ -524,63 +563,10 @@ public struct FloatingOverlayPillView: View {
     }
 }
 
-/// An AppKit NSView that initiates native macOS window dragging on mouseDown.
-public struct OverlayDragHandle: NSViewRepresentable {
-    public init() {}
-
-    public func makeNSView(context: Context) -> DragHandleNSView {
-        let view = DragHandleNSView()
-        view.translatesAutoresizingMaskIntoConstraints = true
-        return view
-    }
-
-    public func updateNSView(_ nsView: DragHandleNSView, context: Context) {}
-}
-
-public final class DragHandleNSView: NSView {
-    public override var mouseDownCanMoveWindow: Bool {
-        return true
-    }
-
-    public override func resetCursorRects() {
-        super.resetCursorRects()
-        addCursorRect(bounds, cursor: .openHand)
-    }
-
-    public override func mouseDown(with event: NSEvent) {
-        guard let window = window else { return }
-        window.performDrag(with: event)
-        FloatingOverlayManager.shared.savePosition(window.frame.origin)
-    }
-
-    public override func updateConstraints() {
-        // No-op: suppress Auto Layout
-    }
-
-    public override var needsUpdateConstraints: Bool {
-        get { false }
-        set { /* no-op */ }
-    }
-}
-
 /// Custom hosting view enabling instant first-click interactions while running as a floating non-activating panel.
 final class OverlayHostingView<Content: View>: NSHostingView<Content> {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
         return true
-    }
-
-    override func updateConstraints() {
-        // Suppress NSHostingView's updateConstraints() which calls
-        // updateWindowContentSizeExtremaIfNecessary(). That internal SwiftUI method
-        // modifies the ViewGraph during AppKit's display cycle constraint pass,
-        // triggering a re-entrant setNeedsUpdateConstraints: and throwing an
-        // uncaught NSGenericException in -[NSWindow(NSDisplayCycle) _postWindowNeedsUpdateConstraints].
-        // The overlay panel is manually sized using setFrame and does not rely on Auto Layout constraints.
-    }
-
-    override var needsUpdateConstraints: Bool {
-        get { false }
-        set { /* no-op */ }
     }
 }
 
@@ -610,15 +596,17 @@ public final class FloatingOverlayManager: ObservableObject {
         if panel == nil {
             let overlayView = FloatingOverlayPillView(store: store)
             let hosting = OverlayHostingView(rootView: overlayView)
-            // Suppress NSHostingView's automatic window min/max size updates to prevent recursive AppKit constraint crashes
             hosting.sizingOptions = []
             hosting.translatesAutoresizingMaskIntoConstraints = true
             hosting.autoresizingMask = [.width, .height]
 
-            let initialOrigin = loadInitialOrigin()
+            let isConnected = store.connectionStatus == .connected
+            let initialW: CGFloat = isConnected ? 330 : 220
+            let initialH: CGFloat = 40
+            let initialOrigin = loadInitialOrigin(width: initialW, height: initialH)
 
             let p = NSPanel(
-                contentRect: NSRect(origin: initialOrigin, size: CGSize(width: 330, height: 44)),
+                contentRect: NSRect(origin: initialOrigin, size: CGSize(width: initialW, height: initialH)),
                 styleMask: [.borderless, .nonactivatingPanel],
                 backing: .buffered,
                 defer: false
@@ -648,12 +636,29 @@ public final class FloatingOverlayManager: ObservableObject {
         SettingsState.shared.overlayEnabled = false
     }
 
-    public func updateSize(_ newSize: CGSize) {
+    public func updateLayout(isConnected: Bool, isCollapsed: Bool, memberCount: Int, animate: Bool = true) {
         guard let panel = panel else { return }
-        guard newSize.width >= 10, newSize.height >= 10, !newSize.width.isNaN, !newSize.height.isNaN else { return }
 
-        let targetWidth = ceil(newSize.width)
-        let targetHeight = ceil(newSize.height)
+        let targetWidth: CGFloat
+        let targetHeight: CGFloat
+
+        if !isConnected {
+            targetWidth = 220
+            targetHeight = 40
+        } else if isCollapsed {
+            targetWidth = 330
+            targetHeight = 40
+        } else {
+            targetWidth = 330
+            let rowHeight: CGFloat = 26
+            let headerAndPadding: CGFloat = 58
+            if memberCount > 7 {
+                targetHeight = 270
+            } else {
+                targetHeight = max(84, headerAndPadding + CGFloat(memberCount) * rowHeight)
+            }
+        }
+
         let currentFrame = panel.frame
         let widthDiff = abs(currentFrame.width - targetWidth)
         let heightDiff = abs(currentFrame.height - targetHeight)
@@ -665,7 +670,7 @@ public final class FloatingOverlayManager: ObservableObject {
                 newFrame.origin.y += (currentFrame.height - targetHeight)
             }
             newFrame.size = CGSize(width: targetWidth, height: targetHeight)
-            panel.setFrame(newFrame, display: true, animate: false)
+            panel.setFrame(newFrame, display: true, animate: animate)
         }
     }
 
@@ -716,7 +721,7 @@ public final class FloatingOverlayManager: ObservableObject {
         guard let panel = panel, let screen = panel.screen ?? NSScreen.main else { return }
         let vf = screen.visibleFrame
         let w = panel.frame.width > 0 ? panel.frame.width : 330
-        let h = panel.frame.height > 0 ? panel.frame.height : 44
+        let h = panel.frame.height > 0 ? panel.frame.height : 40
 
         let origin: CGPoint
         switch preset {
@@ -736,29 +741,27 @@ public final class FloatingOverlayManager: ObservableObject {
         savePosition(origin)
     }
 
-    private func loadInitialOrigin() -> CGPoint {
+    private func loadInitialOrigin(width: CGFloat = 330, height: CGFloat = 40) -> CGPoint {
         if UserDefaults.standard.object(forKey: userDefaultsXKey) != nil,
            UserDefaults.standard.object(forKey: userDefaultsYKey) != nil {
             let x = UserDefaults.standard.double(forKey: userDefaultsXKey)
             let y = UserDefaults.standard.double(forKey: userDefaultsYKey)
             let candidate = CGPoint(x: x, y: y)
-            return ensureVisibleOnScreen(candidate, size: CGSize(width: 330, height: 44))
+            return ensureVisibleOnScreen(candidate, size: CGSize(width: width, height: height))
         }
 
         let preset = SettingsState.shared.overlayPositionPreset
         if let screen = NSScreen.main {
             let vf = screen.visibleFrame
-            let w: CGFloat = 330
-            let h: CGFloat = 44
             switch preset {
             case .topLeft:
-                return CGPoint(x: vf.minX + 32, y: vf.maxY - h - 32)
+                return CGPoint(x: vf.minX + 32, y: vf.maxY - height - 32)
             case .topRight:
-                return CGPoint(x: vf.maxX - w - 32, y: vf.maxY - h - 32)
+                return CGPoint(x: vf.maxX - width - 32, y: vf.maxY - height - 32)
             case .bottomLeft:
                 return CGPoint(x: vf.minX + 32, y: vf.minY + 32)
             case .bottomRight:
-                return CGPoint(x: vf.maxX - w - 32, y: vf.minY + 32)
+                return CGPoint(x: vf.maxX - width - 32, y: vf.minY + 32)
             case .custom:
                 break
             }
