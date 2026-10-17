@@ -13,6 +13,7 @@
 		0B99E1898DE3A3E9BF2A9881 /* AccessTokensModal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AB377838FC88B339CD7CF7B /* AccessTokensModal.swift */; };
 		0BE3913C5C1E27A70CDFDBB3 /* SpeakingOrbView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B65D69B0D575EC2E37531211 /* SpeakingOrbView.swift */; };
 		0C345CAE35DA5EF8C6D399B8 /* SettingsModal.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC4FC784298C1A436B1DD7B1 /* SettingsModal.swift */; };
+		12A043290A4A10D145A23829 /* EditChannelDescriptionModal.swift in Sources */ = {isa = PBXBuildFile; fileRef = EABB288D78F88716DCE03174 /* EditChannelDescriptionModal.swift */; };
 		15A5488C85F5CC37D574AFFD /* mumble_core.swift in Sources */ = {isa = PBXBuildFile; fileRef = 090F1C2C11C1D6A404A98B96 /* mumble_core.swift */; };
 		15AD4297491797A7F7697575 /* ChangeCommentModal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E16BCEE35061B61400BAD4E /* ChangeCommentModal.swift */; };
 		1A634F47E1F3DEEBBD79A91A /* SettingsCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3ECCE4CE0E12E9D18C13E95D /* SettingsCard.swift */; };
@@ -47,6 +48,7 @@
 		DE181B7F1F566FC9A5015AF8 /* BanListModal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D33FD6E755DD4CACB3900E2 /* BanListModal.swift */; };
 		E3353E6AF351FE9465F07F38 /* CoreAudio.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 95D67961E1365E062F455260 /* CoreAudio.framework */; };
 		E41A216900C75FABD2AB9EFA /* AVFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4D06299B7CE33F3BCF39062D /* AVFoundation.framework */; };
+		EC373E80CC6AB3A65B889942 /* RichDescriptionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC4EBD274AC49EEF39C1F3A9 /* RichDescriptionView.swift */; };
 		F1FAA6A66EB6740A4591CFA8 /* GlobalPTT.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4ABCAE82B83EF2D8086B07F2 /* GlobalPTT.swift */; };
 		F435778F5EBE9A363AC4E6E1 /* TTSEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 545CE9D26991175867CB02E7 /* TTSEngine.swift */; };
 		F7A6E0FC218251818AEFE8C4 /* ChannelTreeSidebar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D75388A3A0B276E8E23E2A3 /* ChannelTreeSidebar.swift */; };
@@ -88,6 +90,7 @@
 		B57B5BE9226854864653B2EA /* AirPodsAudioLock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirPodsAudioLock.swift; sourceTree = "<group>"; };
 		B65D69B0D575EC2E37531211 /* SpeakingOrbView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeakingOrbView.swift; sourceTree = "<group>"; };
 		C13C038913297A3FE49E3863 /* ServerBookmark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerBookmark.swift; sourceTree = "<group>"; };
+		CC4EBD274AC49EEF39C1F3A9 /* RichDescriptionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RichDescriptionView.swift; sourceTree = "<group>"; };
 		CC4FC784298C1A436B1DD7B1 /* SettingsModal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsModal.swift; sourceTree = "<group>"; };
 		CD1ACB1CCCD91B54D8D3E60B /* RegisteredUsersModal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RegisteredUsersModal.swift; sourceTree = "<group>"; };
 		CE6E22E77DE84EE1F67ED920 /* ServerConnectSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerConnectSheet.swift; sourceTree = "<group>"; };
@@ -95,6 +98,7 @@
 		D8F6FDC552592B89A0AFC0E3 /* libmumble_core.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libmumble_core.a; path = Generated/libmumble_core.a; sourceTree = "<group>"; };
 		E2247A3AAF7A7AF0786A6535 /* KeychainHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainHelper.swift; sourceTree = "<group>"; };
 		E79E8587A42576CCE43718FE /* AudioSettingsPopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioSettingsPopover.swift; sourceTree = "<group>"; };
+		EABB288D78F88716DCE03174 /* EditChannelDescriptionModal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditChannelDescriptionModal.swift; sourceTree = "<group>"; };
 		FC56BA7EC71874FC4A157C2F /* OverlaySettingsModal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlaySettingsModal.swift; sourceTree = "<group>"; };
 		FEA6C7D03FA5BEA5BB8BE052 /* ChannelRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChannelRowView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -144,6 +148,7 @@
 			children = (
 				E79E8587A42576CCE43718FE /* AudioSettingsPopover.swift */,
 				FEA6C7D03FA5BEA5BB8BE052 /* ChannelRowView.swift */,
+				CC4EBD274AC49EEF39C1F3A9 /* RichDescriptionView.swift */,
 				B65D69B0D575EC2E37531211 /* SpeakingOrbView.swift */,
 				0E13181C0A3D7784E5BA1981 /* UserRowView.swift */,
 			);
@@ -225,6 +230,7 @@
 				7D33FD6E755DD4CACB3900E2 /* BanListModal.swift */,
 				55568C3F69D99EF643DCC4DA /* CertificateWizardModal.swift */,
 				9E16BCEE35061B61400BAD4E /* ChangeCommentModal.swift */,
+				EABB288D78F88716DCE03174 /* EditChannelDescriptionModal.swift */,
 				FC56BA7EC71874FC4A157C2F /* OverlaySettingsModal.swift */,
 				CD1ACB1CCCD91B54D8D3E60B /* RegisteredUsersModal.swift */,
 				0E8170BD8B1AB9190553D093 /* ServerInformationModal.swift */,
@@ -333,6 +339,7 @@
 				F7A6E0FC218251818AEFE8C4 /* ChannelTreeSidebar.swift in Sources */,
 				C3015566C62991871ED1327C /* ChatAndActivityView.swift in Sources */,
 				872EE86E1C64DACC265696FC /* CoreAudioDeviceManager.swift in Sources */,
+				12A043290A4A10D145A23829 /* EditChannelDescriptionModal.swift in Sources */,
 				2506CF39704029479B9198A7 /* FloatingOverlayWindow.swift in Sources */,
 				B9B1A69E2E28A622498DF550 /* FloatingVoiceHUD.swift in Sources */,
 				94E3A43492A19643FE39FF8C /* GeneralSettingsTab.swift in Sources */,
@@ -342,6 +349,7 @@
 				879D83BFB29D6D38688D32BD /* MumbleStore.swift in Sources */,
 				99B13F9EC5DF3B69962E66F1 /* OverlaySettingsModal.swift in Sources */,
 				7459BEF006ECE1CDB5C4E4C3 /* RegisteredUsersModal.swift in Sources */,
+				EC373E80CC6AB3A65B889942 /* RichDescriptionView.swift in Sources */,
 				ABEB616D0EB07E43AA80D58D /* ServerBookmark.swift in Sources */,
 				3C1D0E3F827064A7DA8B55BF /* ServerConnectSheet.swift in Sources */,
 				D81DC419FA83E5762E0649A9 /* ServerInformationModal.swift in Sources */,

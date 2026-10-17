@@ -270,6 +270,7 @@ public struct ChatAndActivityView: View {
     @State private var isDropTargeted: Bool = false
     @State private var isFieldFocused: Bool = true
     @State private var pasteKeyMonitor: Any? = nil
+    @State private var showChannelDescPopover: Bool = false
     private let bottomAnchorId = "chat_bottom_anchor"
 
     public init(store: MumbleStore, showConnectSheet: Binding<Bool>) {
@@ -283,6 +284,36 @@ public struct ChatAndActivityView: View {
             return "#\(ch.name)"
         }
         return "Chat"
+    }
+
+    @ViewBuilder
+    private func channelDescriptionPopover(ch: ChannelInfo) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Image(systemName: "folder.fill")
+                    .foregroundStyle(store.accentTint)
+                Text(ch.name)
+                    .font(.headline)
+                Spacer()
+                Button {
+                    showChannelDescPopover = false
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+
+            Divider()
+
+            ScrollView {
+                RichDescriptionView(rawHtml: ch.description, accentTint: store.accentTint)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .padding(14)
+        .frame(width: 350)
+        .frame(maxHeight: 420)
     }
 
     public var body: some View {
@@ -312,9 +343,25 @@ public struct ChatAndActivityView: View {
                         if let selId = store.selectedChannelId,
                            let ch = store.channels.first(where: { $0.id == selId }),
                            !ch.description.isEmpty {
-                            Text(ch.description)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                            Button(action: { showChannelDescPopover.toggle() }) {
+                                HStack(spacing: 5) {
+                                    Text(cleanChatMessageText(from: ch.description))
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+
+                                    if containsImages(ch.description) {
+                                        Image(systemName: "photo.badge.checkmark")
+                                            .font(.caption2)
+                                            .foregroundStyle(store.accentTint)
+                                    }
+                                }
+                            }
+                            .buttonStyle(.plain)
+                            .help("Click to view full description and images")
+                            .popover(isPresented: $showChannelDescPopover) {
+                                channelDescriptionPopover(ch: ch)
+                            }
                         }
                     }
                 }
@@ -1318,7 +1365,7 @@ struct ChatMessageRow: View {
     }
 }
 
-fileprivate func cleanChatMessageText(from text: String) -> String {
+func cleanChatMessageText(from text: String) -> String {
     return text
         // Remove full <img> tags
         .replacingOccurrences(of: #"(?i)<img\b[^>]*>"#, with: "", options: .regularExpression)
@@ -1335,7 +1382,7 @@ fileprivate func cleanChatMessageText(from text: String) -> String {
         .trimmingCharacters(in: .newlines)
 }
 
-fileprivate func parseChatMessageBody(_ raw: String, isPreformatted: Bool? = nil) -> AttributedString {
+func parseChatMessageBody(_ raw: String, isPreformatted: Bool? = nil) -> AttributedString {
     guard !raw.isEmpty else { return AttributedString("") }
 
     let preformatted = isPreformatted ?? (
@@ -1498,7 +1545,7 @@ fileprivate func parseChatMessageBody(_ raw: String, isPreformatted: Bool? = nil
     return swiftUiAttr
 }
 
-fileprivate func extractDataUriImages(from text: String) -> [NSImage] {
+func extractDataUriImages(from text: String) -> [NSImage] {
     // Matches data:image/...;base64,<base64data> in src="...", src='...', src=..., href="...", or raw
     let pattern = #"(?:data:image\/[^;,]+(?:;[^;,]+)*;base64,)([A-Za-z0-9+\/=\s%]+)"#
     guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
@@ -1537,7 +1584,7 @@ fileprivate func extractDataUriImages(from text: String) -> [NSImage] {
     }
 }
 
-fileprivate func extractRemoteImageUrls(from text: String) -> [URL] {
+func extractRemoteImageUrls(from text: String) -> [URL] {
     var urls: [URL] = []
 
     // Pattern A: <img ... src="url" ...> or <img ... src='url' ...>

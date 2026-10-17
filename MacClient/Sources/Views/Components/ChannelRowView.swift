@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Channel row view in the channel tree with user counts and double-click to join.
+/// Channel row view in the channel tree with user counts, rich descriptions, and double-click to join.
 public struct ChannelRowView: View {
     @Bindable public var store: MumbleStore
     public let channel: ChannelInfo
@@ -11,8 +11,8 @@ public struct ChannelRowView: View {
     @State private var subchannelDesc = ""
     @State private var subchannelTemporary = false
 
-    @State private var showingEditDescAlert = false
-    @State private var editDescText = ""
+    @State private var showingEditDescModal = false
+    @State private var showDescriptionPopover = false
     @State private var showingRemoveAlert = false
 
     public init(store: MumbleStore, channel: ChannelInfo, userCount: Int) {
@@ -38,6 +38,36 @@ public struct ChannelRowView: View {
 
     private var isUnlockedRestricted: Bool {
         channel.canEnter && (channel.isEnterRestricted || store.previouslyLockedChannelIds.contains(channel.id))
+    }
+
+    @ViewBuilder
+    private var descriptionPopoverContent: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Image(systemName: "folder.fill")
+                    .foregroundStyle(store.accentTint)
+                Text(channel.name)
+                    .font(.headline)
+                Spacer()
+                Button {
+                    showDescriptionPopover = false
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+
+            Divider()
+
+            ScrollView {
+                RichDescriptionView(rawHtml: channel.description, accentTint: store.accentTint)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .padding(14)
+        .frame(width: 340)
+        .frame(maxHeight: 400)
     }
 
     public var body: some View {
@@ -78,11 +108,18 @@ public struct ChannelRowView: View {
                     .help("Temporary channel")
             }
 
+            // Description Badge with Rich Popover
             if !channel.description.isEmpty {
-                Image(systemName: "info.circle")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .help(channel.description)
+                Button(action: { showDescriptionPopover.toggle() }) {
+                    Image(systemName: containsImages(channel.description) ? "photo.on.rectangle.angled" : "info.circle")
+                        .font(.caption2)
+                        .foregroundStyle(containsImages(channel.description) ? store.accentTint : Color.secondary)
+                }
+                .buttonStyle(.plain)
+                .help(containsImages(channel.description) ? "Channel Description (Contains Images)" : "Channel Description")
+                .popover(isPresented: $showDescriptionPopover, arrowEdge: .trailing) {
+                    descriptionPopoverContent
+                }
             }
 
             Spacer()
@@ -142,16 +179,21 @@ public struct ChannelRowView: View {
 
             Divider()
 
+            if !channel.description.isEmpty {
+                Button("View Description & Images...") {
+                    showDescriptionPopover = true
+                }
+            }
+
+            Button("Edit Description...") {
+                showingEditDescModal = true
+            }
+
             Button("Add Sub-Channel...") {
                 subchannelName = ""
                 subchannelDesc = ""
                 subchannelTemporary = false
                 showingAddSubchannelAlert = true
-            }
-
-            Button("Edit Description...") {
-                editDescText = channel.description
-                showingEditDescAlert = true
             }
 
             if channel.id != 0 {
@@ -160,6 +202,9 @@ public struct ChannelRowView: View {
                     showingRemoveAlert = true
                 }
             }
+        }
+        .sheet(isPresented: $showingEditDescModal) {
+            EditChannelDescriptionModal(store: store, channel: channel)
         }
         .alert("Add Sub-Channel", isPresented: $showingAddSubchannelAlert) {
             TextField("Channel Name", text: $subchannelName)
@@ -181,13 +226,6 @@ public struct ChannelRowView: View {
                     position: 0,
                     isTemporary: true
                 )
-            }
-            Button("Cancel", role: .cancel) {}
-        }
-        .alert("Edit Channel Description", isPresented: $showingEditDescAlert) {
-            TextField("Description", text: $editDescText)
-            Button("Save") {
-                store.setChannelDescription(channelId: channel.id, description: editDescText)
             }
             Button("Cancel", role: .cancel) {}
         }

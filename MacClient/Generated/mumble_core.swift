@@ -711,6 +711,8 @@ public protocol MumbleClientProtocol: AnyObject, Sendable {
     
     func requestBanList() 
     
+    func requestBlob(sessionTextures: [UInt32], sessionComments: [UInt32], channelDescriptions: [UInt32]) 
+    
     func requestRegisteredUsers() 
     
     func sendChatMessage(channelId: UInt32, message: String) 
@@ -718,6 +720,8 @@ public protocol MumbleClientProtocol: AnyObject, Sendable {
     func sendUserMessage(sessionId: UInt32, message: String) 
     
     func setActiveVoiceTargetId(targetId: UInt8) 
+    
+    func setAvatar(texture: Data) 
     
     func setBanList(bans: [BanEntryInfo]) 
     
@@ -1063,6 +1067,17 @@ open func requestBanList()  {try! rustCall() {
 }
 }
     
+open func requestBlob(sessionTextures: [UInt32], sessionComments: [UInt32], channelDescriptions: [UInt32])  {try! rustCall() {
+        uniffiCallStatus in
+    uniffi_mumble_core_fn_method_mumbleclient_request_blob(
+            self.uniffiCloneHandle(),
+        FfiConverterSequenceUInt32.lower(sessionTextures),
+        FfiConverterSequenceUInt32.lower(sessionComments),
+        FfiConverterSequenceUInt32.lower(channelDescriptions),uniffiCallStatus
+    )
+}
+}
+    
 open func requestRegisteredUsers()  {try! rustCall() {
         uniffiCallStatus in
     uniffi_mumble_core_fn_method_mumbleclient_request_registered_users(
@@ -1096,6 +1111,15 @@ open func setActiveVoiceTargetId(targetId: UInt8)  {try! rustCall() {
     uniffi_mumble_core_fn_method_mumbleclient_set_active_voice_target_id(
             self.uniffiCloneHandle(),
         FfiConverterUInt8.lower(targetId),uniffiCallStatus
+    )
+}
+}
+    
+open func setAvatar(texture: Data)  {try! rustCall() {
+        uniffiCallStatus in
+    uniffi_mumble_core_fn_method_mumbleclient_set_avatar(
+            self.uniffiCloneHandle(),
+        FfiConverterData.lower(texture),uniffiCallStatus
     )
 }
 }
@@ -1773,10 +1797,11 @@ public struct UserInfo: Equatable, Hashable {
     public var isTalking: Bool
     public var talkingState: TalkingState
     public var certHash: String?
+    public var texture: Data?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(sessionId: UInt32, channelId: UInt32, name: String, isMuted: Bool, isDeafened: Bool, isSelfMuted: Bool, isSelfDeafened: Bool, isPrioritySpeaker: Bool, isRecording: Bool, comment: String?, userId: UInt32?, isTalking: Bool, talkingState: TalkingState, certHash: String?) {
+    public init(sessionId: UInt32, channelId: UInt32, name: String, isMuted: Bool, isDeafened: Bool, isSelfMuted: Bool, isSelfDeafened: Bool, isPrioritySpeaker: Bool, isRecording: Bool, comment: String?, userId: UInt32?, isTalking: Bool, talkingState: TalkingState, certHash: String?, texture: Data?) {
         self.sessionId = sessionId
         self.channelId = channelId
         self.name = name
@@ -1791,6 +1816,7 @@ public struct UserInfo: Equatable, Hashable {
         self.isTalking = isTalking
         self.talkingState = talkingState
         self.certHash = certHash
+        self.texture = texture
     }
 
     
@@ -1822,7 +1848,8 @@ public struct FfiConverterTypeUserInfo: FfiConverterRustBuffer {
                 userId: FfiConverterOptionUInt32.read(from: &buf), 
                 isTalking: FfiConverterBool.read(from: &buf), 
                 talkingState: FfiConverterTypeTalkingState.read(from: &buf), 
-                certHash: FfiConverterOptionString.read(from: &buf)
+                certHash: FfiConverterOptionString.read(from: &buf), 
+                texture: FfiConverterOptionData.read(from: &buf)
         )
     }
 
@@ -1841,6 +1868,7 @@ public struct FfiConverterTypeUserInfo: FfiConverterRustBuffer {
         FfiConverterBool.write(value.isTalking, into: &buf)
         FfiConverterTypeTalkingState.write(value.talkingState, into: &buf)
         FfiConverterOptionString.write(value.certHash, into: &buf)
+        FfiConverterOptionData.write(value.texture, into: &buf)
     }
 }
 
@@ -2617,6 +2645,30 @@ fileprivate struct FfiConverterOptionString: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterOptionData: FfiConverterRustBuffer {
+    typealias SwiftType = Data?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterData.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterData.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterSequenceUInt32: FfiConverterRustBuffer {
     typealias SwiftType = [UInt32]
 
@@ -2999,6 +3051,9 @@ private let initializationResult: InitializationResult = {
     if (uniffi_mumble_core_checksum_method_mumbleclient_request_ban_list() != 48848) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_mumble_core_checksum_method_mumbleclient_request_blob() != 50987) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_mumble_core_checksum_method_mumbleclient_request_registered_users() != 23351) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -3009,6 +3064,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_mumble_core_checksum_method_mumbleclient_set_active_voice_target_id() != 37431) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_mumble_core_checksum_method_mumbleclient_set_avatar() != 35231) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_mumble_core_checksum_method_mumbleclient_set_ban_list() != 8610) {

@@ -76,6 +76,7 @@ pub struct UserInfo {
     pub is_talking: bool,
     pub talking_state: TalkingState,
     pub cert_hash: Option<String>,
+    pub texture: Option<Vec<u8>>,
 }
 
 #[derive(uniffi::Record, Clone, Debug, PartialEq)]

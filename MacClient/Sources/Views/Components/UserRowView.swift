@@ -1,12 +1,11 @@
 import SwiftUI
+import AppKit
 
-/// User row in the channel tree displaying speaking orb, mute/deafen badges, and local volume controls.
+/// User row in the channel tree displaying speaking orb, avatar, mute/deafen badges, and local volume controls.
 public struct UserRowView: View {
     @Bindable public var store: MumbleStore
     public let user: UserInfo
 
-    @State private var showingCommentAlert = false
-    @State private var commentInput = ""
     @State private var showingPrivateMessageAlert = false
     @State private var privateMessageInput = ""
     @State private var showingKickAlert = false
@@ -14,6 +13,8 @@ public struct UserRowView: View {
     @State private var showingBanAlert = false
     @State private var banReasonInput = ""
     @State private var isHovered = false
+    @State private var showCommentPopover = false
+    @State private var showAvatarPopover = false
 
     public init(store: MumbleStore, user: UserInfo) {
         self.store = store
@@ -50,9 +51,153 @@ public struct UserRowView: View {
         return user.talkingState
     }
 
+    private var avatarImage: NSImage? {
+        guard let tex = user.texture, !tex.isEmpty else { return nil }
+        return NSImage(data: tex)
+    }
+
+    @ViewBuilder
+    private func avatarThumbnailView(avatar: NSImage) -> some View {
+        Button(action: { showAvatarPopover.toggle() }) {
+            Image(nsImage: avatar)
+                .resizable()
+                .aspectRatio(contentMode: .fill)
+                .frame(width: 16, height: 16)
+                .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .strokeBorder(Color.primary.opacity(0.15), lineWidth: 0.5)
+                }
+        }
+        .buttonStyle(.plain)
+        .help("\(user.name)'s Avatar (click to view)")
+        .popover(isPresented: $showAvatarPopover) {
+            VStack(spacing: 8) {
+                Image(nsImage: avatar)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(maxWidth: 220, maxHeight: 220)
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
+
+                Text("\(user.name)'s Avatar")
+                    .font(.caption.bold())
+                    .foregroundStyle(.secondary)
+            }
+            .padding(12)
+        }
+    }
+
+    @ViewBuilder
+    private func commentPopoverContent(comment: String) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                if let avatar = avatarImage {
+                    Image(nsImage: avatar)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: 20, height: 20)
+                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                } else {
+                    Image(systemName: "person.crop.circle.fill")
+                        .foregroundStyle(store.accentTint)
+                }
+
+                Text(user.name)
+                    .font(.headline)
+
+                if user.isPrioritySpeaker {
+                    Image(systemName: "star.fill")
+                        .font(.caption)
+                        .foregroundStyle(.yellow)
+                }
+
+                Spacer()
+
+                Button {
+                    showCommentPopover = false
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+
+            Divider()
+
+            ScrollView {
+                RichDescriptionView(rawHtml: comment, accentTint: store.accentTint)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .padding(14)
+        .frame(width: 320)
+        .frame(maxHeight: 380)
+    }
+
+    @ViewBuilder
+    private func commentButtonView(comment: String) -> some View {
+        Button(action: { showCommentPopover.toggle() }) {
+            Image(systemName: containsImages(comment) ? "photo.badge.bubble.fill" : "text.bubble.fill")
+                .font(.caption2)
+                .foregroundStyle(containsImages(comment) ? store.accentTint : Color.blue.opacity(0.85))
+        }
+        .buttonStyle(.plain)
+        .help(containsImages(comment) ? "View Comment & Images" : "Comment: \(comment)")
+        .popover(isPresented: $showCommentPopover, arrowEdge: .trailing) {
+            commentPopoverContent(comment: comment)
+        }
+    }
+
+    @ViewBuilder
+    private var statusBadgesView: some View {
+        if user.isPrioritySpeaker {
+            Image(systemName: "star.fill")
+                .font(.caption2)
+                .foregroundStyle(.yellow)
+                .help("Priority Speaker")
+        }
+
+        if isTextIgnored && !isMe {
+            Image(systemName: "message.badge.slash")
+                .font(.caption2)
+                .foregroundStyle(.purple)
+                .help("Text Messages Ignored")
+        }
+
+        if let uid = user.userId, uid > 0 {
+            Image(systemName: "checkmark.seal.fill")
+                .font(.caption2)
+                .foregroundStyle(.blue)
+                .help("Registered on server")
+        }
+
+        if user.isSelfMuted || user.isMuted {
+            Image(systemName: "mic.slash.fill")
+                .font(.caption2)
+                .foregroundStyle(.red)
+        }
+
+        if user.isSelfDeafened || user.isDeafened {
+            Image(systemName: "headphones")
+                .font(.caption2)
+                .foregroundStyle(.orange)
+        }
+
+        if isLocallyMuted && !isMe {
+            Image(systemName: "speaker.slash.fill")
+                .font(.caption2)
+                .foregroundStyle(.yellow)
+        }
+    }
+
     public var body: some View {
         HStack(spacing: 8) {
             SpeakingOrbView(isTalking: isTalking, talkingState: talkingState, size: 10)
+
+            if let avatar = avatarImage {
+                avatarThumbnailView(avatar: avatar)
+            }
 
             Text(user.name)
                 .font(.system(size: 13, weight: isTalking ? .semibold : .medium))
@@ -66,55 +211,11 @@ public struct UserRowView: View {
 
             Spacer()
 
-            // Comment badge
             if let comment = user.comment, !comment.isEmpty {
-                Image(systemName: "text.bubble.fill")
-                    .font(.caption2)
-                    .foregroundStyle(.blue.opacity(0.8))
-                    .help("Comment: \(comment)")
+                commentButtonView(comment: comment)
             }
 
-            // Priority speaker badge
-            if user.isPrioritySpeaker {
-                Image(systemName: "star.fill")
-                    .font(.caption2)
-                    .foregroundStyle(.yellow)
-                    .help("Priority Speaker")
-            }
-
-            // Ignored text badge
-            if isTextIgnored && !isMe {
-                Image(systemName: "message.badge.slash")
-                    .font(.caption2)
-                    .foregroundStyle(.purple)
-                    .help("Text Messages Ignored")
-            }
-
-            // Registered user badge
-            if let uid = user.userId, uid > 0 {
-                Image(systemName: "checkmark.seal.fill")
-                    .font(.caption2)
-                    .foregroundStyle(.blue)
-                    .help("Registered on server")
-            }
-
-            if user.isSelfMuted || user.isMuted {
-                Image(systemName: "mic.slash.fill")
-                    .font(.caption2)
-                    .foregroundStyle(.red)
-            }
-
-            if user.isSelfDeafened || user.isDeafened {
-                Image(systemName: "headphones")
-                    .font(.caption2)
-                    .foregroundStyle(.orange)
-            }
-
-            if isLocallyMuted && !isMe {
-                Image(systemName: "speaker.slash.fill")
-                    .font(.caption2)
-                    .foregroundStyle(.yellow)
-            }
+            statusBadgesView
         }
         .padding(.vertical, 3)
         .padding(.horizontal, 6)
@@ -138,6 +239,22 @@ public struct UserRowView: View {
                 Text(user.name)
                     .font(.headline)
                 Divider()
+
+                if let comment = user.comment, !comment.isEmpty {
+                    Button("View Comment & Images...") {
+                        showCommentPopover = true
+                    }
+                }
+
+                if avatarImage != nil {
+                    Button("View Full Avatar...") {
+                        showAvatarPopover = true
+                    }
+                }
+
+                if (user.comment != nil && !user.comment!.isEmpty) || avatarImage != nil {
+                    Divider()
+                }
 
                 Button("Send Private Message...") {
                     privateMessageInput = ""
@@ -226,9 +343,18 @@ public struct UserRowView: View {
                     store.registerUser()
                 }
 
-                Button("Change Comment...") {
-                    commentInput = user.comment ?? ""
-                    showingCommentAlert = true
+                Button("Change Comment & Images...") {
+                    store.activeModal = .changeComment
+                }
+
+                Button("Set Avatar Image...") {
+                    pickAndSetAvatar()
+                }
+
+                if avatarImage != nil {
+                    Button("Remove Avatar", role: .destructive) {
+                        store.removeAvatar()
+                    }
                 }
 
                 Divider()
@@ -243,13 +369,6 @@ public struct UserRowView: View {
                     store.toggleSelfPrioritySpeaker()
                 }
             }
-        }
-        .alert("Change Comment", isPresented: $showingCommentAlert) {
-            TextField("Comment text", text: $commentInput)
-            Button("Save") {
-                store.setComment(comment: commentInput)
-            }
-            Button("Cancel", role: .cancel) {}
         }
         .alert("Send Private Message to \(user.name)", isPresented: $showingPrivateMessageAlert) {
             TextField("Message", text: $privateMessageInput)
@@ -271,6 +390,34 @@ public struct UserRowView: View {
                 store.banUser(sessionId: user.sessionId, reason: banReasonInput.isEmpty ? nil : banReasonInput)
             }
             Button("Cancel", role: .cancel) {}
+        }
+    }
+
+    private func pickAndSetAvatar() {
+        guard let img = ChatImageHelper.pickImageFile() else { return }
+        let targetSize = NSSize(width: 128, height: 128)
+        guard let rep = NSBitmapImageRep(
+            bitmapDataPlanes: nil,
+            pixelsWide: 128,
+            pixelsHigh: 128,
+            bitsPerSample: 8,
+            samplesPerPixel: 4,
+            hasAlpha: true,
+            isPlanar: false,
+            colorSpaceName: .deviceRGB,
+            bytesPerRow: 0,
+            bitsPerPixel: 0
+        ) else { return }
+        rep.size = targetSize
+
+        NSGraphicsContext.saveGraphicsState()
+        let context = NSGraphicsContext(bitmapImageRep: rep)
+        NSGraphicsContext.current = context
+        img.draw(in: NSRect(origin: .zero, size: targetSize), from: NSRect(origin: .zero, size: img.size), operation: .copy, fraction: 1.0)
+        NSGraphicsContext.restoreGraphicsState()
+
+        if let pngData = rep.representation(using: .png, properties: [:]) {
+            store.setAvatar(data: pngData)
         }
     }
 }

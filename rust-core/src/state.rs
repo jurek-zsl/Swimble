@@ -129,6 +129,7 @@ impl ClientState {
             is_talking: false,
             talking_state: TalkingState::Passive,
             cert_hash: None,
+            texture: None,
         });
 
         if let Some(cid) = state.channel_id {
@@ -156,13 +157,24 @@ impl ClientState {
             entry.is_recording = rec;
         }
         if let Some(comment) = state.comment {
-            entry.comment = Some(comment);
+            if comment.is_empty() {
+                entry.comment = None;
+            } else {
+                entry.comment = Some(comment);
+            }
         }
         if let Some(uid) = state.user_id {
             entry.user_id = Some(uid);
         }
         if let Some(hash) = state.hash {
             entry.cert_hash = Some(hash);
+        }
+        if let Some(texture) = state.texture {
+            if texture.is_empty() {
+                entry.texture = None;
+            } else {
+                entry.texture = Some(texture);
+            }
         }
 
         entry.clone()

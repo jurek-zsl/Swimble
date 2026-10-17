@@ -13,7 +13,8 @@ use crate::crypt_ocb2::CryptStateOCB2;
 use crate::framing::{
     read_packet, write_raw_packet,
     TYPE_AUTHENTICATE, TYPE_BAN_LIST, TYPE_CHANNEL_REMOVE, TYPE_CHANNEL_STATE, TYPE_CRYPT_SETUP,
-    TYPE_PERMISSION_DENIED, TYPE_PERMISSION_QUERY, TYPE_PING, TYPE_REJECT, TYPE_SERVER_CONFIG, TYPE_SERVER_SYNC,
+    TYPE_PERMISSION_DENIED, TYPE_PERMISSION_QUERY, TYPE_PING, TYPE_REJECT, TYPE_REQUEST_BLOB,
+    TYPE_SERVER_CONFIG, TYPE_SERVER_SYNC,
     TYPE_TEXT_MESSAGE, TYPE_UDP_TUNNEL, TYPE_USER_LIST, TYPE_USER_REMOVE, TYPE_USER_STATE,
     TYPE_VERSION, TYPE_VOICE_TARGET,
 };
@@ -410,6 +411,7 @@ impl MumbleClient {
             });
 
             // TLS Reader loop
+            let cmd_tx_blob = cmd_tx.clone();
             loop {
                 tokio::select! {
                     _ = shutdown_rx.changed() => {
@@ -518,6 +520,19 @@ impl MumbleClient {
                                         handler_arc.on_chat_message(chat);
                                     }
                                     handler_arc.on_channels_updated(channels);
+
+                                    // If description was not sent inline but hash was provided, request the full blob
+                                    if cstate.description.is_none() {
+                                        if let (Some(cid), Some(ref hash)) = (cstate.channel_id, &cstate.description_hash) {
+                                            if !hash.is_empty() {
+                                                let req = proto::RequestBlob {
+                                                    channel_description: vec![cid],
+                                                    ..Default::default()
+                                                };
+                                                let _ = cmd_tx_blob.try_send(OutgoingCommand::Proto(TYPE_REQUEST_BLOB, req.encode_to_vec()));
+                                            }
+                                        }
+                                    }
                                 }
                             }
                             TYPE_CHANNEL_REMOVE => {
@@ -667,7 +682,7 @@ impl MumbleClient {
                                             }
                                         }
 
-                                        state.update_user(ustate);
+                                        state.update_user(ustate.clone());
                                         (msg, state.users_list())
                                     };
                                     if let Some(msg) = user_event_msg {
@@ -685,6 +700,32 @@ impl MumbleClient {
                                         handler_arc.on_chat_message(chat);
                                     }
                                     handler_arc.on_users_updated(users);
+
+                                    // If comment or texture was not sent inline but hash was provided, request the full blob
+                                    let mut req_comments = Vec::new();
+                                    let mut req_textures = Vec::new();
+                                    if ustate.comment.is_none() {
+                                        if let (Some(sess), Some(ref hash)) = (ustate.session, &ustate.comment_hash) {
+                                            if !hash.is_empty() {
+                                                req_comments.push(sess);
+                                            }
+                                        }
+                                    }
+                                    if ustate.texture.is_none() {
+                                        if let (Some(sess), Some(ref hash)) = (ustate.session, &ustate.texture_hash) {
+                                            if !hash.is_empty() {
+                                                req_textures.push(sess);
+                                            }
+                                        }
+                                    }
+                                    if !req_comments.is_empty() || !req_textures.is_empty() {
+                                        let req = proto::RequestBlob {
+                                            session_texture: req_textures,
+                                            session_comment: req_comments,
+                                            channel_description: vec![],
+                                        };
+                                        let _ = cmd_tx_blob.try_send(OutgoingCommand::Proto(TYPE_REQUEST_BLOB, req.encode_to_vec()));
+                                    }
                                 }
                             }
                             TYPE_USER_REMOVE => {
@@ -1536,6 +1577,31 @@ impl MumbleClient {
             };
             self.send_proto(TYPE_USER_STATE, &ustate);
         }
+    }
+
+    pub fn set_avatar(&self, texture: Vec<u8>) {
+        if let Some(session) = self.state.read().unwrap().my_session {
+            let ustate = proto::UserState {
+                session: Some(session),
+                texture: Some(texture),
+                ..Default::default()
+            };
+            self.send_proto(TYPE_USER_STATE, &ustate);
+        }
+    }
+
+    pub fn request_blob(
+        &self,
+        session_textures: Vec<u32>,
+        session_comments: Vec<u32>,
+        channel_descriptions: Vec<u32>,
+    ) {
+        let req = proto::RequestBlob {
+            session_texture: session_textures,
+            session_comment: session_comments,
+            channel_description: channel_descriptions,
+        };
+        self.send_proto(TYPE_REQUEST_BLOB, &req);
     }
 
     pub fn remove_avatar(&self) {

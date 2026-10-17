@@ -380,6 +380,11 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
         client.setComment(comment: comment)
     }
 
+    public func setAvatar(data: Data) {
+        client.setAvatar(texture: data)
+        logSystemMessage("Avatar updated.", icon: "person.crop.circle.badge.checkmark")
+    }
+
     public func removeAvatar() {
         client.removeAvatar()
         logSystemMessage("Avatar removed.", icon: "person.crop.circle.badge.minus")

@@ -17,6 +17,7 @@ pub const TYPE_CRYPT_SETUP: u16 = 15;
 pub const TYPE_USER_LIST: u16 = 18;
 pub const TYPE_VOICE_TARGET: u16 = 19;
 pub const TYPE_PERMISSION_QUERY: u16 = 20;
+pub const TYPE_REQUEST_BLOB: u16 = 23;
 pub const TYPE_SERVER_CONFIG: u16 = 24;
 
 #[derive(Clone, Debug, PartialEq)]
