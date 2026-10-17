@@ -1,47 +1,78 @@
 import SwiftUI
+import AppKit
 
-/// Native macOS Settings Window View hosting all configuration tabs.
+/// Native macOS Settings Window View hosting all configuration tabs and footer actions.
 public struct SettingsView: View {
     @Bindable public var store: MumbleStore
     @State private var newTokenText: String = ""
-    private var deviceManager = CoreAudioDeviceManager.shared
+    @Environment(\.dismiss) private var dismiss
 
     public init(store: MumbleStore) {
         self.store = store
     }
 
     public var body: some View {
-        TabView(selection: $store.selectedSettingsTab) {
-            GeneralSettingsTab(store: store)
-                .tabItem {
-                    Label(SettingsTab.general.rawValue, systemImage: SettingsTab.general.iconName)
+        NavigationSplitView {
+            List(SettingsTab.allCases, selection: $store.selectedSettingsTab) { tab in
+                Label(tab.rawValue, systemImage: tab.iconName)
+                    .font(.system(size: 13, weight: .medium))
+                    .padding(.vertical, 2)
+                    .tag(tab)
+            }
+            .listStyle(.sidebar)
+            .navigationSplitViewColumnWidth(min: 170, ideal: 190, max: 220)
+        } detail: {
+            VStack(spacing: 0) {
+                // Header Bar
+                HStack {
+                    HStack(spacing: 8) {
+                        Image(systemName: store.selectedSettingsTab.iconName)
+                            .font(.title3)
+                            .foregroundStyle(store.accentTint)
+                        Text(store.selectedSettingsTab.rawValue)
+                            .font(.title3.bold())
+                    }
+                    Spacer()
                 }
-                .tag(SettingsTab.general)
+                .padding(.horizontal, 24)
+                .padding(.vertical, 14)
+                .background(Color(NSColor.windowBackgroundColor).opacity(0.85))
 
-            AudioSettingsTab(store: store, deviceManager: deviceManager)
-                .tabItem {
-                    Label(SettingsTab.audio.rawValue, systemImage: SettingsTab.audio.iconName)
-                }
-                .tag(SettingsTab.audio)
+                Divider()
 
-            ShortcutsSettingsTab(store: store)
-                .tabItem {
-                    Label(SettingsTab.shortcuts.rawValue, systemImage: SettingsTab.shortcuts.iconName)
+                // Content View for Selected Tab
+                Group {
+                    switch store.selectedSettingsTab {
+                    case .audioInput:
+                        AudioInputSettingsTab(store: store)
+                    case .audioOutput:
+                        AudioOutputSettingsTab(store: store)
+                    case .userInterface:
+                        UserInterfaceSettingsTab(store: store)
+                    case .shortcuts:
+                        ShortcutsSettingsTab(store: store)
+                    case .network:
+                        NetworkSettingsTab(store: store)
+                    case .messages:
+                        MessagesSettingsTab(store: store)
+                    case .overlay:
+                        OverlaySettingsTab(store: store)
+                    case .tokens:
+                        AccessTokensSettingsTab(store: store, newTokenText: $newTokenText)
+                    case .certificates:
+                        CertificatesSettingsTab(store: store)
+                    }
                 }
-                .tag(SettingsTab.shortcuts)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            AccessTokensSettingsTab(store: store, newTokenText: $newTokenText)
-                .tabItem {
-                    Label(SettingsTab.tokens.rawValue, systemImage: SettingsTab.tokens.iconName)
-                }
-                .tag(SettingsTab.tokens)
+                Divider()
 
-            CertificatesSettingsTab(store: store)
-                .tabItem {
-                    Label(SettingsTab.certificates.rawValue, systemImage: SettingsTab.certificates.iconName)
+                // 8. Settings Footer Actions
+                SettingsFooterView(store: store, currentTab: store.selectedSettingsTab) {
+                    dismiss()
                 }
-                .tag(SettingsTab.certificates)
+            }
         }
-        .frame(minWidth: 680, idealWidth: 720, minHeight: 580, idealHeight: 640)
+        .frame(minWidth: 840, idealWidth: 900, minHeight: 620, idealHeight: 680)
     }
 }

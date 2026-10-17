@@ -122,4 +122,15 @@ public final class SoundManager {
         guard isAudioCuesEnabled else { return }
         NSSound(named: "Sosumi")?.play()
     }
+
+    public func playSelfMuted() {
+        playMute(isMuted: true)
+    }
+
+    public func playSound(filePath: String?) {
+        guard let path = filePath, !path.isEmpty else { return }
+        if let sound = NSSound(contentsOfFile: path, byReference: true) {
+            sound.play()
+        }
+    }
 }
