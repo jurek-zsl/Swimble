@@ -1,9 +1,54 @@
 import SwiftUI
 import AppKit
 
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        if SettingsState.shared.displayQuitConfirmation, let store = MumbleStore.shared, store.connectionStatus == .connected {
+            let alert = NSAlert()
+            alert.messageText = "Quit Swimble?"
+            alert.informativeText = "You are currently connected to a server. Are you sure you want to disconnect and quit?"
+            alert.alertStyle = .warning
+            alert.addButton(withTitle: "Quit")
+            alert.addButton(withTitle: "Cancel")
+            if alert.runModal() == .alertSecondButtonReturn {
+                return .terminateCancel
+            }
+        }
+
+        if SettingsState.shared.clearChatWindowOnExit {
+            MumbleStore.shared?.chatMessages.removeAll()
+        }
+        return .terminateNow
+    }
+}
+
 @main
 struct SwimbleApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @State private var store = MumbleStore()
+
+    init() {
+        switch SettingsState.shared.uiTheme {
+        case "Dark":
+            NSApp.appearance = NSAppearance(named: .darkAqua)
+        case "Light":
+            NSApp.appearance = NSAppearance(named: .aqua)
+        default:
+            NSApp.appearance = nil
+        }
+    }
+
+    private var trayIcon: String {
+        if SettingsState.shared.showTalkingStatusInTray && (store.audioEngine?.isTransmitting == true || store.users.contains(where: { $0.isTalking })) {
+            return "mic.fill"
+        } else if store.isSelfMuted {
+            return "mic.slash.fill"
+        } else if store.connectionStatus == .connected {
+            return "waveform.circle.fill"
+        } else {
+            return "waveform.circle"
+        }
+    }
 
     var body: some Scene {
         // Main Application Window
@@ -130,7 +175,7 @@ struct SwimbleApp: App {
         }
 
         // Menu Bar Companion for Gaming & Background Control
-        MenuBarExtra("Swimble", systemImage: store.isSelfMuted ? "mic.slash.fill" : "waveform.circle.fill") {
+        MenuBarExtra("Swimble", systemImage: trayIcon) {
             // Connection & Channel Status
             if store.connectionStatus == .connected {
                 Text(store.activeBookmark?.name ?? "Connected")
@@ -141,6 +186,14 @@ struct SwimbleApp: App {
                 Text("Connecting...")
             } else {
                 Text("Disconnected")
+            }
+
+            if SettingsState.shared.showUserNameWhenTalking {
+                let talkingUsers = store.users.filter { $0.isTalking }.map { $0.name }
+                if !talkingUsers.isEmpty {
+                    Text("🗣️ " + talkingUsers.joined(separator: ", "))
+                        .font(.caption)
+                }
             }
 
             Divider()
@@ -275,7 +328,19 @@ struct SwimbleApp: App {
             Divider()
 
             Button("Quit Swimble") {
-                NSApplication.shared.terminate(nil)
+                if SettingsState.shared.displayQuitConfirmation && store.connectionStatus == .connected {
+                    let alert = NSAlert()
+                    alert.messageText = "Quit Swimble?"
+                    alert.informativeText = "You are currently connected to a server. Are you sure you want to disconnect and quit?"
+                    alert.alertStyle = .warning
+                    alert.addButton(withTitle: "Quit")
+                    alert.addButton(withTitle: "Cancel")
+                    if alert.runModal() == .alertFirstButtonReturn {
+                        NSApplication.shared.terminate(nil)
+                    }
+                } else {
+                    NSApplication.shared.terminate(nil)
+                }
             }
             .keyboardShortcut("q", modifiers: [.command])
         }

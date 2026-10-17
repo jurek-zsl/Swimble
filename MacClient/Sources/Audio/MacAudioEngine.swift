@@ -1,5 +1,6 @@
 import Foundation
 import AVFoundation
+import AppKit
 import Observation
 
 @Observable
@@ -28,10 +29,9 @@ public final class MacAudioEngine: @unchecked Sendable {
             transmitState.setVadThresholdDb(vadThresholdDb)
         }
     }
-    public var isPushToTalk: Bool = false {
-        didSet {
-            transmitState.setPushToTalk(isPushToTalk)
-        }
+    public var isPushToTalk: Bool {
+        get { transmitState.isPushToTalkMode }
+        set { transmitState.setPushToTalk(newValue) }
     }
     public var isPushToTalkActive: Bool = false {
         didSet {
@@ -42,6 +42,43 @@ public final class MacAudioEngine: @unchecked Sendable {
         didSet {
             transmitState.setActiveVoiceTargetId(activeVoiceTargetId)
         }
+    }
+
+    // Audio Settings Integration
+    private let playbackConfig = AudioPlaybackConfig()
+
+    public var outputVolume: Float {
+        get { playbackConfig.outputVolume }
+        set { playbackConfig.outputVolume = newValue }
+    }
+
+    private let captureConfig = AudioCaptureConfig()
+
+    public var micAmplification: Float {
+        get { captureConfig.amplification }
+        set { captureConfig.amplification = newValue }
+    }
+
+    public var pttAudioCueEnabled: Bool = false
+    public var pttOnCuePath: String = ""
+    public var pttOffCuePath: String = ""
+
+    public func configureFromSettings(state: SettingsState) {
+        transmitState.configureTransmission(
+            mode: state.transmitMode,
+            silenceDb: Float(state.silenceBelowDb),
+            speechDb: Float(state.speechAboveDb),
+            voiceHold: state.voiceHold,
+            pttHold: state.pttHoldTime
+        )
+        self.micAmplification = Float(max(0.1, state.maxAmplification))
+        self.outputVolume = Float(max(0.0, state.outputVolumePercent / 100.0))
+        self.pttAudioCueEnabled = state.pttAudioCue
+        self.pttOnCuePath = state.pttOnCuePath
+        self.pttOffCuePath = state.pttOffCuePath
+        self.isVoiceProcessingEnabled = state.echoCancellation
+        self.isAudioDuckingEnabled = (state.attenuateWhileOthersTalk || state.attenuateWhileYouTalk)
+        self.isLoopbackTestEnabled = (state.loopbackMode == .local)
     }
     public var isAirPodsAudioLockEnabled: Bool = true {
         didSet {
@@ -97,6 +134,8 @@ public final class MacAudioEngine: @unchecked Sendable {
         } else {
             self.isVoiceProcessingEnabled = true
         }
+
+        configureFromSettings(state: SettingsState.shared)
     }
 
     public func applyAudioDuckingConfig() {
@@ -151,7 +190,7 @@ public final class MacAudioEngine: @unchecked Sendable {
         // 3. Configure output source node pulling audio from Rust ring buffer and loopback buffer.
         // Created via nonisolated helper to avoid Swift 6 actor-isolation assertion crashes on CoreAudio threads.
         let outFormat = engine.outputNode.inputFormat(forBus: 0)
-        let srcNode = Self.createSourceNode(client: self.client, format: outFormat, loopback: self.loopbackBuffer)
+        let srcNode = Self.createSourceNode(client: self.client, format: outFormat, loopback: self.loopbackBuffer, playbackConfig: self.playbackConfig)
         self.sourceNode = srcNode
         engine.attach(srcNode)
         engine.connect(srcNode, to: engine.outputNode, format: outFormat)
@@ -195,7 +234,26 @@ public final class MacAudioEngine: @unchecked Sendable {
     }
 
     public func setPushToTalkActive(_ active: Bool) {
+        let changed = (self.isPushToTalkActive != active)
         self.isPushToTalkActive = active
+        let now = CACurrentMediaTime()
+        transmitState.setPushToTalkActive(active, now: now)
+
+        if changed && pttAudioCueEnabled {
+            if active {
+                if !pttOnCuePath.isEmpty {
+                    SoundManager.shared.playSound(filePath: pttOnCuePath)
+                } else {
+                    NSSound(named: "Pop")?.play()
+                }
+            } else {
+                if !pttOffCuePath.isEmpty {
+                    SoundManager.shared.playSound(filePath: pttOffCuePath)
+                } else {
+                    NSSound(named: "Tink")?.play()
+                }
+            }
+        }
     }
 
     // MARK: - Nonisolated CoreAudio Helpers (Swift 6 Thread-Safety)
@@ -203,12 +261,14 @@ public final class MacAudioEngine: @unchecked Sendable {
     nonisolated private static func createSourceNode(
         client: MumbleClient,
         format: AVAudioFormat,
-        loopback: LoopbackBuffer
+        loopback: LoopbackBuffer,
+        playbackConfig: AudioPlaybackConfig
     ) -> AVAudioSourceNode {
         return AVAudioSourceNode(format: format) { _, _, frameCount, audioBufferList -> OSStatus in
             let ablPointer = UnsafeMutableAudioBufferListPointer(audioBufferList)
             let samples = client.pullSpeakerPcm(frameCount: frameCount)
             let count = min(Int(frameCount), samples.count)
+            let vol = playbackConfig.outputVolume
 
             AudioSpectrumAnalyzer.shared.processSpeaker(samples: samples)
             if AudioRecorder.shared.isRecording {
@@ -225,7 +285,7 @@ public final class MacAudioEngine: @unchecked Sendable {
                 for i in 0..<Int(frameCount) {
                     var s: Float = 0.0
                     if i < count {
-                        s += samples[i]
+                        s += samples[i] * vol
                     }
                     if i < loopbackCount {
                         s += loopbackSamples[i]
@@ -251,10 +311,11 @@ public final class MacAudioEngine: @unchecked Sendable {
 
         let samplesPtr = channelData[0]
         var sumSquares: Float = 0.0
+        let amp = self.captureConfig.amplification
 
         var floatSamples = [Float](repeating: 0.0, count: frameCount)
         for i in 0..<frameCount {
-            let s = samplesPtr[i]
+            let s = max(-1.0, min(1.0, samplesPtr[i] * amp))
             floatSamples[i] = s
             sumSquares += s * s
         }
@@ -375,18 +436,65 @@ final class LoopbackBuffer: @unchecked Sendable {
     }
 }
 
+/// Thread-safe capture configuration for mic amplification on CoreAudio input callback.
+final class AudioCaptureConfig: @unchecked Sendable {
+    private var lock = os_unfair_lock_s()
+    private var amp: Float = 1.0
+
+    var amplification: Float {
+        get {
+            os_unfair_lock_lock(&lock)
+            defer { os_unfair_lock_unlock(&lock) }
+            return amp
+        }
+        set {
+            os_unfair_lock_lock(&lock)
+            amp = max(0.1, min(10.0, newValue))
+            os_unfair_lock_unlock(&lock)
+        }
+    }
+}
+
+/// Thread-safe playback configuration for real-time output volume adjustment on CoreAudio thread.
+final class AudioPlaybackConfig: @unchecked Sendable {
+    private var lock = os_unfair_lock_s()
+    private var volume: Float = 1.0
+
+    var outputVolume: Float {
+        get {
+            os_unfair_lock_lock(&lock)
+            defer { os_unfair_lock_unlock(&lock) }
+            return volume
+        }
+        set {
+            os_unfair_lock_lock(&lock)
+            volume = max(0.0, min(2.5, newValue))
+            os_unfair_lock_unlock(&lock)
+        }
+    }
+}
+
 /// Thread-safe lock-protected state manager for audio processing and transmission.
 final class AudioTransmitState: @unchecked Sendable {
     private var lock = os_unfair_lock_s()
     private var isMuted: Bool = false
-    private var isPushToTalk: Bool = false
+    private var transmitMode: TransmitMode = .voiceActivity
     private var isPushToTalkActive: Bool = false
-    private var vadThresholdDb: Float = -45.0
+    private var silenceBelowDb: Float = -50.0
+    private var speechAboveDb: Float = -35.0
+    private var voiceHoldSeconds: Double = 0.20
+    private var pttHoldSeconds: Double = 0.00
+    private var pttReleaseTime: Double = 0.0
     private var activeVoiceTargetId: UInt8? = nil
     private var vadHangoverFrames: Int = 0
-    private let hangoverMaxFrames: Int = 12
     private var isTransmitting: Bool = false
     private var lastMeterUpdateTime: Double = 0
+
+    var isPushToTalkMode: Bool {
+        os_unfair_lock_lock(&lock)
+        defer { os_unfair_lock_unlock(&lock) }
+        return transmitMode == .pushToTalk
+    }
 
     func setMuted(_ muted: Bool) {
         os_unfair_lock_lock(&lock)
@@ -396,19 +504,39 @@ final class AudioTransmitState: @unchecked Sendable {
 
     func setPushToTalk(_ enabled: Bool) {
         os_unfair_lock_lock(&lock)
-        isPushToTalk = enabled
+        transmitMode = enabled ? .pushToTalk : .voiceActivity
         os_unfair_lock_unlock(&lock)
     }
 
-    func setPushToTalkActive(_ active: Bool) {
+    func configureTransmission(
+        mode: TransmitMode,
+        silenceDb: Float,
+        speechDb: Float,
+        voiceHold: Double,
+        pttHold: Double
+    ) {
         os_unfair_lock_lock(&lock)
+        transmitMode = mode
+        silenceBelowDb = silenceDb
+        speechAboveDb = speechDb
+        voiceHoldSeconds = voiceHold
+        pttHoldSeconds = pttHold
+        os_unfair_lock_unlock(&lock)
+    }
+
+    func setPushToTalkActive(_ active: Bool, now: Double = CACurrentMediaTime()) {
+        os_unfair_lock_lock(&lock)
+        if isPushToTalkActive && !active {
+            pttReleaseTime = now
+        }
         isPushToTalkActive = active
         os_unfair_lock_unlock(&lock)
     }
 
     func setVadThresholdDb(_ db: Float) {
         os_unfair_lock_lock(&lock)
-        vadThresholdDb = db
+        silenceBelowDb = db
+        speechAboveDb = db + 10.0
         os_unfair_lock_unlock(&lock)
     }
 
@@ -425,17 +553,42 @@ final class AudioTransmitState: @unchecked Sendable {
         let shouldTransmit: Bool
         if isMuted {
             shouldTransmit = false
-        } else if isPushToTalk {
-            shouldTransmit = isPushToTalkActive
         } else {
-            if db >= vadThresholdDb {
-                vadHangoverFrames = hangoverMaxFrames
+            switch transmitMode {
+            case .continuous:
                 shouldTransmit = true
-            } else if vadHangoverFrames > 0 {
-                vadHangoverFrames -= 1
-                shouldTransmit = true
-            } else {
-                shouldTransmit = false
+
+            case .pushToTalk:
+                if isPushToTalkActive {
+                    shouldTransmit = true
+                } else if pttHoldSeconds > 0 && (now - pttReleaseTime) < pttHoldSeconds {
+                    shouldTransmit = true
+                } else {
+                    shouldTransmit = false
+                }
+
+            case .voiceActivity:
+                let maxHangover = max(1, Int(voiceHoldSeconds * 50))
+                if isTransmitting {
+                    if db < silenceBelowDb {
+                        if vadHangoverFrames > 0 {
+                            vadHangoverFrames -= 1
+                            shouldTransmit = true
+                        } else {
+                            shouldTransmit = false
+                        }
+                    } else {
+                        vadHangoverFrames = maxHangover
+                        shouldTransmit = true
+                    }
+                } else {
+                    if db >= speechAboveDb {
+                        vadHangoverFrames = maxHangover
+                        shouldTransmit = true
+                    } else {
+                        shouldTransmit = false
+                    }
+                }
             }
         }
 
@@ -458,6 +611,7 @@ final class AudioTransmitState: @unchecked Sendable {
         vadHangoverFrames = 0
         isTransmitting = false
         lastMeterUpdateTime = 0
+        pttReleaseTime = 0
         os_unfair_lock_unlock(&lock)
     }
 }

@@ -179,17 +179,19 @@ public struct FloatingVoiceHUD: View {
                 }
 
                 // 2. Microphone Mute Button
+                let isMicOpenHighlighted = SettingsState.shared.highlightMicIconWhenOpen && audioEngine.isTransmitting
                 Button(action: {
                     store.toggleSelfMute()
                 }) {
                     Image(systemName: store.isSelfMuted ? "mic.slash.fill" : "mic.fill")
                         .font(.system(size: 15))
+                        .foregroundStyle(isMicOpenHighlighted ? Color.green : (store.isSelfMuted ? Color.red : Color.primary))
                         .frame(width: 38, height: 38)
                         .contentShape(Circle())
                 }
                 .buttonStyle(HUDCircleButtonStyle())
                 .glassEffect(
-                    .regular.tint(store.isSelfMuted ? .red : nil).interactive(),
+                    .regular.tint(store.isSelfMuted ? .red : (isMicOpenHighlighted ? .green.opacity(0.3) : nil)).interactive(),
                     in: .circle
                 )
                 .glassEffectID("muteButton", in: glassNamespace)

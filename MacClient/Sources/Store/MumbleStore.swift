@@ -25,6 +25,7 @@ public enum ActiveModal: String, Identifiable {
 @Observable
 @MainActor
 public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
+    public static weak var shared: MumbleStore? = nil
     public private(set) var client: MumbleClient!
     public private(set) var audioEngine: MacAudioEngine!
     public let globalPTT = GlobalPTT.shared
@@ -172,6 +173,7 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
     }
 
     public init() {
+        Self.shared = self
         // 1. Initialize or load persistent client identity from Keychain
         let identity: ClientIdentity
         if let saved = KeychainHelper.loadClientIdentity() {
@@ -222,7 +224,10 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
 
         // 5. Initialize accent tint and auto-connect if enabled
         self.accentTint = Self.colorFromName(self.accentColorName)
-        if self.autoReconnectOnLaunch, let fav = self.bookmarks.first(where: { $0.isFavorite }) ?? self.bookmarks.first {
+        startIdleMonitor()
+
+        if (self.autoReconnectOnLaunch || SettingsState.shared.autoConnectLastUsedServer),
+           let fav = self.bookmarks.first(where: { $0.isFavorite }) ?? self.bookmarks.first {
             Task { @MainActor [weak self] in
                 self?.connect(bookmark: fav)
             }
@@ -299,26 +304,42 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
         self.chatMessages.append(localMsg)
     }
 
-    public func toggleSelfMute() {
-        let newMuted = !isSelfMuted
-        self.isSelfMuted = newMuted
-        audioEngine.isMuted = newMuted
-        client.setSelfMute(muted: newMuted)
-        SoundManager.shared.playMute(isMuted: newMuted)
+    public func setSelfMute(_ muted: Bool) {
+        self.isSelfMuted = muted
+        audioEngine.isMuted = muted
+        client.setSelfMute(muted: muted)
+        EventNotificationManager.shared.dispatch(
+            eventName: "You muted/deafened yourself",
+            detail: muted ? "You are now muted." : "You are now unmuted.",
+            store: self
+        )
     }
 
-    public func toggleSelfDeaf() {
-        let newDeaf = !isSelfDeafened
-        self.isSelfDeafened = newDeaf
-        client.setSelfDeaf(deafened: newDeaf)
-        SoundManager.shared.playDeafen(isDeafened: newDeaf)
+    public func setSelfDeaf(_ deafened: Bool) {
+        self.isSelfDeafened = deafened
+        client.setSelfDeaf(deafened: deafened)
+        EventNotificationManager.shared.dispatch(
+            eventName: "You muted/deafened yourself",
+            detail: deafened ? "You are now deafened." : "You are now undeafened.",
+            store: self
+        )
         // Mumble convention: deafening also mutes
-        if newDeaf {
+        if deafened {
             self.isSelfMuted = true
             audioEngine.isMuted = true
         } else {
             audioEngine.isMuted = self.isSelfMuted
         }
+    }
+
+    public func toggleSelfMute() {
+        recordUserActivity()
+        setSelfMute(!isSelfMuted)
+    }
+
+    public func toggleSelfDeaf() {
+        recordUserActivity()
+        setSelfDeaf(!isSelfDeafened)
     }
 
     // MARK: - Per-User Volume & Muting
@@ -423,12 +444,20 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
         if AudioRecorder.shared.isRecording {
             if let savedUrl = AudioRecorder.shared.stopRecording() {
                 client.setRecordingState(recording: false)
-                logSystemMessage("Finished recording: \(savedUrl.lastPathComponent) (saved to ~/Music/Swimble/)", icon: "stop.circle.fill")
+                EventNotificationManager.shared.dispatch(
+                    eventName: "Recording state changed",
+                    detail: "Finished recording: \(savedUrl.lastPathComponent) (saved to ~/Music/Swimble/)",
+                    store: self
+                )
             }
         } else {
             if AudioRecorder.shared.startRecording() {
                 client.setRecordingState(recording: true)
-                logSystemMessage("Started recording conversation to ~/Music/Swimble/", icon: "record.circle")
+                EventNotificationManager.shared.dispatch(
+                    eventName: "Recording state changed",
+                    detail: "Started recording conversation to ~/Music/Swimble/",
+                    store: self
+                )
             }
         }
     }
@@ -661,8 +690,96 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
         return hash.map { String(format: "%02X", $0) }.joined(separator: ":")
     }
 
-    private func rebuildTree() {
-        self.channelTree = ChannelTreeNode.buildTree(channels: self.channels, users: self.users)
+    public func rebuildTree() {
+        self.channelTree = ChannelTreeNode.buildTree(
+            channels: self.channels,
+            users: self.users,
+            userSort: SettingsState.shared.userSort,
+            filterHidesEmpty: SettingsState.shared.filterHidesEmptyChannels
+        )
+    }
+
+    public func rebuildChannelTree() {
+        rebuildTree()
+    }
+
+    // MARK: - Auto-Reconnect & Idle Action Monitoring
+
+    private var reconnectTimer: Timer?
+    public var lastActivityDate: Date = Date()
+    private var idleTimer: Timer?
+    private var idleActionTriggered: Bool = false
+    private var preIdleMuted: Bool = false
+    private var preIdleDeafened: Bool = false
+
+    public func recordUserActivity() {
+        lastActivityDate = Date()
+        if idleActionTriggered && SettingsState.shared.undoIdleActionOnActivity {
+            if isSelfMuted != preIdleMuted {
+                setSelfMute(preIdleMuted)
+            }
+            if isSelfDeafened != preIdleDeafened {
+                setSelfDeaf(preIdleDeafened)
+            }
+            idleActionTriggered = false
+        }
+    }
+
+    public func startIdleMonitor() {
+        idleTimer?.invalidate()
+        idleTimer = Timer.scheduledTimer(withTimeInterval: 10.0, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                self?.checkIdleTimeout()
+            }
+        }
+    }
+
+    private func checkIdleTimeout() {
+        guard connectionStatus == .connected else { return }
+        let timeoutMinutes = SettingsState.shared.idleActionTimeoutMinutes
+        guard timeoutMinutes > 0 else { return }
+        let idleSeconds = Date().timeIntervalSince(lastActivityDate)
+
+        if idleSeconds >= Double(timeoutMinutes * 60) && !idleActionTriggered {
+            idleActionTriggered = true
+            preIdleMuted = isSelfMuted
+            preIdleDeafened = isSelfDeafened
+
+            switch SettingsState.shared.idleActionType {
+            case .muteSelf:
+                setSelfMute(true)
+                logSystemMessage("Auto-muted due to inactivity (\(timeoutMinutes) minutes).", icon: "mic.slash.fill")
+            case .deafenSelf:
+                setSelfDeaf(true)
+                logSystemMessage("Auto-deafened due to inactivity (\(timeoutMinutes) minutes).", icon: "headphones.slash")
+            case .setAfk:
+                setSelfMute(true)
+                logSystemMessage("Set AFK due to inactivity (\(timeoutMinutes) minutes).", icon: "moon.fill")
+            case .doNothing:
+                break
+            }
+        }
+    }
+
+    public func scheduleAutoReconnect() {
+        guard let bm = activeBookmark else { return }
+        reconnectTimer?.invalidate()
+        logSystemMessage("Connection lost. Automatically reconnecting in 5 seconds...", icon: "arrow.clockwise")
+        reconnectTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: false) { [weak self] _ in
+            Task { @MainActor in
+                guard let self = self, self.connectionStatus == .disconnected else { return }
+                self.connect(bookmark: bm)
+            }
+        }
+    }
+
+    public func updateDockBadge() {
+        if SettingsState.shared.includeUnreadCountInTaskbar {
+            let count = self.chatMessages.filter { $0.senderSession != self.mySessionId && $0.senderSession != 0 }.count
+            NSApp.dockTile.badgeLabel = count > 0 ? "\(count)" : nil
+        } else {
+            NSApp.dockTile.badgeLabel = nil
+        }
     }
 
     // MARK: - UniFFI Event Handler Callbacks
@@ -674,10 +791,26 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
             if status == .connected {
                 self.mySessionId = self.client.getMySession()
                 self.client.setTokens(tokens: self.accessTokens)
+                EventNotificationManager.shared.dispatch(
+                    eventName: "Connected",
+                    detail: "Connected to \(self.activeBookmark?.name ?? "Server")",
+                    store: self
+                )
             } else if status == .disconnected || status == .failed {
                 self.registeredUsers = []
                 self.banList = []
                 self.previouslyLockedChannelIds.removeAll()
+                EventNotificationManager.shared.dispatch(
+                    eventName: "Disconnected",
+                    detail: "Disconnected from server",
+                    store: self
+                )
+                if SettingsState.shared.clearChatWindowOnExit {
+                    self.chatMessages.removeAll()
+                }
+                if SettingsState.shared.reconnectAutomatically && self.activeBookmark != nil {
+                    self.scheduleAutoReconnect()
+                }
             }
         }
     }
@@ -723,13 +856,21 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
                 let left = oldSessions.subtracting(newSessions)
 
                 for sid in joined where sid != myId {
-                    if users.first(where: { $0.sessionId == sid }) != nil {
-                        SoundManager.shared.playUserJoined()
+                    if let u = users.first(where: { $0.sessionId == sid }) {
+                        EventNotificationManager.shared.dispatch(
+                            eventName: "User joined channel",
+                            detail: "\(u.name) joined the server.",
+                            store: self
+                        )
                     }
                 }
 
                 for sid in left where sid != myId {
-                    SoundManager.shared.playUserLeft()
+                    EventNotificationManager.shared.dispatch(
+                        eventName: "User left channel",
+                        detail: "A user left the server.",
+                        store: self
+                    )
                 }
             }
 
@@ -741,9 +882,17 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
                     if let pendingTarget = self.pendingUserMoves[u.sessionId], pendingTarget == u.channelId {
                         self.pendingUserMoves.removeValue(forKey: u.sessionId)
                     } else if u.channelId == self.myChannelId {
-                        self.logSystemMessage("\(u.name) joined the channel.", icon: "arrow.right.circle.fill")
+                        EventNotificationManager.shared.dispatch(
+                            eventName: "User joined channel",
+                            detail: "\(u.name) joined the channel.",
+                            store: self
+                        )
                     } else if prevChannelId == self.myChannelId {
-                        self.logSystemMessage("\(u.name) moved to \(targetChName).", icon: "arrow.turn.down.right")
+                        EventNotificationManager.shared.dispatch(
+                            eventName: "User moved (between other channels)",
+                            detail: "\(u.name) moved to \(targetChName).",
+                            store: self
+                        )
                     }
                 }
             }
@@ -757,7 +906,15 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
 
                     if let prevMuted = self.previousUserMuteMap[u.sessionId] {
                         if !prevMuted && isMuted {
-                            self.logSystemMessage("\(subject) now muted.", icon: "mic.slash.fill")
+                            if u.sessionId == myId && u.isMuted && !u.isSelfMuted {
+                                EventNotificationManager.shared.dispatch(
+                                    eventName: "You were muted/deafened (by admin)",
+                                    detail: "You were muted by an administrator.",
+                                    store: self
+                                )
+                            } else {
+                                self.logSystemMessage("\(subject) now muted.", icon: "mic.slash.fill")
+                            }
                         } else if prevMuted && !isMuted {
                             self.logSystemMessage("\(subject) now unmuted.", icon: "mic.fill")
                         }
@@ -843,12 +1000,33 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
                 }
             }
             self.chatMessages.append(message)
-            if message.senderSession != self.mySessionId && message.senderSession != 0 {
-                SoundManager.shared.playMessageReceived()
-                TTSEngine.shared.speakChatMessage(sender: message.senderName, htmlBody: message.htmlBody)
-            } else if message.senderSession == 0 && message.htmlBody.contains("Permission denied") {
-                SoundManager.shared.playPermissionDenied()
+
+            let isPermissionDenied = message.senderSession == 0 && message.htmlBody.contains("Permission denied")
+            let isPrivate = message.channelId == nil && message.senderSession != 0
+
+            if isPermissionDenied {
+                EventNotificationManager.shared.dispatch(
+                    eventName: "Permission denied",
+                    detail: cleanChatMessageText(from: message.htmlBody),
+                    store: self
+                )
+            } else if message.senderSession != self.mySessionId && message.senderSession != 0 {
+                let clean = cleanChatMessageText(from: message.htmlBody)
+                EventNotificationManager.shared.dispatch(
+                    eventName: isPrivate ? "Private text message received" : "Text message received",
+                    detail: "\(message.senderName): \(clean)",
+                    store: self,
+                    ttsOverride: "\(message.senderName) says: \(clean)"
+                )
             }
+
+            // Cap chatMessages at maxChatBlockCount
+            let maxBlocks = SettingsState.shared.maxChatBlockCount
+            if maxBlocks > 0 && self.chatMessages.count > maxBlocks {
+                self.chatMessages.removeFirst(self.chatMessages.count - maxBlocks)
+            }
+
+            self.updateDockBadge()
         }
     }
 

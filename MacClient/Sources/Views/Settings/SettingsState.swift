@@ -596,11 +596,7 @@ public final class SettingsState {
     public func apply(to store: MumbleStore) {
         // 1. Audio Engine updates
         if let engine = store.audioEngine {
-            engine.vadThresholdDb = Float(silenceBelowDb)
-            engine.isPushToTalk = (transmitMode == .pushToTalk)
-            engine.isVoiceProcessingEnabled = echoCancellation
-            engine.isAudioDuckingEnabled = (attenuateWhileOthersTalk || attenuateWhileYouTalk)
-            engine.isLoopbackTestEnabled = (loopbackMode == .local)
+            engine.configureFromSettings(state: self)
         }
 
         // 2. Hardware device selection
@@ -611,14 +607,35 @@ public final class SettingsState {
             _ = CoreAudioDeviceManager.shared.setOutputDevice(dev.id)
         }
 
-        // 3. Persist to UserDefaults
-        saveToUserDefaults()
+        // 3. UI Theme
+        switch uiTheme {
+        case "Dark":
+            NSApp.appearance = NSAppearance(named: .darkAqua)
+        case "Light":
+            NSApp.appearance = NSAppearance(named: .aqua)
+        default:
+            NSApp.appearance = nil
+        }
 
-        // 4. Update overlay state
+        // 4. Dock Badge & Channel Tree
+        store.updateDockBadge()
+        store.rebuildChannelTree()
+
+        // 5. Global Shortcuts
+        GlobalPTT.shared.syncWithSettings(state: self)
+
+        // 6. Overlay configuration & repositioning
         let overlayMgr = FloatingOverlayManager.shared
+        overlayMgr.applyPosition(preset: overlayPositionPreset)
         if overlayEnabled != overlayMgr.isVisible {
             overlayMgr.toggle(store: store)
         }
+
+        // 7. TTS Volume sync
+        TTSEngine.shared.speechVolume = Float(ttsVolumePercent / 100.0)
+
+        // 8. Persist to UserDefaults
+        saveToUserDefaults()
 
         // Take fresh snapshot after applying
         takeSnapshot()

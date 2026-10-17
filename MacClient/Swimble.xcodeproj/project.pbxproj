@@ -31,6 +31,7 @@
 		535098BD7FB6F4A1BD53D5CB /* SoundManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8180F638748EA13ADEFBBE87 /* SoundManager.swift */; };
 		5A0B4BC52096770C9DEDFCA9 /* App.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F416F2F98FB55738E749671 /* App.swift */; };
 		6D048E5EB6C1AC36074195FC /* ChannelTreeNode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C8E3D10662080C8C58BBB25 /* ChannelTreeNode.swift */; };
+		6ED7163362404FFBB09BAA1B /* EventNotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08B4FC6ED1628E58EC8F9621 /* EventNotificationManager.swift */; };
 		7459BEF006ECE1CDB5C4E4C3 /* RegisteredUsersModal.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD1ACB1CCCD91B54D8D3E60B /* RegisteredUsersModal.swift */; };
 		7CD50DF939B92B5302748E65 /* MacAudioEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51AE2862ABAC495191B6AA2F /* MacAudioEngine.swift */; };
 		872EE86E1C64DACC265696FC /* CoreAudioDeviceManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = D44B6F056A925DEEA15EE380 /* CoreAudioDeviceManager.swift */; };
@@ -65,6 +66,7 @@
 
 /* Begin PBXFileReference section */
 		056BE1AC86EFA30EC46854F4 /* FloatingVoiceHUD.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingVoiceHUD.swift; sourceTree = "<group>"; };
+		08B4FC6ED1628E58EC8F9621 /* EventNotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventNotificationManager.swift; sourceTree = "<group>"; };
 		090F1C2C11C1D6A404A98B96 /* mumble_core.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mumble_core.swift; sourceTree = "<group>"; };
 		0E13181C0A3D7784E5BA1981 /* UserRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserRowView.swift; sourceTree = "<group>"; };
 		0E8170BD8B1AB9190553D093 /* ServerInformationModal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerInformationModal.swift; sourceTree = "<group>"; };
@@ -181,6 +183,14 @@
 			path = Store;
 			sourceTree = "<group>";
 		};
+		95F113172C94CF1A9DE0B8A2 /* Utils */ = {
+			isa = PBXGroup;
+			children = (
+				08B4FC6ED1628E58EC8F9621 /* EventNotificationManager.swift */,
+			);
+			path = Utils;
+			sourceTree = "<group>";
+		};
 		B816698A53FCA23FB8EAFFF7 = {
 			isa = PBXGroup;
 			children = (
@@ -274,6 +284,7 @@
 				F7232C5698B25E924EA30025 /* Audio */,
 				B9496894F73C5E51070952D9 /* Models */,
 				6F24FE601E305D0D348BC36F /* Store */,
+				95F113172C94CF1A9DE0B8A2 /* Utils */,
 				3C85A5120B7F6BE553E46A34 /* Views */,
 			);
 			path = Sources;
@@ -369,6 +380,7 @@
 				C3015566C62991871ED1327C /* ChatAndActivityView.swift in Sources */,
 				872EE86E1C64DACC265696FC /* CoreAudioDeviceManager.swift in Sources */,
 				12A043290A4A10D145A23829 /* EditChannelDescriptionModal.swift in Sources */,
+				6ED7163362404FFBB09BAA1B /* EventNotificationManager.swift in Sources */,
 				2506CF39704029479B9198A7 /* FloatingOverlayWindow.swift in Sources */,
 				B9B1A69E2E28A622498DF550 /* FloatingVoiceHUD.swift in Sources */,
 				94E3A43492A19643FE39FF8C /* GeneralSettingsTab.swift in Sources */,

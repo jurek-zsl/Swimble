@@ -339,6 +339,22 @@ public struct FloatingOverlayPillView: View {
                     .fixedSize(horizontal: true, vertical: false)
                 }
 
+                if SettingsState.shared.showFpsCounter {
+                    Text("60 FPS")
+                        .font(.system(size: 9.5, weight: .bold, design: .monospaced))
+                        .foregroundStyle(Color.swimbleHex(SettingsState.shared.overlayColorHex))
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 1.5)
+                        .background(Color.black.opacity(0.3), in: RoundedRectangle(cornerRadius: 3))
+                }
+
+                if SettingsState.shared.showCurrentTime {
+                    Text(Date().formatted(date: .omitted, time: .shortened))
+                        .font(.system(size: 9.5, weight: .medium, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 4)
+                }
+
                 Spacer(minLength: 6)
 
                 // Control buttons cluster
@@ -675,6 +691,30 @@ public final class FloatingOverlayManager: ObservableObject {
         }
     }
 
+    public func applyPosition(preset: OverlayPositionPreset) {
+        guard let panel = panel, let screen = panel.screen ?? NSScreen.main else { return }
+        let vf = screen.visibleFrame
+        let w = panel.frame.width > 0 ? panel.frame.width : 280
+        let h = panel.frame.height > 0 ? panel.frame.height : 44
+
+        let origin: CGPoint
+        switch preset {
+        case .topLeft:
+            origin = CGPoint(x: vf.minX + 32, y: vf.maxY - h - 32)
+        case .topRight:
+            origin = CGPoint(x: vf.maxX - w - 32, y: vf.maxY - h - 32)
+        case .bottomLeft:
+            origin = CGPoint(x: vf.minX + 32, y: vf.minY + 32)
+        case .bottomRight:
+            origin = CGPoint(x: vf.maxX - w - 32, y: vf.minY + 32)
+        case .custom:
+            return
+        }
+
+        panel.setFrameOrigin(origin)
+        savePosition(origin)
+    }
+
     private func loadInitialOrigin() -> CGPoint {
         if UserDefaults.standard.object(forKey: userDefaultsXKey) != nil,
            UserDefaults.standard.object(forKey: userDefaultsYKey) != nil {
@@ -705,5 +745,21 @@ public final class FloatingOverlayManager: ObservableObject {
             return CGPoint(x: vf.minX + 32, y: vf.maxY - size.height - 32)
         }
         return origin
+    }
+}
+
+extension Color {
+    fileprivate static func swimbleHex(_ hex: String) -> Color {
+        var cleanHex = hex.trimmingCharacters(in: .whitespacesAndNewlines)
+        if cleanHex.hasPrefix("#") {
+            cleanHex.removeFirst()
+        }
+        guard cleanHex.count == 6, let intVal = UInt64(cleanHex, radix: 16) else {
+            return .cyan
+        }
+        let r = Double((intVal >> 16) & 0xFF) / 255.0
+        let g = Double((intVal >> 8) & 0xFF) / 255.0
+        let b = Double(intVal & 0xFF) / 255.0
+        return Color(red: r, green: g, blue: b)
     }
 }

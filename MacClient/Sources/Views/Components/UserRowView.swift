@@ -15,6 +15,7 @@ public struct UserRowView: View {
     @State private var isHovered = false
     @State private var showCommentPopover = false
     @State private var showAvatarPopover = false
+    @State private var showHoverVolume = false
 
     public init(store: MumbleStore, user: UserInfo) {
         self.store = store
@@ -207,6 +208,28 @@ public struct UserRowView: View {
                 Text("(you)")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
+            }
+
+            if !isMe && isHovered && SettingsState.shared.hoverUserShowsVolume {
+                Button(action: { showHoverVolume.toggle() }) {
+                    Image(systemName: "speaker.wave.2.fill")
+                        .font(.system(size: 10))
+                        .foregroundStyle(store.accentTint)
+                }
+                .buttonStyle(.plain)
+                .help("Adjust volume (\(Int(userVolume * 100))%)")
+                .popover(isPresented: $showHoverVolume, arrowEdge: .trailing) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("\(user.name) Volume: \(Int(userVolume * 100))%")
+                            .font(.caption.bold())
+                        Slider(value: Binding(
+                            get: { Double(userVolume) },
+                            set: { store.setUserVolume(sessionId: user.sessionId, volume: Float($0)) }
+                        ), in: 0.0...2.0)
+                        .frame(width: 140)
+                    }
+                    .padding(10)
+                }
             }
 
             Spacer()

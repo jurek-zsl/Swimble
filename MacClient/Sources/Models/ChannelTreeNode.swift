@@ -14,7 +14,12 @@ public struct ChannelTreeNode: Identifiable, Hashable, Equatable, Sendable {
     }
 
     /// Recursively constructs the hierarchical channel tree from flat channel and user lists.
-    public static func buildTree(channels: [ChannelInfo], users: [UserInfo]) -> [ChannelTreeNode] {
+    public static func buildTree(
+        channels: [ChannelInfo],
+        users: [UserInfo],
+        userSort: UserSortMode = .alphabetically,
+        filterHidesEmpty: Bool = false
+    ) -> [ChannelTreeNode] {
         // Group users by channel_id
         var usersByChannel: [UInt32: [UserInfo]] = [:]
         for user in users {
@@ -41,18 +46,27 @@ public struct ChannelTreeNode: Identifiable, Hashable, Equatable, Sendable {
             return $0.name.localizedStandardCompare($1.name) == .orderedAscending
         }
 
-        func buildNode(_ ch: ChannelInfo) -> ChannelTreeNode {
+        func buildNode(_ ch: ChannelInfo) -> ChannelTreeNode? {
             var subchannels = childrenByParent[ch.id] ?? []
             subchannels.sort {
                 if $0.position != $1.position { return $0.position < $1.position }
                 return $0.name.localizedStandardCompare($1.name) == .orderedAscending
             }
-            let childNodes = subchannels.map { buildNode($0) }
+            let childNodes = subchannels.compactMap { buildNode($0) }
             var channelUsers = usersByChannel[ch.id] ?? []
-            channelUsers.sort { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+            if userSort == .byId {
+                channelUsers.sort { $0.sessionId < $1.sessionId }
+            } else {
+                channelUsers.sort { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+            }
+
+            if filterHidesEmpty && channelUsers.isEmpty && childNodes.isEmpty && ch.parentId != nil {
+                return nil
+            }
+
             return ChannelTreeNode(channel: ch, children: childNodes, users: channelUsers)
         }
 
-        return rootChannels.map { buildNode($0) }
+        return rootChannels.compactMap { buildNode($0) }
     }
 }

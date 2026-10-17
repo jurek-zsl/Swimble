@@ -124,13 +124,13 @@ public struct ChannelRowView: View {
 
             Spacer()
 
-            if userCount > 0 {
+            if userCount > 0 || SettingsState.shared.alwaysShowChannelUserCount {
                 Text("\(userCount)")
                     .font(.caption2.bold())
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
                     .background(Color.secondary.opacity(0.15), in: Capsule())
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(userCount > 0 ? Color.primary : Color.secondary.opacity(0.6))
             }
         }
         .padding(.vertical, 4)

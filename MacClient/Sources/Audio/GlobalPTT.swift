@@ -429,6 +429,20 @@ public final class GlobalPTT: @unchecked Sendable {
         }
     }
 
+    public func syncWithSettings(state: SettingsState) {
+        if state.enableGlobalShortcuts {
+            if eventTap == nil && isAccessibilityTrusted {
+                setupEventTap()
+            } else if let tap = eventTap {
+                CGEvent.tapEnable(tap: tap, enable: true)
+            }
+        } else {
+            if let tap = eventTap {
+                CGEvent.tapEnable(tap: tap, enable: false)
+            }
+        }
+    }
+
     // MARK: - Monitoring & Event Tap
 
     public func startMonitoring() {
