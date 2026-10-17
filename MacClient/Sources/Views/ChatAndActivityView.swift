@@ -1036,7 +1036,7 @@ struct SystemEventPillView: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            Text("[\(timeString)]")
+            Text(timeString)
                 .font(.system(size: 11, weight: .medium, design: .monospaced))
                 .foregroundStyle(.tertiary)
 
@@ -1129,7 +1129,7 @@ struct ServerWelcomeCardView: View {
 
                 Spacer()
 
-                Text("[\(timeString)]")
+                Text(timeString)
                     .font(.system(size: 11, weight: .medium, design: .monospaced))
                     .foregroundStyle(.tertiary)
             }
