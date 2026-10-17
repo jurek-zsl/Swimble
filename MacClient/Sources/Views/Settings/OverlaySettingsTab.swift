@@ -1,24 +1,16 @@
 import SwiftUI
 import AppKit
 
-/// Comprehensive Game Overlay settings tab matching official Mumble specs.
+/// Native Game Overlay settings tab with interactive screen quadrant positioning and appearance controls.
 public struct OverlaySettingsTab: View {
     @Bindable public var store: MumbleStore
     @Bindable public var state: SettingsState = SettingsState.shared
 
     @State private var overlayColor: Color = .cyan
-    @State private var presetNotice: String? = nil
 
     public init(store: MumbleStore) {
         self.store = store
     }
-
-    private let availableFonts = [
-        "System Default",
-        "System Monospaced",
-        "System Rounded",
-        "System Serif"
-    ]
 
     public var body: some View {
         ScrollView {
@@ -26,14 +18,14 @@ public struct OverlaySettingsTab: View {
                 // 1. Overlay Options
                 SettingsCard {
                     SettingsSectionHeader(
-                        "Overlay Options",
+                        "Overlay Status",
                         systemImage: "pip.fill",
                         subtitle: "Always-on-top floating HUD displaying who's talking during gameplay."
                     )
 
                     SettingsToggleRow(
-                        "Enable Overlay",
-                        subtitle: "Display floating glass HUD on top of full-screen games and desktop apps.",
+                        "Enable Game Overlay",
+                        subtitle: "Display floating Liquid Glass HUD on top of full-screen games and desktop apps.",
                         isOn: $state.overlayEnabled
                     )
                 }
@@ -43,10 +35,9 @@ public struct OverlaySettingsTab: View {
                     SettingsSectionHeader(
                         "Screen Positioning",
                         systemImage: "display",
-                        subtitle: "Click a screen quadrant or drag to align the HUD on your display."
+                        subtitle: "Click a screen quadrant to align the HUD on your display."
                     )
 
-                    // Interactive Monitor Widget
                     VStack(spacing: 12) {
                         ZStack {
                             // Monitor Bezel
@@ -72,33 +63,14 @@ public struct OverlaySettingsTab: View {
                             .padding(14)
                         }
 
-                        // Preset Load / Save Actions
-                        HStack(spacing: 12) {
-                            Button("Load Preset...") {
-                                presetNotice = "Loaded '\(state.overlayPositionPreset.rawValue)' preset."
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { presetNotice = nil }
-                            }
-                            .buttonStyle(.bordered)
-                            .controlSize(.small)
-
-                            Button("Save Preset...") {
-                                presetNotice = "Saved '\(state.overlayPositionPreset.rawValue)' configuration."
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { presetNotice = nil }
-                            }
-                            .buttonStyle(.bordered)
-                            .controlSize(.small)
-
-                            if let notice = presetNotice {
-                                Text(notice)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-
-                            Spacer()
-
-                            Text("Selected: \(state.overlayPositionPreset.rawValue)")
+                        HStack {
+                            Text("Current Position: \(state.overlayPositionPreset.rawValue)")
                                 .font(.caption.bold())
                                 .foregroundStyle(store.accentTint)
+                            Spacer()
+                            Text("You can also freely drag the HUD across screens.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
                     }
                 }
@@ -108,7 +80,7 @@ public struct OverlaySettingsTab: View {
                     SettingsSectionHeader(
                         "Appearance & Elements",
                         systemImage: "paintpalette.fill",
-                        subtitle: "Configure FPS counter, clock display, font family, and HUD accent color."
+                        subtitle: "Configure FPS counter, clock display, and HUD accent color."
                     )
 
                     SettingsToggleRow(
@@ -118,8 +90,8 @@ public struct OverlaySettingsTab: View {
                     )
 
                     SettingsToggleRow(
-                        "Show Current Time",
-                        subtitle: "Displays the current digital clock inside the floating HUD.",
+                        "Show Digital Clock",
+                        subtitle: "Displays the current digital time inside the floating HUD.",
                         isOn: $state.showCurrentTime
                     )
 
@@ -127,27 +99,23 @@ public struct OverlaySettingsTab: View {
 
                     HStack(spacing: 16) {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("Font Family")
-                                .font(.subheadline.bold())
-                            Picker("Font Family", selection: $state.overlayFontName) {
-                                ForEach(availableFonts, id: \.self) { Text($0).tag($0) }
-                            }
-                            .labelsHidden()
-                            .frame(maxWidth: .infinity)
-                        }
-
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Overlay Color")
+                            Text("Overlay Accent Color")
                                 .font(.subheadline.bold())
                             ColorPicker("Accent Color", selection: $overlayColor)
                                 .labelsHidden()
-                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .onChange(of: overlayColor) { _, newColor in
+                                    state.overlayColorHex = newColor.toSwimbleHex()
+                                }
                         }
+                        Spacer()
                     }
                 }
             }
             .padding(.horizontal, 24)
             .padding(.vertical, 20)
+            .onAppear {
+                overlayColor = Color.swimbleHex(state.overlayColorHex)
+            }
         }
     }
 
@@ -155,6 +123,7 @@ public struct OverlaySettingsTab: View {
     private func quadrantButton(preset: OverlayPositionPreset, label: String) -> some View {
         Button(action: {
             state.overlayPositionPreset = preset
+            FloatingOverlayManager.shared.applyPosition(preset: preset)
         }) {
             ZStack {
                 RoundedRectangle(cornerRadius: 8)

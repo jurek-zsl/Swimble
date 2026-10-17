@@ -1,7 +1,7 @@
 import SwiftUI
 import AppKit
 
-/// Comprehensive User Interface settings tab matching official Mumble specs.
+/// Native User Interface configuration tab embracing macOS 26 Liquid Glass styling.
 public struct UserInterfaceSettingsTab: View {
     @Bindable public var store: MumbleStore
     @Bindable public var state: SettingsState = SettingsState.shared
@@ -10,50 +10,60 @@ public struct UserInterfaceSettingsTab: View {
         self.store = store
     }
 
-    private let availableStyles = ["macOS Liquid Glass", "Default", "Compact", "High Contrast"]
     private let availableThemes = ["System Default", "Dark", "Light"]
-    private let availableLanguages = ["System Default", "English", "Deutsch", "Français", "Español", "Polski", "日本語"]
-    private let availableLayouts = ["Classic", "Stacked", "Hybrid", "Custom"]
-    private let availableExpands = ["All", "None", "Only with Users"]
-    private let availableDrags = ["Move", "Copy", "Disabled"]
+    private let availableAccents = ["Cyan", "Emerald", "Sapphire", "Amethyst", "Amber", "Ruby"]
 
     public var body: some View {
         ScrollView {
             VStack(spacing: 20) {
-                // 1. Application
+                // 1. Appearance & Liquid Glass
                 SettingsCard {
                     SettingsSectionHeader(
-                        "Application",
-                        systemImage: "app.badge.fill",
-                        subtitle: "Visual style, appearance theme, language, and desktop badges."
+                        "Appearance & Accent",
+                        systemImage: "paintpalette.fill",
+                        subtitle: "Personalize Liquid Glass highlights and window appearance themes."
                     )
 
-                    HStack(spacing: 16) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Style")
-                                .font(.subheadline.bold())
-                            Picker("Style", selection: $state.uiStyle) {
-                                ForEach(availableStyles, id: \.self) { Text($0).tag($0) }
-                            }
-                            .labelsHidden()
-                            .frame(maxWidth: .infinity)
-                        }
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Liquid Glass Accent Color")
+                            .font(.subheadline.bold())
 
+                        HStack(spacing: 12) {
+                            ForEach(availableAccents, id: \.self) { colorName in
+                                let color = MumbleStore.colorFromName(colorName)
+                                let isSelected = store.accentColorName == colorName
+
+                                Button(action: {
+                                    store.accentColorName = colorName
+                                }) {
+                                    HStack(spacing: 6) {
+                                        Circle()
+                                            .fill(color)
+                                            .frame(width: 14, height: 14)
+                                        Text(colorName)
+                                            .font(.caption.bold())
+                                    }
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 6)
+                                    .background(isSelected ? color.opacity(0.2) : Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
+                                    .overlay {
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .strokeBorder(isSelected ? color : Color.primary.opacity(0.12), lineWidth: isSelected ? 1.5 : 0.8)
+                                    }
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+
+                    Divider()
+
+                    HStack(spacing: 16) {
                         VStack(alignment: .leading, spacing: 4) {
                             Text("Theme")
                                 .font(.subheadline.bold())
                             Picker("Theme", selection: $state.uiTheme) {
                                 ForEach(availableThemes, id: \.self) { Text($0).tag($0) }
-                            }
-                            .labelsHidden()
-                            .frame(maxWidth: .infinity)
-                        }
-
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Language")
-                                .font(.subheadline.bold())
-                            Picker("Language", selection: $state.uiLanguage) {
-                                ForEach(availableLanguages, id: \.self) { Text($0).tag($0) }
                             }
                             .labelsHidden()
                             .frame(maxWidth: .infinity)
@@ -64,86 +74,24 @@ public struct UserInterfaceSettingsTab: View {
 
                     SettingsToggleRow(
                         "Display Quit Confirmation Dialog on Close",
-                        subtitle: "Prompts for confirmation before quitting when connected to a server.",
+                        subtitle: "Prompts for confirmation before quitting when actively connected to a voice server.",
                         isOn: $state.displayQuitConfirmation
                     )
 
                     SettingsToggleRow(
-                        "Include Unread Message Count in Taskbar / Dock Icon",
-                        subtitle: "Shows a badge on the macOS Dock icon with the unread chat count.",
+                        "Include Unread Message Count in Dock Icon",
+                        subtitle: "Shows a badge on the macOS Dock icon with the count of unread chat messages.",
                         isOn: $state.includeUnreadCountInTaskbar
                     )
                 }
 
-                // 2. Layout
-                SettingsCard {
-                    SettingsSectionHeader(
-                        "Layout",
-                        systemImage: "macwindow.on.rectangle",
-                        subtitle: "Window structure, layout presets, and menu bar shortcuts."
-                    )
-
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Preset Layout")
-                            .font(.subheadline.bold())
-                        Picker("Layout", selection: $state.layoutPreset) {
-                            ForEach(availableLayouts, id: \.self) { Text($0).tag($0) }
-                        }
-                        .pickerStyle(.segmented)
-                    }
-
-                    Divider()
-
-                    SettingsToggleRow(
-                        "Lock Layout",
-                        subtitle: "Prevent accidental resizing or rearranging of sidebar columns.",
-                        isOn: $state.lockLayout
-                    )
-
-                    SettingsToggleRow(
-                        "Show Context Menu on Menu Bar",
-                        subtitle: "Include channel and user action menus directly in the macOS menu bar.",
-                        isOn: $state.showContextMenuOnMenuBar
-                    )
-
-                    SettingsToggleRow(
-                        "Make Minimal View Look Like a Tooltip",
-                        subtitle: "Display a minimal borderless floating widget instead of the full client.",
-                        isOn: $state.minimalViewTooltip
-                    )
-                }
-
-                // 3. Channel Tree
+                // 2. Channel Tree
                 SettingsCard {
                     SettingsSectionHeader(
                         "Channel Tree",
                         systemImage: "folder.fill.badge.gearshape",
-                        subtitle: "Hierarchy expansion, sorting, drag & drop, and user tooltips."
+                        subtitle: "Participant sorting, volume adjustments, and channel visibility."
                     )
-
-                    HStack(spacing: 16) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Expand Channels")
-                                .font(.subheadline.bold())
-                            Picker("Expand", selection: $state.channelTreeExpand) {
-                                ForEach(availableExpands, id: \.self) { Text($0).tag($0) }
-                            }
-                            .labelsHidden()
-                            .frame(maxWidth: .infinity)
-                        }
-
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Channel Drag Action")
-                                .font(.subheadline.bold())
-                            Picker("Drag", selection: $state.channelDrag) {
-                                ForEach(availableDrags, id: \.self) { Text($0).tag($0) }
-                            }
-                            .labelsHidden()
-                            .frame(maxWidth: .infinity)
-                        }
-                    }
-
-                    Divider()
 
                     VStack(alignment: .leading, spacing: 8) {
                         Text("User Sort Order")
@@ -169,19 +117,13 @@ public struct UserInterfaceSettingsTab: View {
 
                     SettingsToggleRow(
                         "Hover Over User Shows Volume Adjustment",
-                        subtitle: "Displays an inline volume slider when hovering over any participant.",
+                        subtitle: "Displays an inline volume slider when hovering over any participant in the tree.",
                         isOn: $state.hoverUserShowsVolume
                     )
 
                     SettingsToggleRow(
-                        "Ask Before Dragging Into a Channel",
-                        subtitle: "Display a confirmation modal before moving users between channels.",
-                        isOn: $state.askBeforeDraggingChannel
-                    )
-
-                    SettingsToggleRow(
                         "Always Show Channel User Count",
-                        subtitle: "Displays the active participant count pill next to every channel.",
+                        subtitle: "Displays the active participant count badge next to every channel.",
                         isOn: $state.alwaysShowChannelUserCount
                     )
 
@@ -190,41 +132,35 @@ public struct UserInterfaceSettingsTab: View {
                         subtitle: "Hide channels with no active users when searching or filtering.",
                         isOn: $state.filterHidesEmptyChannels
                     )
-
-                    SettingsToggleRow(
-                        "Show User's Avatar in Tooltip",
-                        subtitle: "Display large profile avatars when hovering over users in the tree.",
-                        isOn: $state.showUserAvatarInTooltip
-                    )
                 }
 
-                // 4. Tray Icon (macOS Menu Bar)
+                // 3. Menu Bar Extra
                 SettingsCard {
                     SettingsSectionHeader(
-                        "Tray Icon (macOS Menu Bar)",
+                        "Menu Bar Extra",
                         systemImage: "menubar.rectangle",
-                        subtitle: "Menu bar status item showing speaking state and user names."
+                        subtitle: "macOS menu bar companion showing live speaking states and speakers."
                     )
 
                     SettingsToggleRow(
-                        "Show Talking Status in Tray Icon",
-                        subtitle: "Glows the macOS menu bar icon green whenever someone in your channel talks.",
+                        "Show Talking Status in Menu Bar Icon",
+                        subtitle: "Glows the menu bar icon green whenever someone in your channel is talking.",
                         isOn: $state.showTalkingStatusInTray
                     )
 
                     SettingsToggleRow(
                         "Show User Name When Talking",
-                        subtitle: "Displays the active speaker's nickname directly in the macOS menu bar.",
+                        subtitle: "Displays the active speaker's nickname directly in the macOS menu bar title.",
                         isOn: $state.showUserNameWhenTalking
                     )
                 }
 
-                // 5. Server Connect Dialog
+                // 4. Server Bookmarks
                 SettingsCard {
                     SettingsSectionHeader(
-                        "Server Connect Dialog",
+                        "Server Bookmarks",
                         systemImage: "star.circle.fill",
-                        subtitle: "Favorite servers and connection history organization."
+                        subtitle: "Server bookmark browser sorting and list priority."
                     )
 
                     SettingsToggleRow(

@@ -77,7 +77,8 @@ public final class MacAudioEngine: @unchecked Sendable {
         self.pttOnCuePath = state.pttOnCuePath
         self.pttOffCuePath = state.pttOffCuePath
         self.isVoiceProcessingEnabled = state.echoCancellation
-        self.isAudioDuckingEnabled = (state.attenuateWhileOthersTalk || state.attenuateWhileYouTalk)
+        self.isAudioDuckingEnabled = state.audioDuckingEnabled
+        self.isAirPodsAudioLockEnabled = state.airPodsAudioLockEnabled
         self.isLoopbackTestEnabled = (state.loopbackMode == .local)
     }
     public var isAirPodsAudioLockEnabled: Bool = true {

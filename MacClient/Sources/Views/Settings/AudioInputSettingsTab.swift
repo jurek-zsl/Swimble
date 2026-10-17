@@ -1,7 +1,7 @@
 import SwiftUI
 import AppKit
 
-/// Comprehensive Audio Input configuration tab matching official Mumble specs.
+/// Native Audio Input configuration tab tailored for macOS 26 CoreAudio & Apple Silicon.
 public struct AudioInputSettingsTab: View {
     @Bindable public var store: MumbleStore
     @Bindable public var state: SettingsState = SettingsState.shared
@@ -15,53 +15,36 @@ public struct AudioInputSettingsTab: View {
         store.audioEngine?.inputLevelDb ?? -60.0
     }
 
-    private var totalBandwidthKbps: Double {
-        // Audio + Position (approx 16 kbps) + Protocol Overhead (approx 12.8 kbps)
-        state.qualityBitrateKbps + 16.0 + 12.8
-    }
-
     public var body: some View {
         ScrollView {
             VStack(spacing: 20) {
                 // 1. Interface
                 SettingsCard {
                     SettingsSectionHeader(
-                        "Interface",
+                        "Input Device",
                         systemImage: "mic.fill",
-                        subtitle: "Select the audio subsystem and input hardware microphone."
+                        subtitle: "Select your hardware microphone and configure Bluetooth audio protection."
                     )
 
-                    HStack(spacing: 16) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("System")
-                                .font(.subheadline.bold())
-                            Picker("System", selection: $state.audioInputSystem) {
-                                Text("CoreAudio").tag("CoreAudio")
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Microphone")
+                            .font(.subheadline.bold())
+                        Picker("Microphone", selection: $state.audioInputDevice) {
+                            Text("Default Device").tag("")
+                            ForEach(deviceManager.inputDevices) { dev in
+                                Text(dev.name).tag(dev.name)
                             }
-                            .labelsHidden()
-                            .frame(maxWidth: .infinity)
                         }
-
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Device")
-                                .font(.subheadline.bold())
-                            Picker("Device", selection: $state.audioInputDevice) {
-                                Text("Default Device").tag("")
-                                ForEach(deviceManager.inputDevices) { dev in
-                                    Text(dev.name).tag(dev.name)
-                                }
-                            }
-                            .labelsHidden()
-                            .frame(maxWidth: .infinity)
-                        }
+                        .labelsHidden()
+                        .frame(maxWidth: .infinity)
                     }
 
                     Divider()
 
                     SettingsToggleRow(
-                        "Exclusive Mode",
-                        subtitle: "Acquire exclusive hardware ownership of the microphone.",
-                        isOn: $state.audioInputExclusiveMode
+                        "AirPods & Bluetooth High-Quality Audio Lock",
+                        subtitle: "Locks microphone input to the Mac's built-in mic when Bluetooth headphones are active, preventing macOS from degrading stereo game/music audio into 16kHz Hands-Free mono.",
+                        isOn: $state.airPodsAudioLockEnabled
                     )
                 }
 
@@ -87,26 +70,6 @@ public struct AudioInputSettingsTab: View {
                     if state.transmitMode == .voiceActivity {
                         Divider()
 
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Voice Activity Detection Method")
-                                .font(.subheadline.bold())
-
-                            HStack(spacing: 24) {
-                                ForEach(VadMode.allCases) { mode in
-                                    HStack(spacing: 6) {
-                                        Image(systemName: state.vadMode == mode ? "largecircle.fill.circle" : "circle")
-                                            .foregroundStyle(state.vadMode == mode ? store.accentTint : .secondary)
-                                        Text(mode.rawValue)
-                                            .font(.body)
-                                    }
-                                    .contentShape(Rectangle())
-                                    .onTapGesture {
-                                        state.vadMode = mode
-                                    }
-                                }
-                            }
-                        }
-
                         // Live 3-Zone VAD Meter Bar
                         VStack(alignment: .leading, spacing: 6) {
                             HStack {
@@ -122,13 +85,11 @@ public struct AudioInputSettingsTab: View {
                             GeometryReader { geo in
                                 let width = geo.size.width
                                 let db = CGFloat(inputLevelDb)
-                                // normalize db from -60 to 0
                                 let norm = min(max((db + 60.0) / 60.0, 0.0), 1.0)
                                 let silNorm = CGFloat((state.silenceBelowDb + 60.0) / 60.0)
                                 let spkNorm = CGFloat((state.speechAboveDb + 60.0) / 60.0)
 
                                 ZStack(alignment: .leading) {
-                                    // Background track with 3 zones
                                     HStack(spacing: 0) {
                                         Rectangle()
                                             .fill(Color.red.opacity(0.35))
@@ -141,7 +102,6 @@ public struct AudioInputSettingsTab: View {
                                             .frame(width: max(0, (1.0 - spkNorm) * width))
                                     }
 
-                                    // Active Level Bar
                                     Rectangle()
                                         .fill(norm >= spkNorm ? Color.green : (norm >= silNorm ? Color.yellow : Color.red))
                                         .frame(width: max(0, norm * width))
@@ -200,28 +160,15 @@ public struct AudioInputSettingsTab: View {
                             Text("Push-to-Talk Tuning")
                                 .font(.subheadline.bold())
 
-                            HStack(spacing: 20) {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    HStack {
-                                        Text("DoublePush Time:")
-                                            .font(.caption)
-                                        Spacer()
-                                        Text(String(format: "%.2f s", state.pttDoublePushTime))
-                                            .font(.caption.monospacedDigit())
-                                    }
-                                    Slider(value: $state.pttDoublePushTime, in: 0.0...1.0, step: 0.05)
+                            VStack(alignment: .leading, spacing: 2) {
+                                HStack {
+                                    Text("Release Hold Time:")
+                                        .font(.caption)
+                                    Spacer()
+                                    Text(String(format: "%.2f s", state.pttHoldTime))
+                                        .font(.caption.monospacedDigit())
                                 }
-
-                                VStack(alignment: .leading, spacing: 2) {
-                                    HStack {
-                                        Text("Hold Time:")
-                                            .font(.caption)
-                                        Spacer()
-                                        Text(String(format: "%.2f s", state.pttHoldTime))
-                                            .font(.caption.monospacedDigit())
-                                    }
-                                    Slider(value: $state.pttHoldTime, in: 0.0...1.0, step: 0.05)
-                                }
+                                Slider(value: $state.pttHoldTime, in: 0.0...0.5, step: 0.01)
                             }
 
                             SettingsToggleRow(
@@ -257,156 +204,46 @@ public struct AudioInputSettingsTab: View {
                     }
                 }
 
-                // 3. Compression
-                SettingsCard {
-                    SettingsSectionHeader(
-                        "Compression",
-                        systemImage: "slider.horizontal.2.square.on.square",
-                        subtitle: "Tune Opus audio quality, latency, and packet overhead."
-                    )
-
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text("Quality Bitrate:")
-                                .font(.subheadline.bold())
-                            Spacer()
-                            Text(String(format: "%.1f kb/s", state.qualityBitrateKbps))
-                                .font(.subheadline.monospacedDigit().bold())
-                                .foregroundStyle(store.accentTint)
-                        }
-                        Slider(value: $state.qualityBitrateKbps, in: 16.0...192.0, step: 0.5)
-                    }
-
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text("Audio per Packet Frame Size:")
-                                .font(.subheadline.bold())
-                            Spacer()
-                            Text("\(state.audioPacketFrameSizeMs) ms")
-                                .font(.subheadline.monospacedDigit().bold())
-                        }
-                        Picker("Frame Size", selection: $state.audioPacketFrameSizeMs) {
-                            Text("10 ms").tag(10)
-                            Text("20 ms").tag(20)
-                            Text("40 ms").tag(40)
-                            Text("60 ms").tag(60)
-                        }
-                        .pickerStyle(.segmented)
-                    }
-
-                    Divider()
-
-                    SettingsToggleRow(
-                        "Allow Low Delay Mode",
-                        subtitle: "Reduces Opus encoder buffering for the lowest possible latency.",
-                        isOn: $state.allowLowDelayMode
-                    )
-
-                    Divider()
-
-                    // Live Bandwidth Readout
-                    HStack(spacing: 16) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Live Bandwidth:")
-                                .font(.subheadline.bold())
-                            Text(String(format: "Audio: %.1f · Position: 16.0 · Overhead: 12.8", state.qualityBitrateKbps))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        Text(String(format: "%.1f kbit/s", totalBandwidthKbps))
-                            .font(.title3.bold().monospacedDigit())
-                            .foregroundStyle(store.accentTint)
-                    }
-                    .padding(10)
-                    .background(Color(NSColor.controlBackgroundColor).opacity(0.4), in: RoundedRectangle(cornerRadius: 8))
-                }
-
-                // 4. Audio Processing
+                // 3. Audio Processing
                 SettingsCard {
                     SettingsSectionHeader(
                         "Audio Processing",
                         systemImage: "wand.and.stars",
-                        subtitle: "DSP filters including Echo Cancellation, Noise Suppression, and Gain."
+                        subtitle: "Hardware DSP filters including Echo Cancellation, Voice Isolation, and Gain."
                     )
 
                     VStack(alignment: .leading, spacing: 4) {
                         HStack {
-                            Text("Max. Amplification:")
+                            Text("Microphone Amplification (Gain):")
                                 .font(.subheadline.bold())
                             Spacer()
-                            Text(String(format: "%.2f", state.maxAmplification))
+                            Text(String(format: "%.1fx", state.maxAmplification))
                                 .font(.subheadline.monospacedDigit().bold())
+                                .foregroundStyle(store.accentTint)
                         }
-                        Slider(value: $state.maxAmplification, in: 1.0...10.0, step: 0.05)
+                        Slider(value: $state.maxAmplification, in: 1.0...5.0, step: 0.1)
                     }
 
                     Divider()
 
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Echo Cancellation")
-                                .font(.subheadline.bold())
-                            Text("Hardware VoiceProcessingIO removes speaker playback from your mic.")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        Picker("Echo Cancellation", selection: $state.echoCancellation) {
-                            Text("Disabled").tag(false)
-                            Text("Enabled").tag(true)
-                        }
-                        .labelsHidden()
-                        .frame(width: 130)
-                    }
-
-                    Divider()
-
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Noise Suppression Mode")
-                            .font(.subheadline.bold())
-
-                        HStack(spacing: 20) {
-                            ForEach(NoiseSuppressionMode.allCases) { mode in
-                                HStack(spacing: 6) {
-                                    Image(systemName: state.noiseSuppressionMode == mode ? "largecircle.fill.circle" : "circle")
-                                        .foregroundStyle(state.noiseSuppressionMode == mode ? store.accentTint : .secondary)
-                                    Text(mode.rawValue)
-                                        .font(.body)
-                                }
-                                .contentShape(Rectangle())
-                                .onTapGesture {
-                                    state.noiseSuppressionMode = mode
-                                }
-                            }
-                        }
-
-                        if state.noiseSuppressionMode != .disabled {
-                            VStack(alignment: .leading, spacing: 2) {
-                                HStack {
-                                    Text("Suppression Level:")
-                                        .font(.caption)
-                                    Spacer()
-                                    Text("\(Int(state.noiseSuppressionLevelDb)) dB")
-                                        .font(.caption.monospacedDigit())
-                                }
-                                Slider(value: $state.noiseSuppressionLevelDb, in: -30.0...0.0, step: 1.0)
-                            }
-                        }
-                    }
+                    SettingsToggleRow(
+                        "Hardware Echo Cancellation (VoiceProcessingIO)",
+                        subtitle: "Apple Silicon hardware VoiceProcessing eliminates speaker playback and room echo from your microphone.",
+                        isOn: $state.echoCancellation
+                    )
                 }
 
-                // 5. Misc
+                // 4. Misc & Inactivity
                 SettingsCard {
                     SettingsSectionHeader(
-                        "Misc",
+                        "Notifications & Idle Automation",
                         systemImage: "ellipsis.circle.fill",
-                        subtitle: "Mute chime, mic icon highlight, and inactivity idle timers."
+                        subtitle: "Mute cues, speaking indicator glow, and automatic AFK timeout."
                     )
 
                     SettingsToggleRow(
                         "Mute Microphone Cue",
-                        subtitle: "Play an audible chime when toggling mute on/off.",
+                        subtitle: "Play an audible chime when toggling self-mute on or off.",
                         isOn: $state.muteMicrophoneCue
                     )
 
@@ -430,7 +267,7 @@ public struct AudioInputSettingsTab: View {
 
                     SettingsToggleRow(
                         "Highlight Microphone Icon When Mic is Open",
-                        subtitle: "Glows the speaking orb whenever you are transmitting voice.",
+                        subtitle: "Glows the speaking orb whenever your microphone is transmitting audio.",
                         isOn: $state.highlightMicIconWhenOpen
                     )
 
@@ -440,7 +277,7 @@ public struct AudioInputSettingsTab: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Idle Action Timer")
                                 .font(.subheadline.bold())
-                            Text("Automatically trigger an action after 5 minutes of inactivity.")
+                            Text("Automatically trigger an action after inactivity.")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
@@ -456,7 +293,7 @@ public struct AudioInputSettingsTab: View {
 
                     SettingsToggleRow(
                         "Undo Idle Action Upon Any Activity",
-                        subtitle: "Automatically unmute / resume when keyboard or mouse activity is detected.",
+                        subtitle: "Automatically unmute and resume when keyboard or mouse activity is detected.",
                         isOn: $state.undoIdleActionOnActivity
                     )
                 }

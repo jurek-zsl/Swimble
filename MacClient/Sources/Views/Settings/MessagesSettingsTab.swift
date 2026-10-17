@@ -1,7 +1,7 @@
 import SwiftUI
 import AppKit
 
-/// Comprehensive Messages configuration tab matching official Mumble specs.
+/// Native Messages & Notifications configuration tab with 4-channel event routing.
 public struct MessagesSettingsTab: View {
     @Bindable public var store: MumbleStore
     @Bindable public var state: SettingsState = SettingsState.shared
@@ -21,7 +21,6 @@ public struct MessagesSettingsTab: View {
                         subtitle: "Configure notification methods per server and user event."
                     )
 
-                    // Matrix Table
                     VStack(spacing: 0) {
                         // Header
                         HStack(spacing: 8) {
@@ -92,12 +91,12 @@ public struct MessagesSettingsTab: View {
                     }
                 }
 
-                // 2. Soundfile Options
+                // 2. Sound Cues
                 SettingsCard {
                     SettingsSectionHeader(
-                        "Soundfile Options",
+                        "Sound Cues",
                         systemImage: "speaker.wave.2.circle.fill",
-                        subtitle: "Configure default synthesized chimes or custom sound files."
+                        subtitle: "Configure default synthesized chimes or a custom audio sound file."
                     )
 
                     VStack(alignment: .leading, spacing: 8) {
@@ -150,7 +149,7 @@ public struct MessagesSettingsTab: View {
                             Text("TTS Volume:")
                                 .font(.subheadline.bold())
                             Spacer()
-                            Text("\(Int(state.ttsVolumePercent)) %")
+                            Text("\(Int(state.ttsVolumePercent))%")
                                 .font(.subheadline.monospacedDigit().bold())
                         }
                         Slider(value: $state.ttsVolumePercent, in: 0.0...100.0, step: 5.0)
@@ -174,39 +173,25 @@ public struct MessagesSettingsTab: View {
                     Divider()
 
                     SettingsToggleRow(
-                        "Read Message Text Instead of Event",
-                        subtitle: "Speaks the body content of incoming text messages rather than generic alert.",
+                        "Read Message Text Instead of Event Name",
+                        subtitle: "Speaks the body content of incoming text messages rather than a generic alert.",
                         isOn: $state.ttsReadMessageText
                     )
                 }
 
-                // 4. Chat Log
+                // 4. Chat Log History
                 SettingsCard {
                     SettingsSectionHeader(
-                        "Chat Log",
+                        "Chat Log History",
                         systemImage: "bubble.left.and.bubble.right.fill",
-                        subtitle: "Whisper target logging, message history limits, and search highlights."
+                        subtitle: "Message buffer limits preserved in client memory."
                     )
-
-                    SettingsToggleRow(
-                        "Whisper Walkie-Talkie Mode",
-                        subtitle: "Keeps voice target lock active until manually cleared.",
-                        isOn: $state.whisperWalkieTalkieMode
-                    )
-
-                    SettingsToggleRow(
-                        "Echo Multi-Target Messages",
-                        subtitle: "Show an echo in local chat when whispering to multiple users or linked channels.",
-                        isOn: $state.echoMultiTargetMessages
-                    )
-
-                    Divider()
 
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Max Block Count (Chat History)")
+                            Text("Max Message Count")
                                 .font(.subheadline.bold())
-                            Text("Maximum number of chat lines preserved in memory.")
+                            Text("Maximum number of chat lines retained in memory before older entries are pruned.")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
@@ -214,14 +199,6 @@ public struct MessagesSettingsTab: View {
                         Stepper("\(state.maxChatBlockCount) Lines", value: $state.maxChatBlockCount, in: 500...20000, step: 500)
                             .font(.caption.monospacedDigit())
                     }
-
-                    Divider()
-
-                    SettingsToggleRow(
-                        "Highlight Uses RegEx",
-                        subtitle: "Parse user mention filters as Regular Expressions.",
-                        isOn: $state.highlightUsesRegEx
-                    )
                 }
             }
             .padding(.horizontal, 24)

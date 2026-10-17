@@ -749,7 +749,7 @@ public final class FloatingOverlayManager: ObservableObject {
 }
 
 extension Color {
-    fileprivate static func swimbleHex(_ hex: String) -> Color {
+    public static func swimbleHex(_ hex: String) -> Color {
         var cleanHex = hex.trimmingCharacters(in: .whitespacesAndNewlines)
         if cleanHex.hasPrefix("#") {
             cleanHex.removeFirst()
@@ -761,5 +761,15 @@ extension Color {
         let g = Double((intVal >> 8) & 0xFF) / 255.0
         let b = Double(intVal & 0xFF) / 255.0
         return Color(red: r, green: g, blue: b)
+    }
+
+    public func toSwimbleHex() -> String {
+        guard let components = NSColor(self).usingColorSpace(.sRGB) else {
+            return "#00E5FF"
+        }
+        let r = Int(components.redComponent * 255.0)
+        let g = Int(components.greenComponent * 255.0)
+        let b = Int(components.blueComponent * 255.0)
+        return String(format: "#%02X%02X%02X", r, g, b)
     }
 }
