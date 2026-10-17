@@ -994,7 +994,33 @@ struct SystemEventPillView: View {
 
     private var iconName: String {
         let text = message.htmlBody
-        if text.contains("You joined") || text.contains("joined the channel") {
+        if text.contains("Unable to Enter") {
+            return "lock.fill"
+        } else if text.contains("Connection rejected") {
+            return "xmark.octagon.fill"
+        } else if text.contains("Permission denied") || text.contains("denied") || text.contains("Denied:") {
+            return "hand.raised.fill"
+        } else if text.contains("banned") {
+            return "person.crop.circle.badge.xmark"
+        } else if text.contains("kicked") {
+            return "person.fill.xmark"
+        } else if text.contains("Server connection closed") {
+            return "wifi.slash"
+        } else if text.contains("Connected to server") {
+            return "wifi"
+        } else if text.contains("priority speaker") {
+            return "star.fill"
+        } else if text.contains("recording") {
+            return "record.circle.fill"
+        } else if text.contains("registered") {
+            return "checkmark.seal.fill"
+        } else if text.contains("avatar") {
+            return "person.crop.circle.fill"
+        } else if text.contains("comment") {
+            return "text.bubble.fill"
+        } else if text.contains("Channel '") {
+            return "number"
+        } else if text.contains("You joined") || text.contains("joined the channel") {
             return "arrow.right.circle.fill"
         } else if text.contains("moved") {
             return "arrow.turn.down.right"
@@ -1006,8 +1032,6 @@ struct SystemEventPillView: View {
             return text.contains("unmuted") ? "mic.fill" : "mic.slash.fill"
         } else if text.contains("deafened") {
             return text.contains("undeafened") ? "speaker.wave.2.fill" : "speaker.slash.fill"
-        } else if text.contains("Permission denied") || text.contains("denied") {
-            return "exclamationmark.triangle.fill"
         } else {
             return "info.circle.fill"
         }
@@ -1015,13 +1039,17 @@ struct SystemEventPillView: View {
 
     private var iconColor: Color {
         let text = message.htmlBody
-        if text.contains("Permission denied") || text.contains("denied") {
+        if text.contains("Unable to Enter") || text.contains("Connection rejected") || text.contains("Permission denied") || text.contains("denied") || text.contains("Denied:") || text.contains("banned") {
             return .red
-        } else if text.contains("You joined") {
-            return accentTint
-        } else if text.contains("moved") {
+        } else if text.contains("kicked") || text.contains("moved") {
             return .orange
-        } else if text.contains("disconnected") {
+        } else if text.contains("priority speaker") {
+            return .yellow
+        } else if text.contains("recording") {
+            return .red
+        } else if text.contains("registered") || text.contains("Connected to server") {
+            return .green
+        } else if text.contains("disconnected") || text.contains("Server connection closed") {
             return .secondary
         } else if text.contains("connected") {
             return .green
@@ -1031,6 +1059,17 @@ struct SystemEventPillView: View {
             return text.contains("undeafened") ? .green : .red
         } else {
             return accentTint
+        }
+    }
+
+    private var textForegroundColor: Color {
+        let text = message.htmlBody
+        if text.contains("Unable to Enter") || text.contains("Connection rejected") || text.contains("Permission denied") || text.contains("Denied:") || text.contains("banned") {
+            return .red
+        } else if text.contains("kicked") {
+            return .orange
+        } else {
+            return .primary
         }
     }
 
@@ -1046,7 +1085,7 @@ struct SystemEventPillView: View {
 
             Text(cleanChatMessageText(from: message.htmlBody))
                 .font(.system(size: 12.5, weight: .medium))
-                .foregroundStyle(message.htmlBody.contains("Permission denied") ? .red : .primary)
+                .foregroundStyle(textForegroundColor)
                 .textSelection(.enabled)
         }
         .padding(.horizontal, 14)
@@ -1178,7 +1217,10 @@ struct ChatMessageRow: View {
 
     private var isSystemMessage: Bool {
         (message.senderSession == 0 && message.senderName == "System") ||
-        message.htmlBody.contains("Permission denied")
+        message.htmlBody.contains("Permission denied") ||
+        message.htmlBody.contains("Unable to Enter") ||
+        message.htmlBody.contains("Connection rejected:") ||
+        message.htmlBody.contains("Denied:")
     }
 
     private var isServerWelcome: Bool {

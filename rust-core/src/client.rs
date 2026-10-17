@@ -431,6 +431,7 @@ impl MumbleClient {
                                         let mut state = state_arc.write().unwrap();
                                         state.my_session = sync.session;
                                         state.connection_status = ConnectionStatus::Connected;
+                                        state.is_synced = true;
                                         if let Some(max_band) = sync.max_bandwidth {
                                             state.server_info.max_bandwidth_kbps = max_band / 1000;
                                         }
@@ -444,13 +445,22 @@ impl MumbleClient {
                                     handler_arc.on_connection_status_changed(ConnectionStatus::Connected);
                                     handler_arc.on_server_connection_info_updated(info);
 
+                                    let timestamp = SystemTime::now()
+                                        .duration_since(UNIX_EPOCH)
+                                        .unwrap_or_default()
+                                        .as_millis() as u64;
+                                    let connect_msg = ChatMessage {
+                                        sender_session: 0,
+                                        sender_name: "System".to_string(),
+                                        channel_id: None,
+                                        html_body: "Connected to server.".to_string(),
+                                        timestamp,
+                                    };
+                                    handler_arc.on_chat_message(connect_msg);
+
                                     if let Some(welcome) = welcome_opt {
                                         let trimmed = welcome.trim();
                                         if !trimmed.is_empty() {
-                                            let timestamp = SystemTime::now()
-                                                .duration_since(UNIX_EPOCH)
-                                                .unwrap_or_default()
-                                                .as_millis() as u64;
                                             let chat = ChatMessage {
                                                 sender_session: 0,
                                                 sender_name: "Server".to_string(),
@@ -465,36 +475,294 @@ impl MumbleClient {
                             }
                             TYPE_CHANNEL_STATE => {
                                 if let Ok(cstate) = proto::ChannelState::decode(&packet.payload[..]) {
-                                    let channels = {
+                                    let (ch_event_msg, channels) = {
                                         let mut state = state_arc.write().unwrap();
-                                        state.update_channel(cstate);
-                                        state.channels_list()
+                                        let is_new = cstate.channel_id.map(|cid| !state.channels.contains_key(&cid)).unwrap_or(false);
+                                        let prev_name = cstate.channel_id.and_then(|cid| state.channels.get(&cid).map(|c| c.name.clone()));
+                                        state.update_channel(cstate.clone());
+                                        let current_name = cstate.channel_id.and_then(|cid| state.channels.get(&cid).map(|c| c.name.clone())).unwrap_or_default();
+
+                                        let msg = if state.is_synced {
+                                            if is_new && !current_name.is_empty() {
+                                                Some(format!("Channel '{}' created.", current_name))
+                                            } else if let (Some(prev), Some(_cid)) = (prev_name, cstate.channel_id) {
+                                                if let Some(ref new_n) = cstate.name {
+                                                    if &prev != new_n {
+                                                        Some(format!("Channel '{}' renamed to '{}'.", prev, new_n))
+                                                    } else {
+                                                        None
+                                                    }
+                                                } else {
+                                                    None
+                                                }
+                                            } else {
+                                                None
+                                            }
+                                        } else {
+                                            None
+                                        };
+                                        (msg, state.channels_list())
                                     };
+                                    if let Some(msg) = ch_event_msg {
+                                        let timestamp = SystemTime::now()
+                                            .duration_since(UNIX_EPOCH)
+                                            .unwrap_or_default()
+                                            .as_millis() as u64;
+                                        let chat = ChatMessage {
+                                            sender_session: 0,
+                                            sender_name: "System".to_string(),
+                                            channel_id: None,
+                                            html_body: msg,
+                                            timestamp,
+                                        };
+                                        handler_arc.on_chat_message(chat);
+                                    }
                                     handler_arc.on_channels_updated(channels);
                                 }
                             }
                             TYPE_CHANNEL_REMOVE => {
                                 if let Ok(cremove) = proto::ChannelRemove::decode(&packet.payload[..]) {
-                                    let channels = {
+                                    let (ch_event_msg, channels) = {
                                         let mut state = state_arc.write().unwrap();
+                                        let ch_name = state.channels.get(&cremove.channel_id).map(|c| c.name.clone());
                                         state.remove_channel(cremove.channel_id);
-                                        state.channels_list()
+                                        let msg = if state.is_synced {
+                                            ch_name.map(|name| format!("Channel '{}' removed.", name))
+                                        } else {
+                                            None
+                                        };
+                                        (msg, state.channels_list())
                                     };
+                                    if let Some(msg) = ch_event_msg {
+                                        let timestamp = SystemTime::now()
+                                            .duration_since(UNIX_EPOCH)
+                                            .unwrap_or_default()
+                                            .as_millis() as u64;
+                                        let chat = ChatMessage {
+                                            sender_session: 0,
+                                            sender_name: "System".to_string(),
+                                            channel_id: None,
+                                            html_body: msg,
+                                            timestamp,
+                                        };
+                                        handler_arc.on_chat_message(chat);
+                                    }
                                     handler_arc.on_channels_updated(channels);
                                 }
                             }
                             TYPE_USER_STATE => {
                                 if let Ok(ustate) = proto::UserState::decode(&packet.payload[..]) {
-                                    let users = {
+                                    let (user_event_msg, users) = {
                                         let mut state = state_arc.write().unwrap();
+                                        let my_session = state.my_session;
+                                        let session = ustate.session.unwrap_or(0);
+                                        let prev_user = state.users.get(&session).cloned();
+                                        let is_synced = state.is_synced;
+                                        let target_name = prev_user.as_ref().map(|u| u.name.clone())
+                                            .or_else(|| ustate.name.clone())
+                                            .unwrap_or_else(|| format!("User #{}", session));
+                                        let actor_name = ustate.actor.and_then(|a| state.users.get(&a).map(|u| u.name.clone()));
+
+                                        let mut msg: Option<String> = None;
+
+                                        if is_synced {
+                                            if let Some(prev) = &prev_user {
+                                                // Check admin action
+                                                if let Some(actor) = &actor_name {
+                                                    if ustate.actor != Some(session) {
+                                                        if let Some(cid) = ustate.channel_id {
+                                                            if cid != prev.channel_id {
+                                                                let ch_name = state.channels.get(&cid).map(|c| c.name.clone()).unwrap_or_else(|| format!("Channel #{}", cid));
+                                                                 if Some(session) == my_session {
+                                                                    msg = Some(format!("You were moved to {} by {}.", ch_name, actor));
+                                                                } else if ustate.actor == my_session {
+                                                                    msg = Some(format!("You moved {} to {}.", target_name, ch_name));
+                                                                } else {
+                                                                    msg = Some(format!("{} moved {} to {}.", actor, target_name, ch_name));
+                                                                }
+                                                            }
+                                                        }
+                                                        if let Some(mute) = ustate.mute {
+                                                            if mute != prev.is_muted {
+                                                                if Some(session) == my_session {
+                                                                    msg = Some(format!("You were {} by {}.", if mute { "muted" } else { "unmuted" }, actor));
+                                                                } else if ustate.actor == my_session {
+                                                                    msg = Some(format!("You {} {}.", if mute { "muted" } else { "unmuted" }, target_name));
+                                                                } else {
+                                                                    msg = Some(format!("{} was {} by {}.", target_name, if mute { "muted" } else { "unmuted" }, actor));
+                                                                }
+                                                            }
+                                                        }
+                                                        if let Some(deaf) = ustate.deaf {
+                                                            if deaf != prev.is_deafened {
+                                                                if Some(session) == my_session {
+                                                                    msg = Some(format!("You were {} by {}.", if deaf { "deafened" } else { "undeafened" }, actor));
+                                                                } else if ustate.actor == my_session {
+                                                                    msg = Some(format!("You {} {}.", if deaf { "deafened" } else { "undeafened" }, target_name));
+                                                                } else {
+                                                                    msg = Some(format!("{} was {} by {}.", target_name, if deaf { "deafened" } else { "undeafened" }, actor));
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+
+                                                // Registration
+                                                if msg.is_none() && prev.user_id.is_none() && ustate.user_id.is_some() {
+                                                    if Some(session) == my_session {
+                                                        msg = Some("You registered on the server.".to_string());
+                                                    } else {
+                                                        msg = Some(format!("{} registered on the server.", target_name));
+                                                    }
+                                                }
+
+                                                // Recording
+                                                if msg.is_none() {
+                                                    if let Some(rec) = ustate.recording {
+                                                        if rec != prev.is_recording {
+                                                            if Some(session) == my_session {
+                                                                msg = Some(if rec { "Recording started.".to_string() } else { "Recording stopped.".to_string() });
+                                                            } else {
+                                                                msg = Some(format!("{} is {} recording.", target_name, if rec { "now" } else { "no longer" }));
+                                                            }
+                                                        }
+                                                    }
+                                                }
+
+                                                // Priority Speaker
+                                                if msg.is_none() {
+                                                    if let Some(prio) = ustate.priority_speaker {
+                                                        if prio != prev.is_priority_speaker && prio {
+                                                            if Some(session) == my_session {
+                                                                msg = Some("You are now priority speaker.".to_string());
+                                                            } else {
+                                                                msg = Some(format!("{} is now priority speaker.", target_name));
+                                                            }
+                                                        }
+                                                    }
+                                                }
+
+                                                // Comment
+                                                if msg.is_none() && ustate.comment.is_some() && ustate.comment.as_deref() != prev.comment.as_deref() {
+                                                    if Some(session) == my_session {
+                                                        msg = Some("You changed comment.".to_string());
+                                                    } else {
+                                                        msg = Some(format!("{} changed comment.", target_name));
+                                                    }
+                                                }
+
+                                                // Avatar
+                                                if msg.is_none() && (ustate.texture.is_some() || ustate.texture_hash.is_some()) {
+                                                    if Some(session) == my_session {
+                                                        msg = Some("You changed avatar.".to_string());
+                                                    } else {
+                                                        msg = Some(format!("{} changed avatar.", target_name));
+                                                    }
+                                                }
+                                            } else if !target_name.is_empty() {
+                                                // New user connected
+                                                if Some(session) != my_session {
+                                                    msg = Some(format!("{} connected.", target_name));
+                                                }
+                                            }
+                                        }
+
                                         state.update_user(ustate);
-                                        state.users_list()
+                                        (msg, state.users_list())
                                     };
+                                    if let Some(msg) = user_event_msg {
+                                        let timestamp = SystemTime::now()
+                                            .duration_since(UNIX_EPOCH)
+                                            .unwrap_or_default()
+                                            .as_millis() as u64;
+                                        let chat = ChatMessage {
+                                            sender_session: 0,
+                                            sender_name: "System".to_string(),
+                                            channel_id: None,
+                                            html_body: msg,
+                                            timestamp,
+                                        };
+                                        handler_arc.on_chat_message(chat);
+                                    }
                                     handler_arc.on_users_updated(users);
                                 }
                             }
                             TYPE_USER_REMOVE => {
                                 if let Ok(uremove) = proto::UserRemove::decode(&packet.payload[..]) {
+                                    let (removed_user_name, is_self, is_actor_self) = {
+                                        let state = state_arc.read().unwrap();
+                                        let name = state.users.get(&uremove.session).map(|u| u.name.clone()).unwrap_or_else(|| "User".to_string());
+                                        let is_me = state.my_session == Some(uremove.session);
+                                        let is_actor_me = uremove.actor.is_some() && state.my_session == uremove.actor;
+                                        (name, is_me, is_actor_me)
+                                    };
+                                    let actor_name = if let Some(actor_sess) = uremove.actor {
+                                        let state = state_arc.read().unwrap();
+                                        state.users.get(&actor_sess).map(|u| u.name.clone())
+                                    } else {
+                                        None
+                                    };
+                                    let reason_text = uremove.reason.as_deref().unwrap_or("").trim();
+                                    let reason_suffix = if !reason_text.is_empty() {
+                                        format!(": {}", reason_text)
+                                    } else {
+                                        ".".to_string()
+                                    };
+
+                                    let is_ban = uremove.ban.unwrap_or(false);
+                                    let remove_msg = if is_ban {
+                                        if is_self {
+                                            if let Some(actor) = actor_name {
+                                                format!("You were banned by {}{}", actor, reason_suffix)
+                                            } else {
+                                                format!("You were banned from the server{}", reason_suffix)
+                                            }
+                                        } else if is_actor_self {
+                                            format!("You banned {}{}", removed_user_name, reason_suffix)
+                                        } else {
+                                            if let Some(actor) = actor_name {
+                                                format!("{} was banned by {}{}", removed_user_name, actor, reason_suffix)
+                                            } else {
+                                                format!("{} was banned from the server{}", removed_user_name, reason_suffix)
+                                            }
+                                        }
+                                    } else if let Some(actor) = actor_name {
+                                        if uremove.actor != Some(uremove.session) {
+                                            if is_self {
+                                                format!("You were kicked by {}{}", actor, reason_suffix)
+                                            } else if is_actor_self {
+                                                format!("You kicked {}{}", removed_user_name, reason_suffix)
+                                            } else {
+                                                format!("{} was kicked by {}{}", removed_user_name, actor, reason_suffix)
+                                            }
+                                        } else {
+                                            if is_self {
+                                                "You disconnected.".to_string()
+                                            } else {
+                                                format!("{} disconnected.", removed_user_name)
+                                            }
+                                        }
+                                    } else {
+                                        if is_self {
+                                            "You disconnected.".to_string()
+                                        } else {
+                                            format!("{} disconnected.", removed_user_name)
+                                        }
+                                    };
+
+                                    let timestamp = SystemTime::now()
+                                        .duration_since(UNIX_EPOCH)
+                                        .unwrap_or_default()
+                                        .as_millis() as u64;
+                                    let chat = ChatMessage {
+                                        sender_session: 0,
+                                        sender_name: "System".to_string(),
+                                        channel_id: None,
+                                        html_body: remove_msg,
+                                        timestamp,
+                                    };
+                                    handler_arc.on_chat_message(chat);
+
                                     let users = {
                                         let mut state = state_arc.write().unwrap();
                                         state.remove_user(uremove.session);
@@ -795,22 +1063,92 @@ impl MumbleClient {
                             }
                             TYPE_PERMISSION_DENIED => {
                                 if let Ok(denied) = proto::PermissionDenied::decode(&packet.payload[..]) {
-                                    let reason = denied.reason.unwrap_or_else(|| {
-                                        match denied.r#type {
-                                            Some(1) => "Permission denied.".to_string(),
-                                            Some(2) => "Cannot modify SuperUser.".to_string(),
-                                            Some(3) => "Invalid channel name.".to_string(),
-                                            Some(4) => "Text message too long.".to_string(),
-                                            Some(6) => "Operation not permitted in temporary channel.".to_string(),
-                                            Some(7) => "Operation requires certificate.".to_string(),
-                                            Some(8) => "Invalid username.".to_string(),
-                                            Some(9) => "Channel is full.".to_string(),
-                                            Some(10) => "Nesting limit reached.".to_string(),
-                                            Some(11) => "Channel count limit reached.".to_string(),
-                                            _ => "Permission denied by server.".to_string(),
+                                    let (ch_name, target_user_name, is_self) = {
+                                        let state = state_arc.read().unwrap();
+                                        let ch = denied.channel_id.and_then(|cid| state.channels.get(&cid).map(|c| c.name.clone()))
+                                            .unwrap_or_else(|| {
+                                                if let Some(cid) = denied.channel_id {
+                                                    format!("Channel #{}", cid)
+                                                } else {
+                                                    "Root".to_string()
+                                                }
+                                            });
+                                        let is_me = denied.session.is_none() || denied.session == state.my_session;
+                                        let user = denied.session.and_then(|s| state.users.get(&s).map(|u| u.name.clone()))
+                                            .unwrap_or_else(|| "User".to_string());
+                                        (ch, user, is_me)
+                                    };
+
+                                    let perm_name = match denied.permission.unwrap_or(0) {
+                                        0x1 => "Write",
+                                        0x2 => "Traverse",
+                                        0x4 => "Enter",
+                                        0x8 => "Speak",
+                                        0x10 => "Mute/Deafen",
+                                        0x20 => "Move",
+                                        0x40 => "Make channel",
+                                        0x80 => "Link channel",
+                                        0x100 => "Whisper",
+                                        0x200 => "Text message",
+                                        0x400 => "Temporary channel",
+                                        0x800 => "Listen",
+                                        _ => "requested",
+                                    };
+
+                                    let is_enter_perm = denied.permission == Some(0x4) || (denied.permission.unwrap_or(0) & 0x4 != 0);
+
+                                    let msg = match denied.r#type {
+                                        Some(1) | None if denied.permission.is_some() || denied.r#type == Some(1) => {
+                                            if is_enter_perm {
+                                                format!("Unable to Enter into {} - Adding the respective access (password) token might grant you access.", ch_name)
+                                            } else if is_self {
+                                                format!("You were denied {} privileges in {}.", perm_name, ch_name)
+                                            } else {
+                                                format!("{} was denied {} privileges in {}.", target_user_name, perm_name, ch_name)
+                                            }
                                         }
-                                    });
-                                    eprintln!("PermissionDenied from server: {}", reason);
+                                        Some(2) => "Cannot modify SuperUser.".to_string(),
+                                        Some(3) => "According to the server's configuration, the channel name is considered invalid.".to_string(),
+                                        Some(4) => "Text message too long.".to_string(),
+                                        Some(5) => "The flux capacitor was spelled wrong.".to_string(),
+                                        Some(6) => "Operation not permitted in temporary channel.".to_string(),
+                                        Some(7) => "Operation requires certificate.".to_string(),
+                                        Some(8) => {
+                                            if let Some(ref bad_name) = denied.name {
+                                                format!("According to the server's configuration, the name '{}' is considered invalid.", bad_name)
+                                            } else {
+                                                "According to the server's configuration, the name is considered invalid.".to_string()
+                                            }
+                                        }
+                                        Some(9) => "Channel is full.".to_string(),
+                                        Some(10) => "Channel nesting limit reached.".to_string(),
+                                        Some(11) => "Maximum channel count reached.".to_string(),
+                                        Some(12) => "Amount of listener objects for this channel has been reached.".to_string(),
+                                        Some(13) => "Amount of listener proxies for the user has been reached.".to_string(),
+                                        _ => {
+                                            if let Some(ref r) = denied.reason {
+                                                r.clone()
+                                            } else if is_enter_perm {
+                                                format!("Unable to Enter into {} - Adding the respective access (password) token might grant you access.", ch_name)
+                                            } else {
+                                                "Permission denied.".to_string()
+                                            }
+                                        }
+                                    };
+
+                                    let formatted_msg = if msg.starts_with("Unable to") || msg.starts_with("You were denied") || msg.contains("was denied") || msg.starts_with("Denied:") {
+                                        msg
+                                    } else if let Some(ref r) = denied.reason {
+                                        if !r.is_empty() && r != &msg {
+                                            format!("Denied: {} ({})", msg, r)
+                                        } else {
+                                            format!("Denied: {}", msg)
+                                        }
+                                    } else {
+                                        format!("Denied: {}", msg)
+                                    };
+
+                                    eprintln!("PermissionDenied from server: {}", formatted_msg);
                                     let timestamp = SystemTime::now()
                                         .duration_since(UNIX_EPOCH)
                                         .unwrap_or_default()
@@ -819,7 +1157,7 @@ impl MumbleClient {
                                         sender_session: 0,
                                         sender_name: "System".to_string(),
                                         channel_id: None,
-                                        html_body: format!("Permission denied: {}", reason),
+                                        html_body: formatted_msg,
                                         timestamp,
                                     };
                                     handler_arc.on_chat_message(chat);
@@ -868,7 +1206,40 @@ impl MumbleClient {
                             }
                             TYPE_REJECT => {
                                 if let Ok(reject) = proto::Reject::decode(&packet.payload[..]) {
-                                    eprintln!("Mumble connection rejected: {:?}", reject.reason);
+                                    let reason_str = match reject.r#type {
+                                        Some(1) => "Incompatible version.".to_string(),
+                                        Some(2) => "Invalid username.".to_string(),
+                                        Some(3) => "Wrong user password.".to_string(),
+                                        Some(4) => "Wrong server password.".to_string(),
+                                        Some(5) => "Username already in use.".to_string(),
+                                        Some(6) => "Server is full.".to_string(),
+                                        Some(7) => "A certificate is required to connect to this server.".to_string(),
+                                        Some(8) => "Authenticator failed.".to_string(),
+                                        Some(9) => "The server is currently not accepting new connections.".to_string(),
+                                        _ => reject.reason.clone().unwrap_or_else(|| "Connection rejected.".to_string()),
+                                    };
+                                    let full_reason = if let Some(ref r) = reject.reason {
+                                        if !r.is_empty() && r != &reason_str {
+                                            format!("{} ({})", reason_str, r)
+                                        } else {
+                                            reason_str
+                                        }
+                                    } else {
+                                        reason_str
+                                    };
+                                    eprintln!("Mumble connection rejected: {}", full_reason);
+                                    let timestamp = SystemTime::now()
+                                        .duration_since(UNIX_EPOCH)
+                                        .unwrap_or_default()
+                                        .as_millis() as u64;
+                                    let chat = ChatMessage {
+                                        sender_session: 0,
+                                        sender_name: "System".to_string(),
+                                        channel_id: None,
+                                        html_body: format!("Connection rejected: {}", full_reason),
+                                        timestamp,
+                                    };
+                                    handler_arc.on_chat_message(chat);
                                     state_arc.write().unwrap().connection_status = ConnectionStatus::Failed;
                                     handler_arc.on_connection_status_changed(ConnectionStatus::Failed);
                                     break;
@@ -933,9 +1304,26 @@ impl MumbleClient {
             }
 
             let _ = writer_handle.await;
-            {
+            let was_synced = {
                 let mut state = state_arc.write().unwrap();
+                let synced = state.is_synced;
+                state.is_synced = false;
                 state.connection_status = ConnectionStatus::Disconnected;
+                synced
+            };
+            if was_synced {
+                let timestamp = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_millis() as u64;
+                let chat = ChatMessage {
+                    sender_session: 0,
+                    sender_name: "System".to_string(),
+                    channel_id: None,
+                    html_body: "Server connection closed.".to_string(),
+                    timestamp,
+                };
+                handler_arc.on_chat_message(chat);
             }
             handler_arc.on_connection_status_changed(ConnectionStatus::Disconnected);
         });

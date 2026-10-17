@@ -15,6 +15,7 @@ pub struct ClientState {
     pub server_info: ServerConnectionInfo,
     pub registered_users: Vec<RegisteredUser>,
     pub ban_list: Vec<BanEntryInfo>,
+    pub is_synced: bool,
 }
 
 impl Default for ClientState {
@@ -51,6 +52,7 @@ impl ClientState {
             },
             registered_users: Vec::new(),
             ban_list: Vec::new(),
+            is_synced: false,
         }
     }
 
@@ -62,6 +64,7 @@ impl ClientState {
         self.ban_list.clear();
         self.connection_status = ConnectionStatus::Disconnected;
         self.server_info = Self::new().server_info;
+        self.is_synced = false;
     }
 
     pub fn update_channel(&mut self, state: proto::ChannelState) -> Option<ChannelInfo> {
@@ -194,5 +197,36 @@ impl ClientState {
         let mut list: Vec<UserInfo> = self.users.values().cloned().collect();
         list.sort_by(|a, b| a.name.cmp(&b.name));
         list
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_client_state_sync_and_channels() {
+        let mut state = ClientState::new();
+        assert!(!state.is_synced);
+        state.is_synced = true;
+
+        state.update_channel(crate::proto::ChannelState {
+            channel_id: Some(1),
+            name: Some("TestRoom".to_string()),
+            ..Default::default()
+        });
+
+        assert_eq!(state.channels.len(), 1);
+        let ch = state.channels.get_mut(&1).unwrap();
+        assert!(ch.can_enter);
+        ch.is_enter_restricted = true;
+        ch.can_enter = false;
+
+        assert!(!state.channels.get(&1).unwrap().can_enter);
+        assert!(state.channels.get(&1).unwrap().is_enter_restricted);
+
+        state.reset();
+        assert!(!state.is_synced);
+        assert_eq!(state.channels.len(), 0);
     }
 }

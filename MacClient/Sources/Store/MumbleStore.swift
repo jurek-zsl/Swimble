@@ -718,15 +718,12 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
                 let left = oldSessions.subtracting(newSessions)
 
                 for sid in joined where sid != myId {
-                    if let u = users.first(where: { $0.sessionId == sid }) {
-                        self.logSystemMessage("\(u.name) connected.", icon: "person.badge.plus")
+                    if users.first(where: { $0.sessionId == sid }) != nil {
                         SoundManager.shared.playUserJoined()
                     }
                 }
 
                 for sid in left where sid != myId {
-                    let name = self.previousUserNames[sid] ?? "User"
-                    self.logSystemMessage("\(name) left channel and disconnected.", icon: "person.badge.minus")
                     SoundManager.shared.playUserLeft()
                 }
             }
@@ -735,10 +732,9 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
             for u in users where u.sessionId != myId {
                 if let prevChannelId = self.previousUserChannelMap[u.sessionId], prevChannelId != u.channelId {
                     let targetChName = self.channelName(for: u.channelId)
-                    // Check if WE moved this user
+                    // Check if WE moved this user (handled by rust-core event log)
                     if let pendingTarget = self.pendingUserMoves[u.sessionId], pendingTarget == u.channelId {
                         self.pendingUserMoves.removeValue(forKey: u.sessionId)
-                        self.logSystemMessage("You moved \(u.name) to \(targetChName).", icon: "arrow.turn.down.right")
                     } else if u.channelId == self.myChannelId {
                         self.logSystemMessage("\(u.name) joined the channel.", icon: "arrow.right.circle.fill")
                     } else if prevChannelId == self.myChannelId {
