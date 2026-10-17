@@ -112,10 +112,63 @@ public struct ChannelMemberOverlayRow: View {
 /// Compact Liquid Glass "Who's Talking & Channel Members" overlay view for full-screen games.
 public struct FloatingOverlayPillView: View {
     @Bindable public var store: MumbleStore
+    @Bindable private var settings: SettingsState = SettingsState.shared
     @State private var isCollapsed: Bool = false
 
     public init(store: MumbleStore) {
         self.store = store
+    }
+
+    private var overlayWidth: CGFloat {
+        FloatingOverlayManager.targetWidth(isConnected: store.connectionStatus == .connected)
+    }
+
+    private var currentFpsText: String {
+        let maxFps = NSScreen.main?.maximumFramesPerSecond ?? 60
+        return "\(maxFps) FPS"
+    }
+
+    private var fpsBadgeView: some View {
+        HStack(spacing: 3) {
+            Text(currentFpsText)
+                .font(.system(size: 9.5, weight: .bold))
+                .monospacedDigit()
+                .foregroundStyle(Color.swimbleHex(settings.overlayColorHex))
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 2.5)
+        .background(Color.black.opacity(0.35), in: Capsule())
+        .overlay(
+            Capsule()
+                .strokeBorder(Color.swimbleHex(settings.overlayColorHex).opacity(0.35), lineWidth: 0.5)
+        )
+        .lineLimit(1)
+        .fixedSize(horizontal: true, vertical: true)
+        .layoutPriority(1)
+        .help("Display Refresh Rate")
+    }
+
+    private var clockBadgeView: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "clock")
+                .font(.system(size: 8.5, weight: .semibold))
+                .foregroundStyle(.secondary)
+            Text(Date.now, style: .time)
+                .font(.system(size: 9.5, weight: .semibold))
+                .monospacedDigit()
+                .foregroundStyle(.primary.opacity(0.9))
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 2.5)
+        .background(Color.secondary.opacity(0.12), in: Capsule())
+        .overlay(
+            Capsule()
+                .strokeBorder(Color.white.opacity(0.1), lineWidth: 0.5)
+        )
+        .lineLimit(1)
+        .fixedSize(horizontal: true, vertical: true)
+        .layoutPriority(1)
+        .help("Current Time")
     }
 
     private var channelMembers: [ChannelMemberOverlayItem] {
@@ -227,6 +280,20 @@ public struct FloatingOverlayPillView: View {
                     )
                 }
             }
+            .onChange(of: settings.showFpsCounter) { _, _ in
+                FloatingOverlayManager.shared.updateLayout(
+                    isConnected: store.connectionStatus == .connected,
+                    isCollapsed: isCollapsed,
+                    memberCount: channelMembers.count
+                )
+            }
+            .onChange(of: settings.showCurrentTime) { _, _ in
+                FloatingOverlayManager.shared.updateLayout(
+                    isConnected: store.connectionStatus == .connected,
+                    isCollapsed: isCollapsed,
+                    memberCount: channelMembers.count
+                )
+            }
             .contextMenu {
                 if store.connectionStatus == .connected {
                     Text("#\(channelName)")
@@ -280,19 +347,27 @@ public struct FloatingOverlayPillView: View {
 
                 Spacer(minLength: 4)
 
+                if settings.showFpsCounter {
+                    fpsBadgeView
+                }
+
+                if settings.showCurrentTime {
+                    clockBadgeView
+                }
+
                 closeButton
             }
             .padding(.leading, 8)
             .padding(.trailing, 8)
             .padding(.vertical, 5)
-            .frame(width: 220, height: 40)
+            .frame(width: overlayWidth, height: 40)
             .glassEffect(.regular.interactive(), in: .capsule)
             .overlay(
                 Capsule()
                     .strokeBorder(Color.white.opacity(0.12), lineWidth: 0.5)
             )
         } else if isCollapsed {
-            // Collapsed compact pill (width: 330)
+            // Collapsed compact pill
             HStack(spacing: 7) {
                 dragHandleView
 
@@ -307,7 +382,7 @@ public struct FloatingOverlayPillView: View {
                         .foregroundStyle(.primary)
                         .lineLimit(1)
                         .truncationMode(.tail)
-                        .frame(maxWidth: activeSpeakers.isEmpty ? 100 : 70, alignment: .leading)
+                        .frame(maxWidth: activeSpeakers.isEmpty ? 110 : 75, alignment: .leading)
 
                     Text("\(channelMembers.count)")
                         .font(.system(size: 9.5, weight: .bold))
@@ -350,23 +425,15 @@ public struct FloatingOverlayPillView: View {
                     .fixedSize(horizontal: true, vertical: false)
                 }
 
-                if SettingsState.shared.showFpsCounter {
-                    Text("60 FPS")
-                        .font(.system(size: 9.5, weight: .bold, design: .monospaced))
-                        .foregroundStyle(Color.swimbleHex(SettingsState.shared.overlayColorHex))
-                        .padding(.horizontal, 4)
-                        .padding(.vertical, 1.5)
-                        .background(Color.black.opacity(0.3), in: RoundedRectangle(cornerRadius: 3))
-                }
-
-                if SettingsState.shared.showCurrentTime {
-                    Text(Date().formatted(date: .omitted, time: .shortened))
-                        .font(.system(size: 9.5, weight: .medium, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 4)
-                }
-
                 Spacer(minLength: 4)
+
+                if settings.showFpsCounter {
+                    fpsBadgeView
+                }
+
+                if settings.showCurrentTime {
+                    clockBadgeView
+                }
 
                 // Control buttons cluster
                 HStack(spacing: 4) {
@@ -379,7 +446,7 @@ public struct FloatingOverlayPillView: View {
             .padding(.leading, 8)
             .padding(.trailing, 8)
             .padding(.vertical, 5)
-            .frame(width: 330, height: 40)
+            .frame(width: overlayWidth, height: 40)
             .glassEffect(
                 .regular.tint(!activeSpeakers.isEmpty ? Color.green.opacity(0.12) : nil).interactive(),
                 in: .capsule
@@ -389,7 +456,7 @@ public struct FloatingOverlayPillView: View {
                     .strokeBorder(Color.white.opacity(0.12), lineWidth: 0.5)
             )
         } else {
-            // Expanded Channel Card showing all channel members with speaking dots & audio status (width: 330)
+            // Expanded Channel Card showing all channel members with speaking dots & audio status
             VStack(alignment: .leading, spacing: 5) {
                 // Header
                 HStack(spacing: 6) {
@@ -404,6 +471,7 @@ public struct FloatingOverlayPillView: View {
                             .font(.system(size: 11, weight: .bold))
                             .lineLimit(1)
                             .truncationMode(.tail)
+                            .frame(maxWidth: 130, alignment: .leading)
 
                         Text("\(channelMembers.count)")
                             .font(.system(size: 9.5, weight: .bold))
@@ -426,6 +494,14 @@ public struct FloatingOverlayPillView: View {
                     )
 
                     Spacer(minLength: 4)
+
+                    if settings.showFpsCounter {
+                        fpsBadgeView
+                    }
+
+                    if settings.showCurrentTime {
+                        clockBadgeView
+                    }
 
                     HStack(spacing: 4) {
                         quickMuteButton
@@ -465,7 +541,7 @@ public struct FloatingOverlayPillView: View {
                     .padding(.bottom, 6)
                 }
             }
-            .frame(width: 330)
+            .frame(width: overlayWidth)
             .glassEffect(
                 .regular.tint(!activeSpeakers.isEmpty ? Color.green.opacity(0.08) : nil).interactive(),
                 in: RoundedRectangle(cornerRadius: 14)
@@ -584,6 +660,23 @@ public final class FloatingOverlayManager: ObservableObject {
 
     private init() {}
 
+    public static func targetWidth(isConnected: Bool) -> CGFloat {
+        let settings = SettingsState.shared
+        var badgeExtra: CGFloat = 0
+        if settings.showFpsCounter {
+            badgeExtra += 64
+        }
+        if settings.showCurrentTime {
+            badgeExtra += 80
+        }
+
+        if !isConnected {
+            return 220 + badgeExtra
+        } else {
+            return 340 + badgeExtra
+        }
+    }
+
     public func toggle(store: MumbleStore) {
         if isVisible && panel?.isVisible == true {
             hide()
@@ -601,7 +694,7 @@ public final class FloatingOverlayManager: ObservableObject {
             hosting.autoresizingMask = [.width, .height]
 
             let isConnected = store.connectionStatus == .connected
-            let initialW: CGFloat = isConnected ? 330 : 220
+            let initialW: CGFloat = Self.targetWidth(isConnected: isConnected)
             let initialH: CGFloat = 40
             let initialOrigin = loadInitialOrigin(width: initialW, height: initialH)
 
@@ -639,17 +732,14 @@ public final class FloatingOverlayManager: ObservableObject {
     public func updateLayout(isConnected: Bool, isCollapsed: Bool, memberCount: Int, animate: Bool = true) {
         guard let panel = panel else { return }
 
-        let targetWidth: CGFloat
+        let targetWidth = Self.targetWidth(isConnected: isConnected)
         let targetHeight: CGFloat
 
         if !isConnected {
-            targetWidth = 220
             targetHeight = 40
         } else if isCollapsed {
-            targetWidth = 330
             targetHeight = 40
         } else {
-            targetWidth = 330
             let rowHeight: CGFloat = 26
             let headerAndPadding: CGFloat = 58
             if memberCount > 7 {
@@ -668,6 +758,13 @@ public final class FloatingOverlayManager: ObservableObject {
             if initialMouseOffset == nil {
                 // Preserve top-left origin so resizing expands downwards naturally
                 newFrame.origin.y += (currentFrame.height - targetHeight)
+
+                if let screen = panel.screen ?? NSScreen.main {
+                    let maxAllowedX = screen.visibleFrame.maxX - targetWidth - 10
+                    if newFrame.origin.x > maxAllowedX {
+                        newFrame.origin.x = maxAllowedX
+                    }
+                }
             }
             newFrame.size = CGSize(width: targetWidth, height: targetHeight)
             panel.setFrame(newFrame, display: true, animate: animate)
@@ -720,7 +817,7 @@ public final class FloatingOverlayManager: ObservableObject {
     public func applyPosition(preset: OverlayPositionPreset) {
         guard let panel = panel, let screen = panel.screen ?? NSScreen.main else { return }
         let vf = screen.visibleFrame
-        let w = panel.frame.width > 0 ? panel.frame.width : 330
+        let w = panel.frame.width > 0 ? panel.frame.width : Self.targetWidth(isConnected: true)
         let h = panel.frame.height > 0 ? panel.frame.height : 40
 
         let origin: CGPoint
@@ -741,13 +838,14 @@ public final class FloatingOverlayManager: ObservableObject {
         savePosition(origin)
     }
 
-    private func loadInitialOrigin(width: CGFloat = 330, height: CGFloat = 40) -> CGPoint {
+    private func loadInitialOrigin(width: CGFloat? = nil, height: CGFloat = 40) -> CGPoint {
+        let w = width ?? Self.targetWidth(isConnected: true)
         if UserDefaults.standard.object(forKey: userDefaultsXKey) != nil,
            UserDefaults.standard.object(forKey: userDefaultsYKey) != nil {
             let x = UserDefaults.standard.double(forKey: userDefaultsXKey)
             let y = UserDefaults.standard.double(forKey: userDefaultsYKey)
             let candidate = CGPoint(x: x, y: y)
-            return ensureVisibleOnScreen(candidate, size: CGSize(width: width, height: height))
+            return ensureVisibleOnScreen(candidate, size: CGSize(width: w, height: height))
         }
 
         let preset = SettingsState.shared.overlayPositionPreset
@@ -757,11 +855,11 @@ public final class FloatingOverlayManager: ObservableObject {
             case .topLeft:
                 return CGPoint(x: vf.minX + 32, y: vf.maxY - height - 32)
             case .topRight:
-                return CGPoint(x: vf.maxX - width - 32, y: vf.maxY - height - 32)
+                return CGPoint(x: vf.maxX - w - 32, y: vf.maxY - height - 32)
             case .bottomLeft:
                 return CGPoint(x: vf.minX + 32, y: vf.minY + 32)
             case .bottomRight:
-                return CGPoint(x: vf.maxX - width - 32, y: vf.minY + 32)
+                return CGPoint(x: vf.maxX - w - 32, y: vf.minY + 32)
             case .custom:
                 break
             }
