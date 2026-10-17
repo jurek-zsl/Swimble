@@ -96,5 +96,8 @@ public struct SettingsView: View {
         .toolbar(removing: .sidebarToggle)
         .background(RemoveSettingsToolbar())
         .frame(minWidth: 840, idealWidth: 900, minHeight: 620, idealHeight: 680)
+        .onDisappear {
+            SettingsState.shared.apply(to: store)
+        }
     }
 }

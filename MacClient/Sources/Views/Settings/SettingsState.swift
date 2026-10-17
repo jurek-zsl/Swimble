@@ -53,7 +53,7 @@ public enum OverlayPositionPreset: String, CaseIterable, Identifiable, Sendable 
 
 // MARK: - Data Models for Tables
 
-public struct EventNotificationItem: Identifiable, Sendable {
+public struct EventNotificationItem: Identifiable, Sendable, Codable {
     public var id: String { eventName }
     public var eventName: String
     public var console: Bool
@@ -171,20 +171,25 @@ public final class SettingsState {
 
     public func takeSnapshot() {
         snapshotData = [
+            "audioInputDevice": audioInputDevice,
             "transmitMode": transmitMode.rawValue,
             "voiceHold": voiceHold,
             "silenceBelowDb": silenceBelowDb,
             "speechAboveDb": speechAboveDb,
             "pttHoldTime": pttHoldTime,
             "pttAudioCue": pttAudioCue,
+            "pttOnCuePath": pttOnCuePath,
+            "pttOffCuePath": pttOffCuePath,
             "maxAmplification": maxAmplification,
             "echoCancellation": echoCancellation,
             "airPodsAudioLockEnabled": airPodsAudioLockEnabled,
             "muteMicrophoneCue": muteMicrophoneCue,
+            "muteCuePath": muteCuePath,
             "highlightMicIconWhenOpen": highlightMicIconWhenOpen,
             "idleActionTimeoutMinutes": idleActionTimeoutMinutes,
             "idleActionType": idleActionType.rawValue,
             "undoIdleActionOnActivity": undoIdleActionOnActivity,
+            "audioOutputDevice": audioOutputDevice,
             "defaultJitterBufferMs": defaultJitterBufferMs,
             "outputVolumePercent": outputVolumePercent,
             "audioDuckingEnabled": audioDuckingEnabled,
@@ -211,6 +216,7 @@ public final class SettingsState {
             "hideOsInfoFromServers": hideOsInfoFromServers,
             "checkForUpdatesOnStartup": checkForUpdatesOnStartup,
             "soundfileMode": soundfileMode.rawValue,
+            "customSoundFilePath": customSoundFilePath,
             "ttsVolumePercent": ttsVolumePercent,
             "ttsLengthThreshold": ttsLengthThreshold,
             "ttsReadMessageText": ttsReadMessageText,
@@ -219,25 +225,31 @@ public final class SettingsState {
             "overlayPositionPreset": overlayPositionPreset.rawValue,
             "showFpsCounter": showFpsCounter,
             "showCurrentTime": showCurrentTime,
-            "overlayColorHex": overlayColorHex
+            "overlayColorHex": overlayColorHex,
+            "eventsMatrix": eventsMatrix
         ]
     }
 
     public func resetToSnapshot() {
+        if let v = snapshotData["audioInputDevice"] as? String { audioInputDevice = v }
         if let s = snapshotData["transmitMode"] as? String, let m = TransmitMode(rawValue: s) { transmitMode = m }
         if let v = snapshotData["voiceHold"] as? Double { voiceHold = v }
         if let v = snapshotData["silenceBelowDb"] as? Double { silenceBelowDb = v }
         if let v = snapshotData["speechAboveDb"] as? Double { speechAboveDb = v }
         if let v = snapshotData["pttHoldTime"] as? Double { pttHoldTime = v }
         if let v = snapshotData["pttAudioCue"] as? Bool { pttAudioCue = v }
+        if let v = snapshotData["pttOnCuePath"] as? String { pttOnCuePath = v }
+        if let v = snapshotData["pttOffCuePath"] as? String { pttOffCuePath = v }
         if let v = snapshotData["maxAmplification"] as? Double { maxAmplification = v }
         if let v = snapshotData["echoCancellation"] as? Bool { echoCancellation = v }
         if let v = snapshotData["airPodsAudioLockEnabled"] as? Bool { airPodsAudioLockEnabled = v }
         if let v = snapshotData["muteMicrophoneCue"] as? Bool { muteMicrophoneCue = v }
+        if let v = snapshotData["muteCuePath"] as? String { muteCuePath = v }
         if let v = snapshotData["highlightMicIconWhenOpen"] as? Bool { highlightMicIconWhenOpen = v }
         if let v = snapshotData["idleActionTimeoutMinutes"] as? Int { idleActionTimeoutMinutes = v }
         if let s = snapshotData["idleActionType"] as? String, let m = IdleActionType(rawValue: s) { idleActionType = m }
         if let v = snapshotData["undoIdleActionOnActivity"] as? Bool { undoIdleActionOnActivity = v }
+        if let v = snapshotData["audioOutputDevice"] as? String { audioOutputDevice = v }
         if let v = snapshotData["defaultJitterBufferMs"] as? Double { defaultJitterBufferMs = v }
         if let v = snapshotData["outputVolumePercent"] as? Double { outputVolumePercent = v }
         if let v = snapshotData["audioDuckingEnabled"] as? Bool { audioDuckingEnabled = v }
@@ -264,6 +276,7 @@ public final class SettingsState {
         if let v = snapshotData["hideOsInfoFromServers"] as? Bool { hideOsInfoFromServers = v }
         if let v = snapshotData["checkForUpdatesOnStartup"] as? Bool { checkForUpdatesOnStartup = v }
         if let s = snapshotData["soundfileMode"] as? String, let m = SoundfileMode(rawValue: s) { soundfileMode = m }
+        if let v = snapshotData["customSoundFilePath"] as? String { customSoundFilePath = v }
         if let v = snapshotData["ttsVolumePercent"] as? Double { ttsVolumePercent = v }
         if let v = snapshotData["ttsLengthThreshold"] as? Int { ttsLengthThreshold = v }
         if let v = snapshotData["ttsReadMessageText"] as? Bool { ttsReadMessageText = v }
@@ -273,6 +286,9 @@ public final class SettingsState {
         if let v = snapshotData["showFpsCounter"] as? Bool { showFpsCounter = v }
         if let v = snapshotData["showCurrentTime"] as? Bool { showCurrentTime = v }
         if let v = snapshotData["overlayColorHex"] as? String { overlayColorHex = v }
+        if let v = snapshotData["eventsMatrix"] as? [EventNotificationItem] { eventsMatrix = v }
+
+        saveToUserDefaults()
     }
 
     public func restoreDefaults(for tab: SettingsTab) {
@@ -388,8 +404,10 @@ public final class SettingsState {
         // 6. Overlay configuration & repositioning
         let overlayMgr = FloatingOverlayManager.shared
         overlayMgr.applyPosition(preset: overlayPositionPreset)
-        if overlayEnabled != overlayMgr.isVisible {
-            overlayMgr.toggle(store: store)
+        if overlayEnabled && !overlayMgr.isVisible {
+            overlayMgr.show(store: store)
+        } else if !overlayEnabled && overlayMgr.isVisible {
+            overlayMgr.hide()
         }
 
         // 7. TTS Volume sync
@@ -402,28 +420,36 @@ public final class SettingsState {
         takeSnapshot()
     }
 
-    private func saveToUserDefaults() {
+    public func saveToUserDefaults() {
         let d = UserDefaults.standard
+        // 1. Audio Input
+        d.set(audioInputDevice, forKey: "Swimble_AudioInputDevice")
         d.set(transmitMode.rawValue, forKey: "Swimble_TransmitMode")
         d.set(voiceHold, forKey: "Swimble_VoiceHold")
         d.set(silenceBelowDb, forKey: "Swimble_SilenceBelowDb")
         d.set(speechAboveDb, forKey: "Swimble_SpeechAboveDb")
         d.set(pttHoldTime, forKey: "Swimble_PttHold")
         d.set(pttAudioCue, forKey: "Swimble_PttAudioCue")
+        d.set(pttOnCuePath, forKey: "Swimble_PttOnCuePath")
+        d.set(pttOffCuePath, forKey: "Swimble_PttOffCuePath")
         d.set(maxAmplification, forKey: "Swimble_MaxAmplification")
         d.set(echoCancellation, forKey: "Swimble_EchoCancellation")
         d.set(airPodsAudioLockEnabled, forKey: "Swimble_AirPodsAudioLock")
         d.set(muteMicrophoneCue, forKey: "Swimble_MuteMicCue")
+        d.set(muteCuePath, forKey: "Swimble_MuteCuePath")
         d.set(highlightMicIconWhenOpen, forKey: "Swimble_HighlightMic")
         d.set(idleActionTimeoutMinutes, forKey: "Swimble_IdleTimeout")
         d.set(idleActionType.rawValue, forKey: "Swimble_IdleAction")
         d.set(undoIdleActionOnActivity, forKey: "Swimble_UndoIdle")
 
+        // 2. Audio Output
+        d.set(audioOutputDevice, forKey: "Swimble_AudioOutputDevice")
         d.set(defaultJitterBufferMs, forKey: "Swimble_JitterBufferMs")
         d.set(outputVolumePercent, forKey: "Swimble_OutputVolume")
         d.set(audioDuckingEnabled, forKey: "Swimble_AudioDucking")
         d.set(loopbackMode.rawValue, forKey: "Swimble_LoopbackMode")
 
+        // 3. User Interface
         d.set(uiTheme, forKey: "Swimble_UiTheme")
         d.set(displayQuitConfirmation, forKey: "Swimble_QuitConfirm")
         d.set(includeUnreadCountInTaskbar, forKey: "Swimble_UnreadBadge")
@@ -435,9 +461,11 @@ public final class SettingsState {
         d.set(showUserNameWhenTalking, forKey: "Swimble_TrayUserName")
         d.set(highlightFavoriteEntriesOnTop, forKey: "Swimble_HighlightFavorites")
 
+        // 4. Shortcuts
         d.set(enableGlobalShortcuts, forKey: "Swimble_EnableGlobalShortcuts")
         d.set(handleSideMouseButtons, forKey: "Swimble_HandleSideMouse")
 
+        // 5. Network
         d.set(useTcpCompatibilityMode, forKey: "Swimble_TcpMode")
         d.set(reconnectAutomatically, forKey: "Swimble_ReconnectAuto")
         d.set(autoConnectLastUsedServer, forKey: "Swimble_AutoConnectLast")
@@ -448,12 +476,18 @@ public final class SettingsState {
         d.set(hideOsInfoFromServers, forKey: "Swimble_HideOsInfo")
         d.set(checkForUpdatesOnStartup, forKey: "Swimble_CheckUpdates")
 
+        // 6. Messages
         d.set(soundfileMode.rawValue, forKey: "Swimble_SoundfileMode")
+        d.set(customSoundFilePath, forKey: "Swimble_CustomSoundFile")
         d.set(ttsVolumePercent, forKey: "Swimble_TtsVolume")
         d.set(ttsLengthThreshold, forKey: "Swimble_TtsThreshold")
         d.set(ttsReadMessageText, forKey: "Swimble_TtsReadMessage")
         d.set(maxChatBlockCount, forKey: "Swimble_MaxChatBlocks")
+        if let data = try? JSONEncoder().encode(eventsMatrix) {
+            d.set(data, forKey: "Swimble_EventsMatrix")
+        }
 
+        // 7. Overlay
         d.set(overlayEnabled, forKey: "Swimble_OverlayEnabled")
         d.set(overlayPositionPreset.rawValue, forKey: "Swimble_OverlayPreset")
         d.set(showFpsCounter, forKey: "Swimble_ShowFps")
@@ -461,22 +495,80 @@ public final class SettingsState {
         d.set(overlayColorHex, forKey: "Swimble_OverlayColor")
     }
 
-    private func loadFromUserDefaults() {
+    public func loadFromUserDefaults() {
         let d = UserDefaults.standard
-        if d.object(forKey: "Swimble_TransmitMode") != nil {
-            if let s = d.string(forKey: "Swimble_TransmitMode"), let m = TransmitMode(rawValue: s) { transmitMode = m }
-            voiceHold = d.double(forKey: "Swimble_VoiceHold")
-            silenceBelowDb = d.double(forKey: "Swimble_SilenceBelowDb")
-            speechAboveDb = d.double(forKey: "Swimble_SpeechAboveDb")
-            if voiceHold == 0 { voiceHold = 0.20 }
-            if silenceBelowDb == 0 { silenceBelowDb = -50.0 }
-            if speechAboveDb == 0 { speechAboveDb = -35.0 }
-            maxAmplification = d.double(forKey: "Swimble_MaxAmplification")
-            if maxAmplification == 0 { maxAmplification = 2.0 }
-            echoCancellation = d.object(forKey: "Swimble_EchoCancellation") == nil ? true : d.bool(forKey: "Swimble_EchoCancellation")
-            airPodsAudioLockEnabled = d.object(forKey: "Swimble_AirPodsAudioLock") == nil ? true : d.bool(forKey: "Swimble_AirPodsAudioLock")
-            audioDuckingEnabled = d.bool(forKey: "Swimble_AudioDucking")
-            outputVolumePercent = d.object(forKey: "Swimble_OutputVolume") == nil ? 100.0 : d.double(forKey: "Swimble_OutputVolume")
+
+        // 1. Audio Input
+        if let dev = d.string(forKey: "Swimble_AudioInputDevice") { audioInputDevice = dev }
+        if let s = d.string(forKey: "Swimble_TransmitMode"), let m = TransmitMode(rawValue: s) { transmitMode = m }
+        if d.object(forKey: "Swimble_VoiceHold") != nil { voiceHold = d.double(forKey: "Swimble_VoiceHold") }
+        if d.object(forKey: "Swimble_SilenceBelowDb") != nil { silenceBelowDb = d.double(forKey: "Swimble_SilenceBelowDb") }
+        if d.object(forKey: "Swimble_SpeechAboveDb") != nil { speechAboveDb = d.double(forKey: "Swimble_SpeechAboveDb") }
+        if d.object(forKey: "Swimble_PttHold") != nil { pttHoldTime = d.double(forKey: "Swimble_PttHold") }
+        if d.object(forKey: "Swimble_PttAudioCue") != nil { pttAudioCue = d.bool(forKey: "Swimble_PttAudioCue") }
+        if let p = d.string(forKey: "Swimble_PttOnCuePath") { pttOnCuePath = p }
+        if let p = d.string(forKey: "Swimble_PttOffCuePath") { pttOffCuePath = p }
+        if d.object(forKey: "Swimble_MaxAmplification") != nil { maxAmplification = d.double(forKey: "Swimble_MaxAmplification") }
+        if d.object(forKey: "Swimble_EchoCancellation") != nil { echoCancellation = d.bool(forKey: "Swimble_EchoCancellation") }
+        if d.object(forKey: "Swimble_AirPodsAudioLock") != nil { airPodsAudioLockEnabled = d.bool(forKey: "Swimble_AirPodsAudioLock") }
+        if d.object(forKey: "Swimble_MuteMicCue") != nil { muteMicrophoneCue = d.bool(forKey: "Swimble_MuteMicCue") }
+        if let p = d.string(forKey: "Swimble_MuteCuePath") { muteCuePath = p }
+        if d.object(forKey: "Swimble_HighlightMic") != nil { highlightMicIconWhenOpen = d.bool(forKey: "Swimble_HighlightMic") }
+        if d.object(forKey: "Swimble_IdleTimeout") != nil { idleActionTimeoutMinutes = d.integer(forKey: "Swimble_IdleTimeout") }
+        if let s = d.string(forKey: "Swimble_IdleAction"), let m = IdleActionType(rawValue: s) { idleActionType = m }
+        if d.object(forKey: "Swimble_UndoIdle") != nil { undoIdleActionOnActivity = d.bool(forKey: "Swimble_UndoIdle") }
+
+        // 2. Audio Output
+        if let dev = d.string(forKey: "Swimble_AudioOutputDevice") { audioOutputDevice = dev }
+        if d.object(forKey: "Swimble_JitterBufferMs") != nil { defaultJitterBufferMs = d.double(forKey: "Swimble_JitterBufferMs") }
+        if d.object(forKey: "Swimble_OutputVolume") != nil { outputVolumePercent = d.double(forKey: "Swimble_OutputVolume") }
+        if d.object(forKey: "Swimble_AudioDucking") != nil { audioDuckingEnabled = d.bool(forKey: "Swimble_AudioDucking") }
+        if let s = d.string(forKey: "Swimble_LoopbackMode"), let m = LoopbackMode(rawValue: s) { loopbackMode = m }
+
+        // 3. User Interface
+        if let t = d.string(forKey: "Swimble_UiTheme") { uiTheme = t }
+        if d.object(forKey: "Swimble_QuitConfirm") != nil { displayQuitConfirmation = d.bool(forKey: "Swimble_QuitConfirm") }
+        if d.object(forKey: "Swimble_UnreadBadge") != nil { includeUnreadCountInTaskbar = d.bool(forKey: "Swimble_UnreadBadge") }
+        if let s = d.string(forKey: "Swimble_UserSort"), let m = UserSortMode(rawValue: s) { userSort = m }
+        if d.object(forKey: "Swimble_HoverUserVol") != nil { hoverUserShowsVolume = d.bool(forKey: "Swimble_HoverUserVol") }
+        if d.object(forKey: "Swimble_ShowChannelCount") != nil { alwaysShowChannelUserCount = d.bool(forKey: "Swimble_ShowChannelCount") }
+        if d.object(forKey: "Swimble_FilterHideEmpty") != nil { filterHidesEmptyChannels = d.bool(forKey: "Swimble_FilterHideEmpty") }
+        if d.object(forKey: "Swimble_TrayTalkingStatus") != nil { showTalkingStatusInTray = d.bool(forKey: "Swimble_TrayTalkingStatus") }
+        if d.object(forKey: "Swimble_TrayUserName") != nil { showUserNameWhenTalking = d.bool(forKey: "Swimble_TrayUserName") }
+        if d.object(forKey: "Swimble_HighlightFavorites") != nil { highlightFavoriteEntriesOnTop = d.bool(forKey: "Swimble_HighlightFavorites") }
+
+        // 4. Shortcuts
+        if d.object(forKey: "Swimble_EnableGlobalShortcuts") != nil { enableGlobalShortcuts = d.bool(forKey: "Swimble_EnableGlobalShortcuts") }
+        if d.object(forKey: "Swimble_HandleSideMouse") != nil { handleSideMouseButtons = d.bool(forKey: "Swimble_HandleSideMouse") }
+
+        // 5. Network
+        if d.object(forKey: "Swimble_TcpMode") != nil { useTcpCompatibilityMode = d.bool(forKey: "Swimble_TcpMode") }
+        if d.object(forKey: "Swimble_ReconnectAuto") != nil { reconnectAutomatically = d.bool(forKey: "Swimble_ReconnectAuto") }
+        if d.object(forKey: "Swimble_AutoConnectLast") != nil { autoConnectLastUsedServer = d.bool(forKey: "Swimble_AutoConnectLast") }
+        if d.object(forKey: "Swimble_SuppressCertWarnings") != nil { suppressCertPasswordWarnings = d.bool(forKey: "Swimble_SuppressCertWarnings") }
+        if d.object(forKey: "Swimble_NoExternalImages") != nil { doNotEmbedExternalImages = d.bool(forKey: "Swimble_NoExternalImages") }
+        if d.object(forKey: "Swimble_ClearCommentsExit") != nil { clearUserCommentsOnExit = d.bool(forKey: "Swimble_ClearCommentsExit") }
+        if d.object(forKey: "Swimble_ClearChatExit") != nil { clearChatWindowOnExit = d.bool(forKey: "Swimble_ClearChatExit") }
+        if d.object(forKey: "Swimble_HideOsInfo") != nil { hideOsInfoFromServers = d.bool(forKey: "Swimble_HideOsInfo") }
+        if d.object(forKey: "Swimble_CheckUpdates") != nil { checkForUpdatesOnStartup = d.bool(forKey: "Swimble_CheckUpdates") }
+
+        // 6. Messages
+        if let s = d.string(forKey: "Swimble_SoundfileMode"), let m = SoundfileMode(rawValue: s) { soundfileMode = m }
+        if let p = d.string(forKey: "Swimble_CustomSoundFile") { customSoundFilePath = p }
+        if d.object(forKey: "Swimble_TtsVolume") != nil { ttsVolumePercent = d.double(forKey: "Swimble_TtsVolume") }
+        if d.object(forKey: "Swimble_TtsThreshold") != nil { ttsLengthThreshold = d.integer(forKey: "Swimble_TtsThreshold") }
+        if d.object(forKey: "Swimble_TtsReadMessage") != nil { ttsReadMessageText = d.bool(forKey: "Swimble_TtsReadMessage") }
+        if d.object(forKey: "Swimble_MaxChatBlocks") != nil { maxChatBlockCount = d.integer(forKey: "Swimble_MaxChatBlocks") }
+        if let data = d.data(forKey: "Swimble_EventsMatrix"),
+           let items = try? JSONDecoder().decode([EventNotificationItem].self, from: data) {
+            eventsMatrix = items
         }
+
+        // 7. Overlay
+        if d.object(forKey: "Swimble_OverlayEnabled") != nil { overlayEnabled = d.bool(forKey: "Swimble_OverlayEnabled") }
+        if let s = d.string(forKey: "Swimble_OverlayPreset"), let m = OverlayPositionPreset(rawValue: s) { overlayPositionPreset = m }
+        if d.object(forKey: "Swimble_ShowFps") != nil { showFpsCounter = d.bool(forKey: "Swimble_ShowFps") }
+        if d.object(forKey: "Swimble_ShowCurrentTime") != nil { showCurrentTime = d.bool(forKey: "Swimble_ShowCurrentTime") }
+        if let c = d.string(forKey: "Swimble_OverlayColor") { overlayColorHex = c }
     }
 }

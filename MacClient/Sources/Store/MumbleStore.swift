@@ -222,9 +222,14 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
         loadBookmarks()
         loadAccessTokens()
 
-        // 5. Initialize accent tint and auto-connect if enabled
+        // 5. Initialize accent tint, apply saved settings, and auto-connect if enabled
         self.accentTint = Self.colorFromName(self.accentColorName)
         startIdleMonitor()
+
+        Task { @MainActor [weak self] in
+            guard let self = self else { return }
+            SettingsState.shared.apply(to: self)
+        }
 
         if (self.autoReconnectOnLaunch || SettingsState.shared.autoConnectLastUsedServer),
            let fav = self.bookmarks.first(where: { $0.isFavorite }) ?? self.bookmarks.first {

@@ -122,6 +122,9 @@ public struct SettingsModal: View {
         }
         .toolbar(removing: .sidebarToggle)
         .frame(minWidth: 840, idealWidth: 900, minHeight: 620, idealHeight: 680)
+        .onDisappear {
+            SettingsState.shared.apply(to: store)
+        }
     }
 }
 
