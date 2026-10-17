@@ -359,14 +359,6 @@ public struct ChatAndActivityView: View {
                 .popover(isPresented: $showPingPopover) {
                     PingStatsPopover(store: store)
                 }
-
-                // Server Favorites / Connect Sheet Button
-                Button(action: { showConnectSheet = true }) {
-                    Image(systemName: "server.rack")
-                        .font(.body)
-                }
-                .buttonStyle(.bordered)
-                .help("Manage Servers & Bookmarks")
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 12)
