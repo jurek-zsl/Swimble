@@ -105,6 +105,16 @@ public struct ServerSplitView: View {
 
                     Divider()
 
+                    Button(action: {
+                        store.toggleAudioRecording()
+                    }) {
+                        Label(
+                            store.isRecordingAudio ? "Stop Recording Audio" : "Record Audio",
+                            systemImage: store.isRecordingAudio ? "stop.circle.fill" : "record.circle"
+                        )
+                    }
+                    .keyboardShortcut("r", modifiers: [.command, .shift])
+
                     Button(action: { store.activeModal = .audioStatistics }) {
                         Label("Audio Statistics...", systemImage: "waveform.path.ecg")
                     }
