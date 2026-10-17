@@ -48,6 +48,7 @@ public struct ChannelRowView: View {
                     .foregroundStyle(store.accentTint)
                 Text(channel.name)
                     .font(.headline)
+                    .lineLimit(1)
                 Spacer()
                 Button {
                     showDescriptionPopover = false
@@ -60,14 +61,15 @@ public struct ChannelRowView: View {
 
             Divider()
 
-            ScrollView {
+            ScrollView(.vertical, showsIndicators: true) {
                 RichDescriptionView(rawHtml: channel.description, accentTint: store.accentTint)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
         .padding(14)
-        .frame(width: 340)
-        .frame(maxHeight: 400)
+        .frame(minWidth: 360, idealWidth: 420, maxWidth: 520)
+        .frame(minHeight: 120, maxHeight: 460)
+        .lineLimit(nil)
     }
 
     public var body: some View {

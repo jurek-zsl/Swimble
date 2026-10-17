@@ -106,6 +106,7 @@ public struct UserRowView: View {
 
                 Text(user.name)
                     .font(.headline)
+                    .lineLimit(1)
 
                 if user.isPrioritySpeaker {
                     Image(systemName: "star.fill")
@@ -126,14 +127,15 @@ public struct UserRowView: View {
 
             Divider()
 
-            ScrollView {
+            ScrollView(.vertical, showsIndicators: true) {
                 RichDescriptionView(rawHtml: comment, accentTint: store.accentTint)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
         .padding(14)
-        .frame(width: 320)
-        .frame(maxHeight: 380)
+        .frame(minWidth: 340, idealWidth: 400, maxWidth: 480)
+        .frame(minHeight: 120, maxHeight: 440)
+        .lineLimit(nil)
     }
 
     @ViewBuilder

@@ -294,6 +294,7 @@ public struct ChatAndActivityView: View {
                     .foregroundStyle(store.accentTint)
                 Text(ch.name)
                     .font(.headline)
+                    .lineLimit(1)
                 Spacer()
                 Button {
                     showChannelDescPopover = false
@@ -306,14 +307,15 @@ public struct ChatAndActivityView: View {
 
             Divider()
 
-            ScrollView {
+            ScrollView(.vertical, showsIndicators: true) {
                 RichDescriptionView(rawHtml: ch.description, accentTint: store.accentTint)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
         .padding(14)
-        .frame(width: 350)
-        .frame(maxHeight: 420)
+        .frame(minWidth: 360, idealWidth: 420, maxWidth: 520)
+        .frame(minHeight: 120, maxHeight: 460)
+        .lineLimit(nil)
     }
 
     public var body: some View {

@@ -49,6 +49,8 @@ public struct RichDescriptionView: View {
                 Text(cleanAttributedText)
                     .font(.system(size: 13))
                     .lineSpacing(3)
+                    .lineLimit(nil)
+                    .multilineTextAlignment(.leading)
                     .textSelection(.enabled)
                     .fixedSize(horizontal: false, vertical: true)
             }
