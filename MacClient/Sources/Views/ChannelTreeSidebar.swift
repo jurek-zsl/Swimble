@@ -27,6 +27,10 @@ public struct ChannelTreeSidebar: View {
         }
     }
 
+    private var targetBookmark: ServerBookmark? {
+        store.activeBookmark ?? store.lastUsedBookmark
+    }
+
     public var body: some View {
         VStack(spacing: 0) {
             if store.connectionStatus != .connected && store.channels.isEmpty {
@@ -92,7 +96,6 @@ public struct ChannelTreeSidebar: View {
 
             // Bottom Server Status Bar
             Divider()
-            let targetBookmark = store.activeBookmark ?? store.lastUsedBookmark
             let pingKey = targetBookmark.map { store.pingKey(for: $0) }
             let pingInfo = pingKey.flatMap { store.serverPingResults[$0] }
             let pingFailed = pingKey.flatMap { store.serverPingFailed[$0] } ?? false
@@ -169,6 +172,11 @@ public struct ChannelTreeSidebar: View {
             .background(Color(NSColor.windowBackgroundColor).opacity(0.5))
         }
         .navigationTitle(store.activeBookmark?.name ?? "Swimble")
+        .task(id: "\(targetBookmark?.id.uuidString ?? "")-\(store.connectionStatus)") {
+            if store.connectionStatus != .connected, let target = targetBookmark {
+                await store.pingBookmark(target)
+            }
+        }
     }
 }
 
@@ -210,6 +218,12 @@ struct SearchChannelRow: View {
     @Bindable var store: MumbleStore
     let channel: ChannelInfo
 
+    @State private var showDescriptionPopover = false
+    @State private var isPinnedOpen = false
+    @State private var isHoveringRow = false
+    @State private var isHoveringPopover = false
+    @State private var hoverTask: Task<Void, Never>? = nil
+
     private var isJoined: Bool {
         store.myChannelId == channel.id
     }
@@ -218,8 +232,49 @@ struct SearchChannelRow: View {
         !channel.canEnter
     }
 
-    private var isUnlockedRestricted: Bool {
-        channel.canEnter && (channel.isEnterRestricted || store.previouslyLockedChannelIds.contains(channel.id))
+    @ViewBuilder
+    private var descriptionPopoverContent: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Image(systemName: "folder.fill")
+                    .foregroundStyle(store.accentTint)
+                Text(channel.name)
+                    .font(.headline)
+                    .lineLimit(1)
+                Spacer()
+                Button {
+                    isPinnedOpen = false
+                    showDescriptionPopover = false
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+
+            Divider()
+
+            ScrollView(.vertical, showsIndicators: true) {
+                RichDescriptionView(rawHtml: channel.description, accentTint: store.accentTint)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .padding(14)
+        .frame(minWidth: 360, idealWidth: 420, maxWidth: 520)
+        .frame(minHeight: 120, maxHeight: 460)
+        .lineLimit(nil)
+        .onHover { inPopover in
+            isHoveringPopover = inPopover
+            if !inPopover && !isHoveringRow && !isPinnedOpen {
+                hoverTask?.cancel()
+                hoverTask = Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(250))
+                    if !Task.isCancelled && !isHoveringRow && !isHoveringPopover && !isPinnedOpen {
+                        showDescriptionPopover = false
+                    }
+                }
+            }
+        }
     }
 
     var body: some View {
@@ -235,11 +290,24 @@ struct SearchChannelRow: View {
                     .font(.caption2)
                     .foregroundStyle(.red)
                     .help("Locked channel: You cannot enter this channel")
-            } else if isUnlockedRestricted {
+            } else {
                 Image(systemName: "lock.open.fill")
                     .font(.caption2)
                     .foregroundStyle(.green)
                     .help("Unlocked channel: You have permission to enter")
+            }
+
+            if !channel.description.isEmpty {
+                Button(action: {
+                    isPinnedOpen = true
+                    showDescriptionPopover.toggle()
+                }) {
+                    Image(systemName: containsImages(channel.description) ? "photo.on.rectangle.angled" : "info.circle")
+                        .font(.caption2)
+                        .foregroundStyle(containsImages(channel.description) ? store.accentTint : Color.secondary)
+                }
+                .buttonStyle(.plain)
+                .help(containsImages(channel.description) ? "Channel Description (Contains Images)" : "Channel Description")
             }
 
             Spacer()
@@ -266,6 +334,37 @@ struct SearchChannelRow: View {
                 .buttonStyle(.bordered)
                 .controlSize(.small)
                 .disabled(isLocked)
+            }
+        }
+        .contentShape(Rectangle())
+        .popover(isPresented: $showDescriptionPopover, arrowEdge: .trailing) {
+            descriptionPopoverContent
+        }
+        .onHover { hovering in
+            isHoveringRow = hovering
+            hoverTask?.cancel()
+            if hovering {
+                guard !channel.description.isEmpty else { return }
+                hoverTask = Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(350))
+                    if !Task.isCancelled && isHoveringRow {
+                        showDescriptionPopover = true
+                    }
+                }
+            } else {
+                guard !isPinnedOpen else { return }
+                hoverTask = Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(250))
+                    if !Task.isCancelled && !isHoveringRow && !isHoveringPopover && !isPinnedOpen {
+                        showDescriptionPopover = false
+                    }
+                }
+            }
+        }
+        .onChange(of: showDescriptionPopover) { _, newValue in
+            if !newValue {
+                isPinnedOpen = false
+                hoverTask?.cancel()
             }
         }
         .tag(channel.id)

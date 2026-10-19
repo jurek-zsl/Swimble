@@ -1,0 +1,30 @@
+Swimble DMG installer background
+
+Tesseract CLI 0.4.0. Native editable text and vector shapes, flat colors.
+
+Files
+Swimble-DMG-Background.png: 800 × 500 pixels.
+Swimble-DMG-Background@2x.png: 1600 × 1000 pixels.
+Swimble-DMG-Background.tiff: both resolutions in one file (72 / 144 dpi),
+with the same 800 × 500 logical size, for a Retina-aware Finder background.
+Matching editable sources: Swimble-DMG-Background.tsrct and
+Swimble-DMG-Background@2x.tsrct.
+
+Installer layout (coordinates relative to the content area, in points)
+Content size: 800 × 500.
+Icon size: 128.
+Swimble.app icon center: (230, 312).
+Applications alias icon center: (570, 312).
+Use icon view with labels below icons. Hide the toolbar and sidebar.
+The mint squares reserve space for the real Finder icons; do not bake app or
+folder icons or their file labels into the background image.
+
+This deliverable is a background image, not a packaged disk image.
+
+Render from the repository root:
+"$HOME/Library/Application Support/Tesseract/bin/tsrct" preview --project assets/swimble-dmg/Swimble-DMG-Background.tsrct --time 1 --output assets/swimble-dmg/Swimble-DMG-Background.png
+"$HOME/Library/Application Support/Tesseract/bin/tsrct" preview --project assets/swimble-dmg/Swimble-DMG-Background@2x.tsrct --time 1 --output assets/swimble-dmg/Swimble-DMG-Background@2x.png
+
+Typeface: Manrope (embedded), SIL Open Font License 1.1.
+Font file and license: ../swimble-banner/fonts/.
+Source: https://github.com/google/fonts/tree/main/ofl/manrope

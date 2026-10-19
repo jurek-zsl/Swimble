@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<ns0:svg xmlns:ns0="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024"><path id="mumble-m-headband" d="M 261 475 L 261 352 C 261 271 320 224 401 224 C 414 224 425 235 425 248 L 425 329 C 425 365 445 386 512 386 C 579 386 599 365 599 329 L 599 248 C 599 235 610 224 623 224 C 704 224 763 271 763 352 L 763 475 L 715 475 L 715 352 C 715 305 682 280 647 276 L 647 329 C 647 402 600 434 512 434 C 424 434 377 402 377 329 L 377 276 C 342 280 309 305 309 352 L 309 475 Z" fill="#C8F2D8" />
+<path id="microphone-boom" d="M 726.5 636 L 751.5 636 L 751.5 666 C 751.5 733 690 764.5 616 764.5 L 556 764.5 L 556 739.5 L 616 739.5 C 680 739.5 726.5 715 726.5 666 Z" fill="#C8F2D8" />
+<rect id="left-ear-cushion" x="244" y="461" width="82" height="204" rx="37" fill="#C8F2D8" />
+<rect id="right-ear-cushion" x="698" y="461" width="82" height="204" rx="37" fill="#C8F2D8" />
+<rect id="microphone-capsule" x="488" y="727" width="112" height="50" rx="25" fill="#C8F2D8" />
+</ns0:svg>

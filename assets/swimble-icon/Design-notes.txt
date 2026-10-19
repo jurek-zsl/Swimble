@@ -1,0 +1,23 @@
+Swimble flat icon
+
+1024 × 1024 PNG with a solid rounded tile and transparent outer corners.
+Seven editable native Tesseract shape layers. No gradients, blur, or shadows.
+SVG uses the same paths and colors as the Tesseract composition.
+
+Palette
+Petrol: #123F46
+Mint: #C8F2D8
+Coral: #FF825F
+
+Concept
+Mumble's M-shaped headphone headband and boom microphone frame a swift bird,
+connecting the original Mumble identity with Swimble's SwiftUI frontend.
+The shapes were newly drawn for this design.
+Reference: https://github.com/mumble-voip/mumble/blob/master/icons/mumble.svg
+
+Editable source: Swimble-Icon.tsrct
+Portable vector: Swimble-Icon.svg
+Working JSON and generator: .tesseract-work/
+
+Render from repository root with Tesseract CLI 0.4.0:
+"$HOME/Library/Application Support/Tesseract/bin/tsrct" preview --project assets/swimble-icon/Swimble-Icon.tsrct --time 1 --output assets/swimble-icon/Swimble-Icon.png

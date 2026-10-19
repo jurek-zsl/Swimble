@@ -596,6 +596,11 @@ RustBuffer uniffi_mumble_core_fn_func_generate_client_identity(RustBuffer common
 RustBuffer uniffi_mumble_core_fn_func_import_identity_from_pkcs12(RustBuffer p12_bytes, RustBuffer password, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_FUNC_RESOLVE_MUMBLE_SRV
+#define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_FUNC_RESOLVE_MUMBLE_SRV
+uint64_t uniffi_mumble_core_fn_func_resolve_mumble_srv(RustBuffer host, uint16_t port
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_FUNC_PING_MUMBLE_SERVER
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_FUNC_PING_MUMBLE_SERVER
 uint64_t uniffi_mumble_core_fn_func_ping_mumble_server(RustBuffer host, uint16_t port, uint64_t timeout_ms
@@ -882,6 +887,12 @@ uint16_t uniffi_mumble_core_checksum_func_generate_client_identity(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_FUNC_IMPORT_IDENTITY_FROM_PKCS12
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_FUNC_IMPORT_IDENTITY_FROM_PKCS12
 uint16_t uniffi_mumble_core_checksum_func_import_identity_from_pkcs12(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_FUNC_RESOLVE_MUMBLE_SRV
+#define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_FUNC_RESOLVE_MUMBLE_SRV
+uint16_t uniffi_mumble_core_checksum_func_resolve_mumble_srv(void
     
 );
 #endif

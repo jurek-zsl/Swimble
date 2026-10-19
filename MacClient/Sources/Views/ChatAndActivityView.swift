@@ -371,54 +371,51 @@ public struct ChatAndActivityView: View {
     public var body: some View {
         VStack(spacing: 0) {
             // Header Bar
-            HStack(spacing: 12) {
-                HStack(spacing: 10) {
-                    Image(systemName: store.isViewingCurrentChannel ? "speaker.wave.2.fill" : "number")
-                        .foregroundStyle(store.isViewingCurrentChannel ? Color.green : Color.secondary)
-                        .font(.title3)
+            HStack(spacing: 10) {
+                // Speaker or Channel icon
+                Image(systemName: store.isViewingCurrentChannel ? "speaker.wave.2.fill" : "number")
+                    .foregroundStyle(store.isViewingCurrentChannel ? Color.green : Color.secondary)
+                    .font(.title3)
 
-                    VStack(alignment: .leading, spacing: 2) {
-                        HStack(spacing: 8) {
-                            Text(activeChannelName)
-                                .font(.title3.bold())
+                // Channel Name (untruncated with high layout priority)
+                Text(activeChannelName)
+                    .font(.title3.bold())
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .layoutPriority(10)
+                    .help(activeChannelName)
 
-                            if store.isViewingCurrentChannel {
-                                Text("VOICE CONNECTED")
-                                    .font(.system(size: 9, weight: .bold))
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 2)
-                                    .background(Color.green.opacity(0.15), in: Capsule())
-                                    .foregroundStyle(.green)
-                            }
-                        }
+                // Voice Connected Status Badge
+                if store.isViewingCurrentChannel {
+                    Text("VOICE CONNECTED")
+                        .font(.system(size: 9, weight: .bold))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2.5)
+                        .background(Color.green.opacity(0.15), in: Capsule())
+                        .foregroundStyle(.green)
+                }
 
-                        if let selId = store.selectedChannelId,
-                           let ch = store.channels.first(where: { $0.id == selId }),
-                           !ch.description.isEmpty {
-                            Button(action: { showChannelDescPopover.toggle() }) {
-                                HStack(spacing: 5) {
-                                    Text(cleanChatMessageText(from: ch.description))
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                        .lineLimit(1)
-
-                                    if containsImages(ch.description) {
-                                        Image(systemName: "photo.badge.checkmark")
-                                            .font(.caption2)
-                                            .foregroundStyle(store.accentTint)
-                                    }
-                                }
-                            }
-                            .buttonStyle(.plain)
-                            .help("Click to view full description and images")
-                            .popover(isPresented: $showChannelDescPopover) {
-                                channelDescriptionPopover(ch: ch)
-                            }
-                        }
+                // Description / Image Icon placed on top
+                let cid = store.selectedChannelId ?? store.myChannelId
+                if let channelId = cid,
+                   let ch = store.channels.first(where: { $0.id == channelId }),
+                   !ch.description.isEmpty {
+                    let hasImages = containsImages(ch.description)
+                    Button(action: { showChannelDescPopover.toggle() }) {
+                        Image(systemName: hasImages ? "photo.badge.checkmark" : "info.circle")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(hasImages ? store.accentTint : Color.secondary)
+                            .padding(5)
+                            .background(Color.secondary.opacity(0.12), in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .help(hasImages ? "View channel description & images" : "View channel description")
+                    .popover(isPresented: $showChannelDescPopover) {
+                        channelDescriptionPopover(ch: ch)
                     }
                 }
 
-                Spacer()
+                Spacer(minLength: 16)
 
                 // Join Channel Action if viewing another channel
                 if !store.isViewingCurrentChannel, let selId = store.selectedChannelId {
@@ -427,13 +424,13 @@ public struct ChatAndActivityView: View {
                             store.joinChannel(channelId: selId)
                         }
                     }) {
-                        HStack(spacing: 6) {
+                        HStack(spacing: 5) {
                             Image(systemName: "arrow.right.circle.fill")
                             Text("Join Channel")
                                 .font(.subheadline.bold())
                         }
                         .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
+                        .padding(.vertical, 4)
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(store.accentTint)
@@ -442,7 +439,7 @@ public struct ChatAndActivityView: View {
 
                 // Live Ping Popover Button
                 Button(action: { showPingPopover.toggle() }) {
-                    HStack(spacing: 6) {
+                    HStack(spacing: 5) {
                         Image(systemName: "bolt.fill")
                             .font(.caption2)
                             .foregroundStyle(store.usingUdpTunnel ? Color.orange : Color.green)
@@ -455,13 +452,14 @@ public struct ChatAndActivityView: View {
                     .background(Color.secondary.opacity(0.12), in: Capsule())
                 }
                 .buttonStyle(.plain)
+                .help("Connection latency & packet statistics")
                 .popover(isPresented: $showPingPopover) {
                     PingStatsPopover(store: store)
                 }
-
             }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 12)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .frame(minHeight: 48)
             .background(Color(NSColor.windowBackgroundColor).opacity(0.6))
 
             Divider()

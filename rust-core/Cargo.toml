@@ -26,6 +26,7 @@ p12 = "0.6.3"
 base64 = "0.22"
 ribergshamra-pkcs12 = "0.11.0"
 tempfile = "3.27.0"
+hickory-resolver = "0.26"
 
 [build-dependencies]
 prost-build = "0.13"

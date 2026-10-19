@@ -1,0 +1,27 @@
+Swimble flat GitHub banner
+
+Canvas: 1600 × 640 pixels, SDR PNG.
+Authoring: Tesseract CLI 0.4.0.
+Source: Swimble-Banner.tsrct, with native editable text and shape layers.
+Layout JSON and build script: .tesseract-work/
+
+Render from this repository's root:
+"$HOME/Library/Application Support/Tesseract/bin/tsrct" preview --project assets/swimble-banner/Swimble-Banner.tsrct --time 1 --output assets/swimble-banner/Swimble-Banner.png
+
+Flat color design using the established Swimble headset-and-swift symbol.
+The symbol is native editable geometry, copied from the icon composition.
+The banner uses solid colors throughout, without gradients, blur, or shadows.
+
+Palette
+Petrol: #123F46
+Mint: #C8F2D8
+Coral: #FF825F
+Off-white text: #E7F4EA
+Technology labels: #20515A
+
+The previous glass design is preserved in .tesseract-work/previous-glass/.
+
+Typeface: Manrope, embedded in the editable source.
+Source: https://github.com/google/fonts/tree/main/ofl/manrope
+Font file: https://raw.githubusercontent.com/google/fonts/main/ofl/manrope/Manrope%5Bwght%5D.ttf
+License: SIL Open Font License 1.1; see fonts/OFL.txt.

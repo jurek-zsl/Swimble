@@ -1,11 +1,36 @@
 use std::net::SocketAddr;
+use std::sync::OnceLock;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::net::{TcpStream, UdpSocket};
+use tokio::runtime::Runtime;
 use tokio::time::timeout;
 use crate::{MumbleError, ServerPingInfo};
 
+pub fn get_tokio_runtime() -> &'static Runtime {
+    static RUNTIME: OnceLock<Runtime> = OnceLock::new();
+    RUNTIME.get_or_init(|| {
+        tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .enable_all()
+            .thread_name("swimble-ping-worker")
+            .build()
+            .expect("Failed to initialize Tokio runtime for Swimble ping")
+    })
+}
+
 #[uniffi::export]
 pub async fn ping_mumble_server(host: String, port: u16, timeout_ms: u64) -> Result<ServerPingInfo, MumbleError> {
+    let rt = get_tokio_runtime();
+    let handle = rt.spawn(async move {
+        ping_mumble_server_impl(host, port, timeout_ms).await
+    });
+    match handle.await {
+        Ok(res) => res,
+        Err(e) => Err(MumbleError::NetworkError(format!("Ping task failed: {}", e))),
+    }
+}
+
+async fn ping_mumble_server_impl(host: String, port: u16, timeout_ms: u64) -> Result<ServerPingInfo, MumbleError> {
     let trimmed = host.trim();
     let no_prefix = trimmed
         .strip_prefix("mumble://")
@@ -29,16 +54,16 @@ pub async fn ping_mumble_server(host: String, port: u16, timeout_ms: u64) -> Res
         (no_prefix, port)
     };
 
-    // Resolve address list via Tokio DNS lookup
-    let addrs: Vec<SocketAddr> = match tokio::net::lookup_host((target_host, target_port)).await {
-        Ok(iter) => iter.collect(),
-        Err(e) => {
-            return Err(MumbleError::NetworkError(format!(
-                "DNS lookup failed for {}:{}: {}",
-                target_host, target_port, e
-            )));
+    // First resolve endpoints (via DNS SRV `_mumble._tcp.<host>` if applicable, or direct)
+    let endpoints = crate::dns::resolve_mumble_endpoints(target_host, target_port).await;
+
+    // Resolve address list via Tokio DNS lookup for all resolved candidate endpoints
+    let mut addrs: Vec<SocketAddr> = Vec::new();
+    for ep in &endpoints {
+        if let Ok(iter) = tokio::net::lookup_host((ep.host.as_str(), ep.port)).await {
+            addrs.extend(iter);
         }
-    };
+    }
 
     if addrs.is_empty() {
         return Err(MumbleError::NetworkError(format!(
@@ -47,17 +72,39 @@ pub async fn ping_mumble_server(host: String, port: u16, timeout_ms: u64) -> Res
         )));
     }
 
-    let probe_timeout = timeout_ms.max(2000);
+    let probe_timeout = timeout_ms.max(1500);
+    if addrs.len() == 1 {
+        return probe_address(addrs[0], probe_timeout).await;
+    }
+
+    let mut set = tokio::task::JoinSet::new();
     for &addr in &addrs {
-        if let Ok(info) = probe_address(addr, probe_timeout).await {
-            return Ok(info);
+        set.spawn(async move {
+            probe_address(addr, probe_timeout).await
+        });
+    }
+
+    let mut last_err = MumbleError::NetworkError(format!(
+        "Server {}:{} is unreachable",
+        target_host, target_port
+    ));
+
+    while let Some(res) = set.join_next().await {
+        match res {
+            Ok(Ok(info)) => {
+                set.abort_all();
+                return Ok(info);
+            }
+            Ok(Err(e)) => {
+                last_err = e;
+            }
+            Err(e) => {
+                last_err = MumbleError::NetworkError(format!("Probe task error: {}", e));
+            }
         }
     }
 
-    Err(MumbleError::NetworkError(format!(
-        "Server {}:{} is unreachable",
-        target_host, target_port
-    )))
+    Err(last_err)
 }
 
 async fn probe_address(addr: SocketAddr, timeout_ms: u64) -> Result<ServerPingInfo, MumbleError> {
@@ -165,3 +212,23 @@ async fn ping_tcp_target(addr: SocketAddr, timeout_dur: Duration) -> Result<Serv
         version: "Online (TCP)".to_string(),
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_ping_outside_tokio_context() {
+        let handle = std::thread::spawn(|| {
+            // OS thread without any ambient Tokio reactor
+            let fut = ping_mumble_server("mumble.gameone.dev".into(), 64738, 3000);
+            let rt = tokio::runtime::Builder::new_current_thread().build().unwrap();
+            rt.block_on(fut)
+        });
+        let res = handle.join().expect("Thread panicked!");
+        assert!(res.is_ok(), "Ping outside tokio context failed: {:?}", res.err());
+        let info = res.unwrap();
+        assert!(info.latency_ms > 0.0);
+    }
+}
+

@@ -81,14 +81,21 @@ public struct ServerConnectSheet: View {
         }
         .frame(minWidth: 760, idealWidth: 800, maxWidth: 880, minHeight: 520, idealHeight: 540)
         .onAppear {
-            if selectedBookmarkId == nil, let first = store.bookmarks.first {
-                selectBookmark(first)
+            if selectedBookmarkId == nil {
+                if let lastUsed = store.lastUsedBookmark {
+                    selectBookmark(lastUsed)
+                } else if let first = store.bookmarks.first {
+                    selectBookmark(first)
+                }
             }
             store.pingAllBookmarks()
         }
         .onChange(of: selectedBookmarkId) { _, newId in
             if let id = newId, let bm = store.bookmarks.first(where: { $0.id == id }) {
                 loadForm(bm)
+                Task {
+                    await store.pingBookmark(bm)
+                }
             }
         }
     }
@@ -173,6 +180,84 @@ public struct ServerConnectSheet: View {
                                 .buttonStyle(.bordered)
                                 .controlSize(.small)
                             }
+                        }
+
+                        if let bm = selectedBookmark {
+                            let pingKey = store.pingKey(for: bm)
+                            let pingInfo = store.serverPingResults[pingKey]
+                            let pingFailed = store.serverPingFailed[pingKey] ?? false
+                            let isCurrent = store.connectionStatus == .connected &&
+                                (store.activeBookmark?.id == bm.id ||
+                                 (store.activeBookmark?.host.lowercased() == bm.host.lowercased() &&
+                                  store.activeBookmark?.port == bm.port))
+
+                            HStack(spacing: 10) {
+                                Circle()
+                                    .fill(
+                                        isCurrent ? Color.green :
+                                        (pingInfo != nil ? Color.green :
+                                         (pingFailed ? Color.red : Color.orange.opacity(0.8)))
+                                    )
+                                    .frame(width: 10, height: 10)
+
+                                VStack(alignment: .leading, spacing: 2) {
+                                    HStack(spacing: 6) {
+                                        if isCurrent {
+                                            Text("Currently Connected")
+                                                .font(.subheadline.bold())
+                                                .foregroundStyle(.green)
+                                            Text("• \(Int(store.tcpPingMs)) ms")
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                            Text("(\(store.users.count) user\(store.users.count == 1 ? "" : "s"))")
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                        } else if let ping = pingInfo {
+                                            Text("Server Online")
+                                                .font(.subheadline.bold())
+                                                .foregroundStyle(.green)
+                                            Text("• \(Int(ping.latencyMs)) ms")
+                                                .font(.caption.bold())
+                                                .foregroundStyle(.green)
+                                            if ping.maxUsers > 0 {
+                                                Text("(\(ping.currentUsers)/\(ping.maxUsers) users)")
+                                                    .font(.caption)
+                                                    .foregroundStyle(.secondary)
+                                            }
+                                            if !ping.version.isEmpty {
+                                                Text("[\(ping.version)]")
+                                                    .font(.caption2)
+                                                    .foregroundStyle(.secondary)
+                                            }
+                                        } else if pingFailed {
+                                            Text("Server Offline / Unreachable")
+                                                .font(.subheadline.bold())
+                                                .foregroundStyle(.red)
+                                        } else {
+                                            Text("Checking server status...")
+                                                .font(.subheadline)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                    }
+                                }
+
+                                Spacer()
+
+                                Button(action: {
+                                    Task {
+                                        await store.pingBookmark(bm)
+                                    }
+                                }) {
+                                    Label("Check Status", systemImage: "arrow.clockwise")
+                                        .font(.caption2)
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                                .help("Test reachability and update ping")
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
                         }
 
                         // Form Fields
@@ -284,6 +369,9 @@ public struct ServerConnectSheet: View {
     private func selectBookmark(_ bm: ServerBookmark) {
         selectedBookmarkId = bm.id
         loadForm(bm)
+        Task {
+            await store.pingBookmark(bm)
+        }
     }
 
     private func loadForm(_ bm: ServerBookmark) {
@@ -321,9 +409,6 @@ public struct ServerConnectSheet: View {
         )
         store.addBookmark(newBm)
         selectBookmark(newBm)
-        Task {
-            await store.pingBookmark(newBm)
-        }
     }
 
     private func duplicateSelectedBookmark() {
@@ -339,9 +424,6 @@ public struct ServerConnectSheet: View {
         )
         store.addBookmark(copy)
         selectBookmark(copy)
-        Task {
-            await store.pingBookmark(copy)
-        }
     }
 
     private func deleteSelectedBookmark() {
@@ -365,7 +447,7 @@ public struct ServerConnectSheet: View {
 
 struct BookmarkRow: View {
     let bookmark: ServerBookmark
-    let store: MumbleStore
+    @Bindable var store: MumbleStore
     var onConnect: (() -> Void)? = nil
 
     private var pingKey: String {
@@ -466,7 +548,7 @@ struct BookmarkRow: View {
                 onConnect?()
             }
         )
-        .task(id: pingKey) {
+        .task(id: "\(pingKey)-\(isCurrentlyConnected)") {
             if isCurrentlyConnected { return }
             await store.pingBookmark(bookmark)
         }

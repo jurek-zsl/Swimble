@@ -1,0 +1,19 @@
+{
+  "background": "Swimble-DMG-Background.tiff",
+  "contentSize": {
+    "width": 800,
+    "height": 500
+  },
+  "iconSize": 128,
+  "labelPosition": "bottom",
+  "iconCenters": {
+    "Swimble.app": [
+      230,
+      312
+    ],
+    "Applications": [
+      570,
+      312
+    ]
+  }
+}

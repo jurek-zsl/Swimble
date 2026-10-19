@@ -1688,6 +1688,64 @@ public func FfiConverterTypeRegisteredUser_lower(_ value: RegisteredUser) -> Rus
 }
 
 
+public struct ResolvedEndpoint: Equatable, Hashable {
+    public var host: String
+    public var port: UInt16
+    public var isSrv: Bool
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(host: String, port: UInt16, isSrv: Bool) {
+        self.host = host
+        self.port = port
+        self.isSrv = isSrv
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension ResolvedEndpoint: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeResolvedEndpoint: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ResolvedEndpoint {
+        return
+            try ResolvedEndpoint(
+                host: FfiConverterString.read(from: &buf), 
+                port: FfiConverterUInt16.read(from: &buf), 
+                isSrv: FfiConverterBool.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: ResolvedEndpoint, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.host, into: &buf)
+        FfiConverterUInt16.write(value.port, into: &buf)
+        FfiConverterBool.write(value.isSrv, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeResolvedEndpoint_lift(_ buf: RustBuffer) throws -> ResolvedEndpoint {
+    return try FfiConverterTypeResolvedEndpoint.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeResolvedEndpoint_lower(_ value: ResolvedEndpoint) -> RustBuffer {
+    return FfiConverterTypeResolvedEndpoint.lower(value)
+}
+
+
 public struct ServerConnectionInfo: Equatable, Hashable {
     public var serverVersion: String
     public var serverOs: String
@@ -3167,6 +3225,24 @@ public func importIdentityFromPkcs12(p12Bytes: Data, password: String)throws  ->
     )
 })
 }
+/**
+ * Resolves the single primary endpoint for a Mumble host via DNS SRV (`_mumble._tcp.<host>`).
+ */
+public func resolveMumbleSrv(host: String, port: UInt16)async  -> ResolvedEndpoint  {
+    return
+        try!  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_mumble_core_fn_func_resolve_mumble_srv(FfiConverterString.lower(host),FfiConverterUInt16.lower(port)
+                )
+            },
+            pollFunc: ffi_mumble_core_rust_future_poll_rust_buffer,
+            completeFunc: ffi_mumble_core_rust_future_complete_rust_buffer,
+            freeFunc: ffi_mumble_core_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeResolvedEndpoint_lift,
+            errorHandler: nil
+            
+        )
+}
 public func pingMumbleServer(host: String, port: UInt16, timeoutMs: UInt64)async throws  -> ServerPingInfo  {
     return
         try  await uniffiRustCallAsync(
@@ -3207,6 +3283,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_mumble_core_checksum_func_import_identity_from_pkcs12() != 27912) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_mumble_core_checksum_func_resolve_mumble_srv() != 42716) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_mumble_core_checksum_func_ping_mumble_server() != 61090) {

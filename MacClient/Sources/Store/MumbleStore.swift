@@ -82,7 +82,13 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
            let bm = bookmarks.first(where: { $0.id == uuid }) {
             return bm
         }
-        return bookmarks.first(where: { $0.isFavorite }) ?? bookmarks.first
+        if let fav = bookmarks.first(where: { $0.isFavorite }) {
+            return fav
+        }
+        if let onlineBm = bookmarks.first(where: { serverPingResults[pingKey(for: $0)] != nil }) {
+            return onlineBm
+        }
+        return bookmarks.first
     }
     public var clientIdentity: ClientIdentity!
     public var certFingerprint: String = ""
@@ -311,6 +317,11 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
         self.activeBookmark = bookmark
         self.connectionStatus = .connecting
         UserDefaults.standard.set(bookmark.id.uuidString, forKey: "Swimble_LastUsedBookmarkId")
+
+        // Trigger immediate reachability ping for fresh latency/status info
+        Task { [weak self] in
+            await self?.pingBookmark(bookmark)
+        }
 
         // Resolve password from Keychain if present
         let password = bookmark.password ?? KeychainHelper.loadServerPassword(bookmarkId: bookmark.id)
@@ -744,13 +755,17 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
 
     // MARK: - Server Ping Operations
 
-    public static func pingKey(host: String, port: UInt16) -> String {
+    public static func cleanServerHost(_ host: String) -> String {
         let clean = host.trimmingCharacters(in: .whitespacesAndNewlines)
             .replacingOccurrences(of: "mumble://", with: "")
             .replacingOccurrences(of: "https://", with: "")
             .replacingOccurrences(of: "http://", with: "")
-            .lowercased()
         let cleanHost = clean.components(separatedBy: ":").first ?? clean
+        return cleanHost.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    public static func pingKey(host: String, port: UInt16) -> String {
+        let cleanHost = cleanServerHost(host).lowercased()
         return "\(cleanHost):\(port)"
     }
 
@@ -759,7 +774,7 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
     }
 
     public func pingBookmark(_ bookmark: ServerBookmark) async {
-        let cleanHost = bookmark.host.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanHost = Self.cleanServerHost(bookmark.host)
         guard !cleanHost.isEmpty else { return }
         let key = pingKey(for: bookmark)
 
@@ -780,11 +795,15 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
     public func pingAllBookmarks() {
         guard !isPingingServers else { return }
         isPingingServers = true
-        let list = self.bookmarks
+        var list = self.bookmarks
+        if let last = self.lastUsedBookmark, let idx = list.firstIndex(where: { $0.id == last.id }), idx > 0 {
+            list.remove(at: idx)
+            list.insert(last, at: 0)
+        }
         Task { [weak self] in
             await withTaskGroup(of: (String, ServerPingInfo?).self) { group in
                 for bookmark in list {
-                    let cleanHost = bookmark.host.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let cleanHost = Self.cleanServerHost(bookmark.host)
                     guard !cleanHost.isEmpty else { continue }
                     let port = bookmark.port
                     let key = Self.pingKey(host: cleanHost, port: port)

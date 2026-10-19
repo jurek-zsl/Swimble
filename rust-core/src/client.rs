@@ -200,26 +200,49 @@ impl MumbleClient {
         let self_priority_for_udp = Arc::clone(&self.self_priority_transmitting);
         let self_priority_for_tcp = Arc::clone(&self.self_priority_transmitting);
 
-        let host_for_udp = host.clone();
         let initial_tokens = self.tokens.read().unwrap().clone();
 
         self.runner.spawn(async move {
-            let tls_stream = match connect_tls(
-                &host,
-                port,
-                client_cert_pem.as_deref(),
-                client_key_pem.as_deref(),
-            )
-            .await
-            {
-                Ok(s) => s,
-                Err(e) => {
-                    eprintln!("Mumble TLS connection error: {:?}", e);
+            let endpoints = crate::dns::resolve_mumble_endpoints(&host, port).await;
+            let mut last_tls_error = None;
+            let mut connected_stream = None;
+            let mut connected_host = host.clone();
+            let mut connected_port = port;
+
+            for ep in endpoints {
+                if ep.is_srv {
+                    println!("[Swimble] Connecting via DNS SRV target: {}:{}", ep.host, ep.port);
+                }
+                match connect_tls(
+                    &ep.host,
+                    ep.port,
+                    client_cert_pem.as_deref(),
+                    client_key_pem.as_deref(),
+                ).await {
+                    Ok(s) => {
+                        connected_host = ep.host;
+                        connected_port = ep.port;
+                        connected_stream = Some(s);
+                        break;
+                    }
+                    Err(e) => {
+                        last_tls_error = Some(e);
+                    }
+                }
+            }
+
+            let tls_stream = match connected_stream {
+                Some(s) => s,
+                None => {
+                    let err = last_tls_error.unwrap_or_else(|| std::io::Error::new(std::io::ErrorKind::NotConnected, "No reachable endpoint"));
+                    eprintln!("Mumble TLS connection error: {:?}", err);
                     state_arc.write().unwrap().connection_status = ConnectionStatus::Failed;
                     handler_arc.on_connection_status_changed(ConnectionStatus::Failed);
                     return;
                 }
             };
+            let host_for_udp = connected_host;
+            let port_for_udp = connected_port;
 
             let cipher_name = tls_stream
                 .get_ref()
@@ -953,7 +976,7 @@ impl MumbleClient {
 
                                             // Setup non-blocking UDP socket connected to Murmur server
                                             if let Ok(udp) = UdpSocket::bind("0.0.0.0:0").await {
-                                                let target_addr = format!("{}:{}", host_for_udp, port);
+                                                let target_addr = format!("{}:{}", host_for_udp, port_for_udp);
                                                 if udp.connect(&target_addr).await.is_ok() {
                                                     let udp_shared = Arc::new(udp);
                                                     *udp_socket_holder.write().unwrap() = Some(Arc::clone(&udp_shared));

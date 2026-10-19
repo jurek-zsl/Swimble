@@ -9,6 +9,7 @@ pub mod cert;
 pub mod client;
 pub mod connection;
 pub mod crypt_ocb2;
+pub mod dns;
 pub mod framing;
 pub mod ping;
 pub mod state;
@@ -19,6 +20,7 @@ pub use cert::{
     ClientIdentity,
 };
 pub use client::MumbleClient;
+pub use dns::{resolve_mumble_srv, ResolvedEndpoint};
 pub use ping::ping_mumble_server;
 
 #[derive(uniffi::Error, Debug, PartialEq)]

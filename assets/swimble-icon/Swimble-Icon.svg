@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+<title id="title">Swimble</title>
+<desc id="desc">A mint M-shaped Mumble headset around a coral swift on a solid petrol tile.</desc>
+<rect id="petrol-tile" x="64" y="64" width="896" height="896" rx="205" fill="#123F46"/>
+<path id="mumble-m-headband" d="M 285 475 L 285 352 C 285 286 330 248 401 248 L 401 329 C 401 383 435 410 512 410 C 589 410 623 383 623 329 L 623 248 C 694 248 739 286 739 352 L 739 475" fill="none" stroke="#C8F2D8" stroke-width="48" stroke-linecap="round" stroke-linejoin="round"/>
+<path id="microphone-boom" d="M 739 636 L 739 666 C 739 724 683 752 616 752 L 556 752" fill="none" stroke="#C8F2D8" stroke-width="25" stroke-linecap="round" stroke-linejoin="round"/>
+<rect id="left-ear-cushion" x="244" y="461" width="82" height="204" rx="37" fill="#C8F2D8"/>
+<rect id="right-ear-cushion" x="698" y="461" width="82" height="204" rx="37" fill="#C8F2D8"/>
+<path id="swift-bird" d="M 374.2 469.2 C 418.2 510.0 455.8 535.6 490.2 547.6 C 461.4 512.4 442.2 479.6 433.4 455.6 C 479.8 501.2 519.8 533.2 560.6 550.0 C 583.8 524.4 591.8 497.2 578.2 468.4 C 627.8 503.6 651.0 551.6 632.6 586.8 C 651.8 598.0 663.8 616.4 666.2 635.6 C 643.0 619.6 625.4 611.6 610.2 610.0 C 553.4 659.6 464.6 648.4 411.8 601.2 C 450.2 617.2 488.6 617.2 521.4 601.2 C 458.2 574.8 401.4 519.6 374.2 469.2 Z" fill="#FF825F"/>
+<rect id="microphone-capsule" x="488" y="727" width="112" height="50" rx="25" fill="#C8F2D8"/>
+</svg>

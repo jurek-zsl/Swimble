@@ -1,7 +1,7 @@
 # Swimble
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/AvdLee/SwiftUI-Agent-Skill/main/assets/banner.png" alt="Swimble Banner" width="700" style="border-radius: 12px;"/>
+  <img src="assets/swimble-banner/Swimble-Banner.png" alt="Swimble — Mumble voice chat. Native to macOS." width="700"/>
 </p>
 
 <p align="center">

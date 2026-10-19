@@ -24,6 +24,7 @@
 		2C95187369DE7CDE894F1122 /* libmumble_core.a in Frameworks */ = {isa = PBXBuildFile; fileRef = D8F6FDC552592B89A0AFC0E3 /* libmumble_core.a */; };
 		2D4BEFCBD407ACC44D89391E /* NetworkSettingsTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = D896DDF54AD8EDA605DD07E3 /* NetworkSettingsTab.swift */; };
 		31607922D299153BF65E6C09 /* SettingsState.swift in Sources */ = {isa = PBXBuildFile; fileRef = E997A0E907756CE5B5E4CE8C /* SettingsState.swift */; };
+		33709A77ADA99645D26CB514 /* Swimble.icns in Resources */ = {isa = PBXBuildFile; fileRef = 1B79EB2F7D1D607D69BB4FAD /* Swimble.icns */; };
 		3C1D0E3F827064A7DA8B55BF /* ServerConnectSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE6E22E77DE84EE1F67ED920 /* ServerConnectSheet.swift */; };
 		3D31DE6D2BB3985B64EE178E /* AudioWizardModal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72D28EFA9EEE6D487F58B435 /* AudioWizardModal.swift */; };
 		3ED5CEBC64C0E2E769168BFE /* MumistPublicServersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54C1D152596BF8393C081D33 /* MumistPublicServersView.swift */; };
@@ -44,9 +45,11 @@
 		939FE2124252397C0EA22380 /* AudioInputSettingsTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25FEE7D6B6281DDE4BDD8660 /* AudioInputSettingsTab.swift */; };
 		94E3A43492A19643FE39FF8C /* GeneralSettingsTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DBA6C1381F4384703C77CBA /* GeneralSettingsTab.swift */; };
 		99B13F9EC5DF3B69962E66F1 /* OverlaySettingsModal.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC56BA7EC71874FC4A157C2F /* OverlaySettingsModal.swift */; };
+		A759CCA92346E0310958C402 /* SystemConfiguration.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7C94C2C72102F10038ADCA8F /* SystemConfiguration.framework */; };
 		A7675A834373E97F10CC88C2 /* AudioRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = A486915DB41767B0D66C9F44 /* AudioRecorder.swift */; };
 		AA64A68DAFE6C49117EFDDD4 /* ChannelRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEA6C7D03FA5BEA5BB8BE052 /* ChannelRowView.swift */; };
 		ABEB616D0EB07E43AA80D58D /* ServerBookmark.swift in Sources */ = {isa = PBXBuildFile; fileRef = C13C038913297A3FE49E3863 /* ServerBookmark.swift */; };
+		B35F04A14DC296B02E3CE76C /* Swimble.icon in Resources */ = {isa = PBXBuildFile; fileRef = 221070C80C354D619C4ACB87 /* Swimble.icon */; };
 		B3B4C24BA2DA86DFB2414D28 /* MumbleURLParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5715ABDF1F49ADF03C58457 /* MumbleURLParser.swift */; };
 		B7FEBD69DA5F9D581B6BA403 /* AirPodsAudioLock.swift in Sources */ = {isa = PBXBuildFile; fileRef = B57B5BE9226854864653B2EA /* AirPodsAudioLock.swift */; };
 		B9B1A69E2E28A622498DF550 /* FloatingVoiceHUD.swift in Sources */ = {isa = PBXBuildFile; fileRef = 056BE1AC86EFA30EC46854F4 /* FloatingVoiceHUD.swift */; };
@@ -80,7 +83,9 @@
 		0E13181C0A3D7784E5BA1981 /* UserRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserRowView.swift; sourceTree = "<group>"; };
 		0E8170BD8B1AB9190553D093 /* ServerInformationModal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerInformationModal.swift; sourceTree = "<group>"; };
 		10389079B3AED4788E13A3CD /* MumbleStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MumbleStore.swift; sourceTree = "<group>"; };
+		1B79EB2F7D1D607D69BB4FAD /* Swimble.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = Swimble.icns; sourceTree = "<group>"; };
 		1CE5F6B9E39F18B4350B0637 /* UserInterfaceSettingsTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserInterfaceSettingsTab.swift; sourceTree = "<group>"; };
+		221070C80C354D619C4ACB87 /* Swimble.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = Swimble.icon; sourceTree = "<group>"; };
 		25FEE7D6B6281DDE4BDD8660 /* AudioInputSettingsTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioInputSettingsTab.swift; sourceTree = "<group>"; };
 		26C509DE6A305D83F7496221 /* Swimble.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Swimble.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		2D396A33F11564A1B200D65E /* OverlaySettingsTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlaySettingsTab.swift; sourceTree = "<group>"; };
@@ -106,6 +111,7 @@
 		75882538A16F9965C4A2FB93 /* MumistServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MumistServer.swift; sourceTree = "<group>"; };
 		76460BAEDDDBDF6FCA5BCA5C /* ShortcutsSettingsTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutsSettingsTab.swift; sourceTree = "<group>"; };
 		7AB377838FC88B339CD7CF7B /* AccessTokensModal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessTokensModal.swift; sourceTree = "<group>"; };
+		7C94C2C72102F10038ADCA8F /* SystemConfiguration.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SystemConfiguration.framework; path = System/Library/Frameworks/SystemConfiguration.framework; sourceTree = SDKROOT; };
 		7D33FD6E755DD4CACB3900E2 /* BanListModal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BanListModal.swift; sourceTree = "<group>"; };
 		7F1174DCF0B8BD3291AC54DB /* MumistService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MumistService.swift; sourceTree = "<group>"; };
 		800F4E30AAC0ECCA5750B0CA /* FloatingOverlayWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingOverlayWindow.swift; sourceTree = "<group>"; };
@@ -148,6 +154,7 @@
 				E41A216900C75FABD2AB9EFA /* AVFoundation.framework in Frameworks */,
 				E3353E6AF351FE9465F07F38 /* CoreAudio.framework in Frameworks */,
 				1B85E328D40EE4EE8A6DDC95 /* Security.framework in Frameworks */,
+				A759CCA92346E0310958C402 /* SystemConfiguration.framework in Frameworks */,
 				2C95187369DE7CDE894F1122 /* libmumble_core.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -201,6 +208,15 @@
 			path = Store;
 			sourceTree = "<group>";
 		};
+		853B8E10621AA9E82F4F5C69 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				1B79EB2F7D1D607D69BB4FAD /* Swimble.icns */,
+				221070C80C354D619C4ACB87 /* Swimble.icon */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
 		95F113172C94CF1A9DE0B8A2 /* Utils */ = {
 			isa = PBXGroup;
 			children = (
@@ -216,6 +232,7 @@
 			isa = PBXGroup;
 			children = (
 				E14C01F715C41F6BC7BB83FF /* Generated */,
+				853B8E10621AA9E82F4F5C69 /* Resources */,
 				F35A69535FD51E002354449D /* Sources */,
 				E06ADF77433F66BD42733E94 /* Frameworks */,
 				5725E53BA4AEE426B50AB089 /* Products */,
@@ -260,6 +277,7 @@
 				95D67961E1365E062F455260 /* CoreAudio.framework */,
 				D8F6FDC552592B89A0AFC0E3 /* libmumble_core.a */,
 				2EFFD1440A493EFEB411994B /* Security.framework */,
+				7C94C2C72102F10038ADCA8F /* SystemConfiguration.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -337,6 +355,7 @@
 			buildConfigurationList = AE8AC48C4871C718C169B6DE /* Build configuration list for PBXNativeTarget "Swimble" */;
 			buildPhases = (
 				B1F479BB8CAE4843C13EF7BE /* Sources */,
+				D3FA3E08C0A30F067763825E /* Resources */,
 				71665B2A1666CA6653F3C56B /* Frameworks */,
 			);
 			buildRules = (
@@ -379,6 +398,18 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		D3FA3E08C0A30F067763825E /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				33709A77ADA99645D26CB514 /* Swimble.icns in Resources */,
+				B35F04A14DC296B02E3CE76C /* Swimble.icon in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		B1F479BB8CAE4843C13EF7BE /* Sources */ = {
@@ -508,7 +539,7 @@
 		8853D884CA0752B9EDF3FC58 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = Swimble;
 				CODE_SIGNING_ALLOWED = YES;
 				CODE_SIGNING_REQUIRED = NO;
 				CODE_SIGN_IDENTITY = "-";
@@ -553,7 +584,7 @@
 		B98B882F8328F7C9A439DE0C /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = Swimble;
 				CODE_SIGNING_ALLOWED = YES;
 				CODE_SIGNING_REQUIRED = NO;
 				CODE_SIGN_IDENTITY = "-";

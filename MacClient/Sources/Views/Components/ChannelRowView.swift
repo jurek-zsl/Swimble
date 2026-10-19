@@ -13,6 +13,10 @@ public struct ChannelRowView: View {
 
     @State private var showingEditDescModal = false
     @State private var showDescriptionPopover = false
+    @State private var isPinnedOpen = false
+    @State private var isHoveringRow = false
+    @State private var isHoveringPopover = false
+    @State private var hoverTask: Task<Void, Never>? = nil
     @State private var showingRemoveAlert = false
 
     public init(store: MumbleStore, channel: ChannelInfo, userCount: Int) {
@@ -36,10 +40,6 @@ public struct ChannelRowView: View {
         !channel.canEnter
     }
 
-    private var isUnlockedRestricted: Bool {
-        channel.canEnter && (channel.isEnterRestricted || store.previouslyLockedChannelIds.contains(channel.id))
-    }
-
     @ViewBuilder
     private var descriptionPopoverContent: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -51,6 +51,7 @@ public struct ChannelRowView: View {
                     .lineLimit(1)
                 Spacer()
                 Button {
+                    isPinnedOpen = false
                     showDescriptionPopover = false
                 } label: {
                     Image(systemName: "xmark.circle.fill")
@@ -70,6 +71,18 @@ public struct ChannelRowView: View {
         .frame(minWidth: 360, idealWidth: 420, maxWidth: 520)
         .frame(minHeight: 120, maxHeight: 460)
         .lineLimit(nil)
+        .onHover { inPopover in
+            isHoveringPopover = inPopover
+            if !inPopover && !isHoveringRow && !isPinnedOpen {
+                hoverTask?.cancel()
+                hoverTask = Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(250))
+                    if !Task.isCancelled && !isHoveringRow && !isHoveringPopover && !isPinnedOpen {
+                        showDescriptionPopover = false
+                    }
+                }
+            }
+        }
     }
 
     public var body: some View {
@@ -87,7 +100,7 @@ public struct ChannelRowView: View {
                     .font(.caption2)
                     .foregroundStyle(.red)
                     .help("Locked channel: You cannot enter this channel")
-            } else if isUnlockedRestricted {
+            } else {
                 Image(systemName: "lock.open.fill")
                     .font(.caption2)
                     .foregroundStyle(.green)
@@ -112,16 +125,16 @@ public struct ChannelRowView: View {
 
             // Description Badge with Rich Popover
             if !channel.description.isEmpty {
-                Button(action: { showDescriptionPopover.toggle() }) {
+                Button(action: {
+                    isPinnedOpen = true
+                    showDescriptionPopover.toggle()
+                }) {
                     Image(systemName: containsImages(channel.description) ? "photo.on.rectangle.angled" : "info.circle")
                         .font(.caption2)
                         .foregroundStyle(containsImages(channel.description) ? store.accentTint : Color.secondary)
                 }
                 .buttonStyle(.plain)
                 .help(containsImages(channel.description) ? "Channel Description (Contains Images)" : "Channel Description")
-                .popover(isPresented: $showDescriptionPopover, arrowEdge: .trailing) {
-                    descriptionPopoverContent
-                }
             }
 
             Spacer()
@@ -138,6 +151,36 @@ public struct ChannelRowView: View {
         .padding(.vertical, 4)
         .padding(.horizontal, 6)
         .contentShape(Rectangle())
+        .popover(isPresented: $showDescriptionPopover, arrowEdge: .trailing) {
+            descriptionPopoverContent
+        }
+        .onHover { hovering in
+            isHoveringRow = hovering
+            hoverTask?.cancel()
+            if hovering {
+                guard !channel.description.isEmpty else { return }
+                hoverTask = Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(350))
+                    if !Task.isCancelled && isHoveringRow {
+                        showDescriptionPopover = true
+                    }
+                }
+            } else {
+                guard !isPinnedOpen else { return }
+                hoverTask = Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(250))
+                    if !Task.isCancelled && !isHoveringRow && !isHoveringPopover && !isPinnedOpen {
+                        showDescriptionPopover = false
+                    }
+                }
+            }
+        }
+        .onChange(of: showDescriptionPopover) { _, newValue in
+            if !newValue {
+                isPinnedOpen = false
+                hoverTask?.cancel()
+            }
+        }
         .dropDestination(for: String.self) { items, _ in
             guard let first = items.first, let sessionId = UInt32(first) else { return false }
             store.moveUser(sessionId: sessionId, channelId: channel.id)

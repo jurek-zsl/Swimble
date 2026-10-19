@@ -11,10 +11,20 @@ targets:
     sources:
       - Sources
       - Generated/mumble_core.swift
+      - path: Resources/Swimble.icon
+        type: file
+        buildPhase: resources
+      - path: Resources/Swimble.icns
+        type: file
+        buildPhase: resources
     info:
       path: Info.plist
       properties:
         CFBundleDisplayName: "Swimble"
+        CFBundleIconName: "Swimble"
+        CFBundleIconFile: "Swimble"
+        CFBundleShortVersionString: "1.1.0"
+        CFBundleVersion: "2"
         NSMicrophoneUsageDescription: "Swimble requires microphone access for voice chat."
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: true
@@ -27,11 +37,13 @@ targets:
       - sdk: AVFoundation.framework
       - sdk: CoreAudio.framework
       - sdk: Security.framework
+      - sdk: SystemConfiguration.framework
       - framework: Generated/libmumble_core.a
         embed: false
     settings:
       base:
         PRODUCT_NAME: Swimble
+        ASSETCATALOG_COMPILER_APPICON_NAME: Swimble
         PRODUCT_BUNDLE_IDENTIFIER: com.swimble.Swimble
         MACOSX_DEPLOYMENT_TARGET: "26.0"
         SWIFT_VERSION: "6.0"
