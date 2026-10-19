@@ -115,11 +115,6 @@ final class UserContextMenuNSView: NSView {
                 menu.addItem(NSMenuItem.separator())
             }
 
-            let chatTabItem = NSMenuItem(title: "Open Chat Tab", action: #selector(handleOpenChatTab), keyEquivalent: "")
-            chatTabItem.target = self
-            chatTabItem.image = NSImage(systemSymbolName: "bubble.left.and.bubble.right", accessibilityDescription: nil)
-            menu.addItem(chatTabItem)
-
             let pmItem = NSMenuItem(title: "Send Private Message...", action: #selector(handlePrivateMessage), keyEquivalent: "")
             pmItem.target = self
             menu.addItem(pmItem)
@@ -241,11 +236,6 @@ final class UserContextMenuNSView: NSView {
 
     @objc private func handleAvatar() {
         onAvatar?()
-    }
-
-    @objc private func handleOpenChatTab() {
-        guard let user = user else { return }
-        store?.openDirectChat(sessionId: user.sessionId, userName: user.name)
     }
 
     @objc private func handlePrivateMessage() {

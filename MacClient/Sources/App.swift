@@ -14,7 +14,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        if SettingsState.shared.displayQuitConfirmation, let store = MumbleStore.shared, store.connectionStatus == .connected {
+        let anyConnected = MumbleStore.activeStores.contains(where: { $0.connectionStatus == .connected })
+        if SettingsState.shared.displayQuitConfirmation && anyConnected {
             let alert = NSAlert()
             alert.messageText = "Quit Swimble?"
             alert.informativeText = "You are currently connected to a server. Are you sure you want to disconnect and quit?"
@@ -27,23 +28,45 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         if SettingsState.shared.clearChatWindowOnExit {
-            MumbleStore.shared?.chatMessages.removeAll()
+            for s in MumbleStore.activeStores {
+                s.chatMessages.removeAll()
+            }
         }
         return .terminateNow
     }
 }
 
+// MARK: - Focused Value for Active Window Store
+
+struct FocusedMumbleStoreKey: FocusedValueKey {
+    typealias Value = MumbleStore
+}
+
+extension FocusedValues {
+    var mumbleStore: MumbleStore? {
+        get { self[FocusedMumbleStoreKey.self] }
+        set { self[FocusedMumbleStoreKey.self] = newValue }
+    }
+}
+
+// MARK: - Main Application
+
 @main
 struct SwimbleApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
-    @State private var store = MumbleStore()
+    @FocusedValue(\.mumbleStore) private var focusedStore: MumbleStore?
+
+    private var activeStore: MumbleStore? {
+        focusedStore ?? MumbleStore.shared
+    }
 
     private var trayIcon: String {
-        if SettingsState.shared.showTalkingStatusInTray && (store.audioEngine?.isTransmitting == true || store.users.contains(where: { $0.isTalking })) {
+        let store = activeStore
+        if SettingsState.shared.showTalkingStatusInTray && (store?.audioEngine?.isTransmitting == true || store?.users.contains(where: { $0.isTalking }) == true) {
             return "mic.fill"
-        } else if store.isSelfMuted {
+        } else if store?.isSelfMuted == true {
             return "mic.slash.fill"
-        } else if store.connectionStatus == .connected {
+        } else if store?.connectionStatus == .connected {
             return "waveform.circle.fill"
         } else {
             return "waveform.circle"
@@ -51,113 +74,124 @@ struct SwimbleApp: App {
     }
 
     var body: some Scene {
-        // Main Application Window
+        // Main Application Window (Multi-Server Tab / Window Support)
         WindowGroup("Swimble") {
-            ServerSplitView(store: store)
-                .frame(minWidth: 820, minHeight: 540)
+            ServerWindowView()
         }
         .windowStyle(.titleBar)
         .windowToolbarStyle(.unified)
         .commands {
+            CommandGroup(replacing: .newItem) {
+                Button("New Server Tab") {
+                    NSApp.sendAction(#selector(NSWindow.newWindowForTab(_:)), to: nil, from: nil)
+                }
+                .keyboardShortcut("t", modifiers: .command)
+
+                Button("New Server Window") {
+                    NSApp.sendAction(#selector(NSDocumentController.newDocument(_:)), to: nil, from: nil)
+                }
+                .keyboardShortcut("n", modifiers: .command)
+            }
+
             CommandMenu("Server") {
                 Button("Connect...") {
-                    store.activeModal = .serverConnect
+                    activeStore?.activeModal = .serverConnect
                 }
                 .keyboardShortcut("o", modifiers: [.command])
 
                 Button("Disconnect") {
-                    store.disconnect()
+                    activeStore?.disconnect()
                 }
                 .keyboardShortcut("d", modifiers: [.command])
-                .disabled(store.connectionStatus != .connected)
+                .disabled(activeStore?.connectionStatus != .connected)
 
                 Divider()
 
                 Button("Information") {
-                    store.activeModal = .serverInfo
+                    activeStore?.activeModal = .serverInfo
                 }
                 .keyboardShortcut("i", modifiers: [.command])
-                .disabled(store.connectionStatus != .connected)
+                .disabled(activeStore?.connectionStatus != .connected)
 
                 Button("Access Tokens...") {
-                    store.activeModal = .accessTokens
+                    activeStore?.activeModal = .accessTokens
                 }
-                .disabled(store.connectionStatus != .connected)
+                .disabled(activeStore?.connectionStatus != .connected)
 
                 Button("Registered Users...") {
-                    store.activeModal = .registeredUsers
+                    activeStore?.activeModal = .registeredUsers
                 }
-                .disabled(store.connectionStatus != .connected)
+                .disabled(activeStore?.connectionStatus != .connected)
 
                 Button("Ban List...") {
-                    store.activeModal = .banList
+                    activeStore?.activeModal = .banList
                 }
-                .disabled(store.connectionStatus != .connected)
+                .disabled(activeStore?.connectionStatus != .connected)
             }
 
             CommandMenu("Self") {
-                Button(store.isSelfMuted ? "Unmute Self" : "Mute Self") {
-                    store.toggleSelfMute()
+                Button(activeStore?.isSelfMuted == true ? "Unmute Self" : "Mute Self") {
+                    activeStore?.toggleSelfMute()
                 }
                 .keyboardShortcut("m", modifiers: [.command, .shift])
 
-                Button(store.isSelfDeafened ? "Undeafen Self" : "Deafen Self") {
-                    store.toggleSelfDeaf()
+                Button(activeStore?.isSelfDeafened == true ? "Undeafen Self" : "Deafen Self") {
+                    activeStore?.toggleSelfDeaf()
                 }
                 .keyboardShortcut("d", modifiers: [.command, .shift])
 
                 Divider()
 
-                Button(store.isMyPrioritySpeaker ? "Disable Priority Speaker" : "Enable Priority Speaker") {
-                    store.toggleSelfPrioritySpeaker()
+                Button(activeStore?.isMyPrioritySpeaker == true ? "Disable Priority Speaker" : "Enable Priority Speaker") {
+                    activeStore?.toggleSelfPrioritySpeaker()
                 }
-                .disabled(store.connectionStatus != .connected)
+                .disabled(activeStore?.connectionStatus != .connected)
 
-                Button(store.isRecordingAudio ? "Stop Recording" : "Start Recording") {
-                    store.toggleAudioRecording()
+                Button(activeStore?.isRecordingAudio == true ? "Stop Recording" : "Start Recording") {
+                    activeStore?.toggleAudioRecording()
                 }
                 .keyboardShortcut("r", modifiers: [.command, .shift])
 
                 Divider()
 
                 Button("Change Comment...") {
-                    store.activeModal = .changeComment
+                    activeStore?.activeModal = .changeComment
                 }
-                .disabled(store.connectionStatus != .connected)
+                .disabled(activeStore?.connectionStatus != .connected)
 
                 Button("Remove Avatar") {
-                    store.removeAvatar()
+                    activeStore?.removeAvatar()
                 }
-                .disabled(store.connectionStatus != .connected)
+                .disabled(activeStore?.connectionStatus != .connected)
 
-                Button(store.isSelfRegistered ? "Registered" : "Register...") {
-                    store.registerSelf()
+                Button(activeStore?.isSelfRegistered == true ? "Registered" : "Register...") {
+                    activeStore?.registerSelf()
                 }
-                .disabled(store.connectionStatus != .connected || store.isSelfRegistered)
+                .disabled(activeStore?.connectionStatus != .connected || activeStore?.isSelfRegistered == true)
 
                 Divider()
 
                 Button("Audio Statistics...") {
-                    store.activeModal = .audioStatistics
+                    activeStore?.activeModal = .audioStatistics
                 }
                 .keyboardShortcut("s", modifiers: [.command, .option])
             }
 
             CommandMenu("Configure") {
                 Button("Audio Wizard...") {
-                    store.activeModal = .audioWizard
+                    activeStore?.activeModal = .audioWizard
                 }
 
                 Button("Certificate Wizard...") {
-                    store.activeModal = .certificateWizard
+                    activeStore?.activeModal = .certificateWizard
                 }
 
                 Button("Text-to-Speech (TTS)...") {
-                    store.activeModal = .ttsSettings
+                    activeStore?.activeModal = .ttsSettings
                 }
 
                 Button("Overlay...") {
-                    store.activeModal = .overlaySettings
+                    activeStore?.activeModal = .overlaySettings
                 }
 
                 Divider()
@@ -171,164 +205,172 @@ struct SwimbleApp: App {
 
         // Native Dedicated Settings Window (Cmd+,)
         Settings {
-            SettingsView(store: store)
+            if let store = activeStore {
+                SettingsView(store: store)
+            } else {
+                Text("No active session")
+                    .padding(40)
+            }
         }
 
         // Menu Bar Companion for Gaming & Background Control
         MenuBarExtra("Swimble", systemImage: trayIcon) {
-            // Connection & Channel Status
-            if store.connectionStatus == .connected {
-                Text(store.activeBookmark?.name ?? "Connected")
-                if let channelId = store.myChannelId {
-                    Text("#\(store.channelName(for: channelId))")
-                }
-            } else if store.connectionStatus == .connecting {
-                Text("Connecting...")
-            } else {
-                Text("Disconnected")
-            }
-
-            if SettingsState.shared.showUserNameWhenTalking {
-                let talkingUsers = store.users.filter { $0.isTalking }.map { $0.name }
-                if !talkingUsers.isEmpty {
-                    Text("🗣️ " + talkingUsers.joined(separator: ", "))
-                        .font(.caption)
-                }
-            }
-
-            Divider()
-
-            // Server Submenu
-            Menu("Server") {
+            if let store = activeStore {
+                // Connection & Channel Status
                 if store.connectionStatus == .connected {
-                    Button("Disconnect") {
-                        store.disconnect()
+                    Text(store.activeBookmark?.name ?? "Connected")
+                    if let channelId = store.myChannelId {
+                        Text("#\(store.channelName(for: channelId))")
                     }
-                } else if let firstBm = store.bookmarks.first {
-                    Button("Connect to \(firstBm.name)") {
-                        store.connect(bookmark: firstBm)
-                    }
+                } else if store.connectionStatus == .connecting {
+                    Text("Connecting...")
+                } else {
+                    Text("Disconnected")
                 }
 
-                Button("Server List...") {
-                    store.activeModal = .serverConnect
+                if SettingsState.shared.showUserNameWhenTalking {
+                    let talkingUsers = store.users.filter { $0.isTalking }.map { $0.name }
+                    if !talkingUsers.isEmpty {
+                        Text("🗣️ " + talkingUsers.joined(separator: ", "))
+                            .font(.caption)
+                    }
                 }
 
                 Divider()
 
-                Button("Information") {
-                    store.activeModal = .serverInfo
-                }
-                .disabled(store.connectionStatus != .connected)
+                // Server Submenu
+                Menu("Server") {
+                    if store.connectionStatus == .connected {
+                        Button("Disconnect") {
+                            store.disconnect()
+                        }
+                    } else if let firstBm = store.bookmarks.first {
+                        Button("Connect to \(firstBm.name)") {
+                            store.connect(bookmark: firstBm)
+                        }
+                    }
 
-                Button("Access Tokens...") {
-                    store.activeModal = .accessTokens
-                }
-                .disabled(store.connectionStatus != .connected)
+                    Button("Server List...") {
+                        store.activeModal = .serverConnect
+                    }
 
-                Button("Registered Users...") {
-                    store.activeModal = .registeredUsers
-                }
-                .disabled(store.connectionStatus != .connected)
+                    Divider()
 
-                Button("Ban List...") {
-                    store.activeModal = .banList
-                }
-                .disabled(store.connectionStatus != .connected)
-            }
+                    Button("Information") {
+                        store.activeModal = .serverInfo
+                    }
+                    .disabled(store.connectionStatus != .connected)
 
-            // Self Submenu
-            Menu("Self") {
-                Button(store.isSelfMuted ? "Unmute Self" : "Mute Self") {
+                    Button("Access Tokens...") {
+                        store.activeModal = .accessTokens
+                    }
+                    .disabled(store.connectionStatus != .connected)
+
+                    Button("Registered Users...") {
+                        store.activeModal = .registeredUsers
+                    }
+                    .disabled(store.connectionStatus != .connected)
+
+                    Button("Ban List...") {
+                        store.activeModal = .banList
+                    }
+                    .disabled(store.connectionStatus != .connected)
+                }
+
+                // Self Submenu
+                Menu("Self") {
+                    Button(store.isSelfMuted ? "Unmute Self" : "Mute Self") {
+                        store.toggleSelfMute()
+                    }
+
+                    Button(store.isSelfDeafened ? "Undeafen Self" : "Deafen Self") {
+                        store.toggleSelfDeaf()
+                    }
+
+                    Divider()
+
+                    Button(store.isMyPrioritySpeaker ? "Disable Priority Speaker" : "Enable Priority Speaker") {
+                        store.toggleSelfPrioritySpeaker()
+                    }
+                    .disabled(store.connectionStatus != .connected)
+
+                    Button(store.isRecordingAudio ? "Stop Recording" : "Start Recording") {
+                        store.toggleAudioRecording()
+                    }
+
+                    Divider()
+
+                    Button("Change Comment...") {
+                        store.activeModal = .changeComment
+                    }
+                    .disabled(store.connectionStatus != .connected)
+
+                    Button("Remove Avatar") {
+                        store.removeAvatar()
+                    }
+                    .disabled(store.connectionStatus != .connected)
+
+                    Button(store.isSelfRegistered ? "Registered" : "Register...") {
+                        store.registerSelf()
+                    }
+                    .disabled(store.connectionStatus != .connected || store.isSelfRegistered)
+
+                    Divider()
+
+                    Button("Audio Statistics...") {
+                        store.activeModal = .audioStatistics
+                    }
+                }
+
+                // Configure Submenu
+                Menu("Configure") {
+                    Button("Audio Wizard...") {
+                        store.activeModal = .audioWizard
+                    }
+
+                    Button("Certificate Wizard...") {
+                        store.activeModal = .certificateWizard
+                    }
+
+                    Button("Text-to-Speech (TTS)...") {
+                        store.activeModal = .ttsSettings
+                    }
+
+                    Button("Overlay...") {
+                        store.activeModal = .overlaySettings
+                    }
+
+                    Divider()
+
+                    Button("Settings...") {
+                        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+                    }
+                }
+
+                Divider()
+
+                // Quick Voice Toggles
+                Button(store.isSelfMuted ? "Unmute Microphone" : "Mute Microphone") {
                     store.toggleSelfMute()
                 }
+                .keyboardShortcut("m", modifiers: [.command, .shift])
 
-                Button(store.isSelfDeafened ? "Undeafen Self" : "Deafen Self") {
+                Button(store.isSelfDeafened ? "Undeafen Audio" : "Deafen Audio") {
                     store.toggleSelfDeaf()
                 }
+                .keyboardShortcut("d", modifiers: [.command, .shift])
 
-                Divider()
-
-                Button(store.isMyPrioritySpeaker ? "Disable Priority Speaker" : "Enable Priority Speaker") {
-                    store.toggleSelfPrioritySpeaker()
+                Button("Toggle 'Who's Talking' Overlay") {
+                    FloatingOverlayManager.shared.toggle(store: store)
                 }
-                .disabled(store.connectionStatus != .connected)
-
-                Button(store.isRecordingAudio ? "Stop Recording" : "Start Recording") {
-                    store.toggleAudioRecording()
-                }
-
-                Divider()
-
-                Button("Change Comment...") {
-                    store.activeModal = .changeComment
-                }
-                .disabled(store.connectionStatus != .connected)
-
-                Button("Remove Avatar") {
-                    store.removeAvatar()
-                }
-                .disabled(store.connectionStatus != .connected)
-
-                Button(store.isSelfRegistered ? "Registered" : "Register...") {
-                    store.registerSelf()
-                }
-                .disabled(store.connectionStatus != .connected || store.isSelfRegistered)
-
-                Divider()
-
-                Button("Audio Statistics...") {
-                    store.activeModal = .audioStatistics
-                }
+                .keyboardShortcut("o", modifiers: [.command, .shift])
             }
-
-            // Configure Submenu
-            Menu("Configure") {
-                Button("Audio Wizard...") {
-                    store.activeModal = .audioWizard
-                }
-
-                Button("Certificate Wizard...") {
-                    store.activeModal = .certificateWizard
-                }
-
-                Button("Text-to-Speech (TTS)...") {
-                    store.activeModal = .ttsSettings
-                }
-
-                Button("Overlay...") {
-                    store.activeModal = .overlaySettings
-                }
-
-                Divider()
-
-                Button("Settings...") {
-                    NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
-                }
-            }
-
-            Divider()
-
-            // Quick Voice Toggles
-            Button(store.isSelfMuted ? "Unmute Microphone" : "Mute Microphone") {
-                store.toggleSelfMute()
-            }
-            .keyboardShortcut("m", modifiers: [.command, .shift])
-
-            Button(store.isSelfDeafened ? "Undeafen Audio" : "Deafen Audio") {
-                store.toggleSelfDeaf()
-            }
-            .keyboardShortcut("d", modifiers: [.command, .shift])
-
-            Button("Toggle 'Who's Talking' Overlay") {
-                FloatingOverlayManager.shared.toggle(store: store)
-            }
-            .keyboardShortcut("o", modifiers: [.command, .shift])
 
             Divider()
 
             Button("Quit Swimble") {
-                if SettingsState.shared.displayQuitConfirmation && store.connectionStatus == .connected {
+                let anyConnected = MumbleStore.activeStores.contains(where: { $0.connectionStatus == .connected })
+                if SettingsState.shared.displayQuitConfirmation && anyConnected {
                     let alert = NSAlert()
                     alert.messageText = "Quit Swimble?"
                     alert.informativeText = "You are currently connected to a server. Are you sure you want to disconnect and quit?"
@@ -344,5 +386,28 @@ struct SwimbleApp: App {
             }
             .keyboardShortcut("q", modifiers: [.command])
         }
+    }
+}
+
+// MARK: - Server Window View (Native Tab Container)
+
+struct ServerWindowView: View {
+    @State private var store = MumbleStore()
+    @State private var didPromptInitialConnect = false
+
+    var body: some View {
+        ServerSplitView(store: store)
+            .frame(minWidth: 820, minHeight: 540)
+            .focusedValue(\.mumbleStore, store)
+            .navigationTitle(store.activeBookmark?.name ?? (store.connectionStatus == .connected ? "Connected" : "Swimble"))
+            .onAppear {
+                if store.connectionStatus == .disconnected && !didPromptInitialConnect {
+                    didPromptInitialConnect = true
+                    store.activeModal = .serverConnect
+                }
+            }
+            .onDisappear {
+                store.disconnect()
+            }
     }
 }

@@ -314,10 +314,6 @@ public struct UserRowView: View {
                     Divider()
                 }
 
-                Button("Open Chat Tab") {
-                    store.openDirectChat(sessionId: user.sessionId, userName: user.name)
-                }
-
                 Button("Send Private Message...") {
                     privateMessageInput = ""
                     showingPrivateMessageAlert = true

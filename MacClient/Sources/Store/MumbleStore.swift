@@ -21,29 +21,25 @@ public enum ActiveModal: String, Identifiable {
     public var id: String { rawValue }
 }
 
-public enum ChatTabTarget: Hashable, Equatable, Identifiable {
-    case server
-    case channel(UInt32)
-    case direct(UInt32, String)
-
-    public var id: String {
-        switch self {
-        case .server:
-            return "server"
-        case .channel(let cid):
-            return "ch_\(cid)"
-        case .direct(let sid, _):
-            return "dm_\(sid)"
-        }
-    }
-}
 
 /// Main application state store managing Mumble server networking, channel hierarchies,
 /// user speaking states, chat activity, and audio hardware synchronization.
 @Observable
 @MainActor
 public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
-    public static weak var shared: MumbleStore? = nil
+    nonisolated private static let storeLock = NSLock()
+    nonisolated(unsafe) private static var _activeStores: [MumbleStore] = []
+    nonisolated public static var activeStores: [MumbleStore] {
+        storeLock.lock()
+        defer { storeLock.unlock() }
+        return _activeStores
+    }
+    nonisolated public static var shared: MumbleStore? {
+        storeLock.lock()
+        defer { storeLock.unlock() }
+        return _activeStores.last
+    }
+
     public private(set) var client: MumbleClient!
     public private(set) var audioEngine: MacAudioEngine!
     public let globalPTT = GlobalPTT.shared
@@ -64,18 +60,8 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
     public var selectedChannelId: UInt32? = nil
     public var mySessionId: UInt32? = nil
 
-    // Chat & Tabs
+    // Chat Activity Stream
     public var chatMessages: [ChatMessage] = []
-    public var openChatTabs: [ChatTabTarget] = [.server]
-    public var activeChatTab: ChatTabTarget = .server {
-        didSet {
-            unreadTabCounts[activeChatTab.id] = 0
-            if case .channel(let cid) = activeChatTab {
-                selectedChannelId = cid
-            }
-        }
-    }
-    public var unreadTabCounts: [String: Int] = [:]
 
     // Local Mute & Deafen
     public var isSelfMuted: Bool = false
@@ -204,7 +190,6 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
     }
 
     public init() {
-        Self.shared = self
         // 1. Initialize or load persistent client identity from Keychain
         let identity: ClientIdentity
         if let saved = KeychainHelper.loadClientIdentity() {
@@ -268,6 +253,16 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
                 self?.connect(bookmark: fav)
             }
         }
+
+        Self.storeLock.lock()
+        Self._activeStores.append(self)
+        Self.storeLock.unlock()
+    }
+
+    deinit {
+        Self.storeLock.lock()
+        Self._activeStores.removeAll(where: { $0 === self })
+        Self.storeLock.unlock()
     }
 
     // MARK: - Server Connection Actions
@@ -317,56 +312,9 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
         self.selectedChannelId = nil
         self.hasLoggedInitialJoin = false
         self.lastKnownMyChannelId = nil
-        self.openChatTabs = [.server]
-        self.activeChatTab = .server
-        self.unreadTabCounts.removeAll()
-        self.pendingUserMoves.removeAll()
-        self.previousUserChannelMap.removeAll()
-        self.previousUserNames.removeAll()
-        self.previousUserMuteMap.removeAll()
-        self.previousUserDeafMap.removeAll()
     }
 
-    // MARK: - Chat Tabs & User Stats
-
-    public func openChannelChat(channelId: UInt32) {
-        let target = ChatTabTarget.channel(channelId)
-        if !openChatTabs.contains(where: { $0.id == target.id }) {
-            openChatTabs.append(target)
-        }
-        activeChatTab = target
-        selectedChannelId = channelId
-        unreadTabCounts[target.id] = 0
-    }
-
-    public func openDirectChat(sessionId: UInt32, userName: String) {
-        let target = ChatTabTarget.direct(sessionId, userName)
-        if !openChatTabs.contains(where: { $0.id == target.id }) {
-            openChatTabs.append(target)
-        }
-        activeChatTab = target
-        unreadTabCounts[target.id] = 0
-    }
-
-    public func selectChatTab(_ target: ChatTabTarget) {
-        activeChatTab = target
-        unreadTabCounts[target.id] = 0
-        if case .channel(let cid) = target {
-            selectedChannelId = cid
-        }
-    }
-
-    public func closeChatTab(_ target: ChatTabTarget) {
-        guard target != .server else { return }
-        if let idx = openChatTabs.firstIndex(where: { $0.id == target.id }) {
-            openChatTabs.remove(at: idx)
-            unreadTabCounts.removeValue(forKey: target.id)
-            if activeChatTab.id == target.id {
-                let newIdx = max(0, idx - 1)
-                activeChatTab = openChatTabs[newIdx]
-            }
-        }
-    }
+    // MARK: - User Stats
 
     public func requestUserStats(sessionId: UInt32, statsOnly: Bool = false) {
         client.requestUserStats(sessionId: sessionId, statsOnly: statsOnly)
@@ -1127,24 +1075,6 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
                     store: self,
                     ttsOverride: "\(message.senderName) says: \(clean)"
                 )
-            }
-
-            // Update tab unread counts
-            let targetTabId: String
-            if let cid = message.channelId {
-                targetTabId = "ch_\(cid)"
-            } else if message.senderSession != 0 && message.senderSession != self.mySessionId {
-                targetTabId = "dm_\(message.senderSession)"
-                let dmTarget = ChatTabTarget.direct(message.senderSession, message.senderName)
-                if !self.openChatTabs.contains(where: { $0.id == dmTarget.id }) {
-                    self.openChatTabs.append(dmTarget)
-                }
-            } else {
-                targetTabId = "server"
-            }
-
-            if self.activeChatTab.id != targetTabId {
-                self.unreadTabCounts[targetTabId, default: 0] += 1
             }
 
             // Cap chatMessages at maxChatBlockCount

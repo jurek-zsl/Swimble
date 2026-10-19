@@ -279,78 +279,28 @@ public struct ChatAndActivityView: View {
     }
 
     private var activeChannelName: String {
-        switch store.activeChatTab {
-        case .server:
-            return store.activeBookmark?.name ?? "Server Activity"
-        case .channel(let cid):
-            if let ch = store.channels.first(where: { $0.id == cid }) {
-                return "#\(ch.name)"
-            }
-            return "#\(store.channelName(for: cid))"
-        case .direct(_, let name):
-            return "@\(name)"
+        let cid = store.selectedChannelId ?? store.myChannelId
+        if let ch = store.channels.first(where: { $0.id == cid }) {
+            return ch.name
         }
-    }
-
-    private func tabTitle(_ tab: ChatTabTarget) -> String {
-        switch tab {
-        case .server:
-            return store.activeBookmark?.name ?? "Server"
-        case .channel(let cid):
-            return "#\(store.channelName(for: cid))"
-        case .direct(_, let name):
-            return "@\(name)"
-        }
-    }
-
-    private func tabIcon(_ tab: ChatTabTarget) -> String {
-        switch tab {
-        case .server:
-            return "server.rack"
-        case .channel(let cid):
-            return cid == store.myChannelId ? "speaker.wave.2.fill" : "number"
-        case .direct:
-            return "person.fill"
-        }
-    }
-
-    private func messagesForTab(_ tab: ChatTabTarget) -> [ChatMessage] {
-        switch tab {
-        case .server:
-            return store.chatMessages
-        case .channel(let cid):
-            return store.chatMessages.filter { msg in
-                if msg.channelId == cid { return true }
-                if msg.senderSession == 0 && (msg.channelId == nil || msg.channelId == cid) { return true }
-                return false
-            }
-        case .direct(let sid, _):
-            return store.chatMessages.filter { msg in
-                if msg.channelId == nil {
-                    if msg.senderSession == sid { return true }
-                    if msg.senderSession == (store.mySessionId ?? 0) && msg.recipientSession == sid { return true }
-                }
-                return false
-            }
-        }
+        return store.activeBookmark?.name ?? "Server Activity"
     }
 
     private var filteredChatMessages: [ChatMessage] {
-        messagesForTab(store.activeChatTab)
+        store.chatMessages
     }
 
     @ViewBuilder
-    private func chatStreamView(for tab: ChatTabTarget) -> some View {
-        let messages = messagesForTab(tab)
+    private var chatStreamView: some View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 14) {
-                    if messages.isEmpty {
+                    if filteredChatMessages.isEmpty {
                         VStack(spacing: 10) {
                             Image(systemName: "bubble.left.and.bubble.right")
                                 .font(.system(size: 40))
                                 .foregroundStyle(.tertiary)
-                            Text("No messages in \(tabTitle(tab)) yet")
+                            Text("No messages in \(activeChannelName) yet")
                                 .font(.headline)
                                 .foregroundStyle(.secondary)
                             Text("Type a message below to start chatting.")
@@ -360,7 +310,7 @@ public struct ChatAndActivityView: View {
                         .frame(maxWidth: .infinity)
                         .padding(.top, 60)
                     } else {
-                        ForEach(Array(messages.enumerated()), id: \.offset) { index, msg in
+                        ForEach(Array(filteredChatMessages.enumerated()), id: \.offset) { index, msg in
                             ChatMessageRow(message: msg, accentTint: store.accentTint)
                                 .id("msg_\(index)")
                         }
@@ -374,10 +324,10 @@ public struct ChatAndActivityView: View {
                 .padding(20)
             }
             .defaultScrollAnchor(.bottom)
-            .onChange(of: messages.count) { _, _ in
+            .onChange(of: filteredChatMessages.count) { _, _ in
                 scrollToBottom(proxy: proxy, animated: true)
             }
-            .onChange(of: messages.last?.htmlBody) { _, _ in
+            .onChange(of: filteredChatMessages.last?.htmlBody) { _, _ in
                 scrollToBottom(proxy: proxy, animated: true)
             }
             .onAppear {
@@ -509,66 +459,6 @@ public struct ChatAndActivityView: View {
                     PingStatsPopover(store: store)
                 }
 
-                // Open Chat Menu Button
-                Menu {
-                    Section("Channels") {
-                        ForEach(store.channels, id: \.id) { ch in
-                            Button("#\(ch.name)") {
-                                withAnimation {
-                                    store.openChannelChat(channelId: ch.id)
-                                }
-                            }
-                        }
-                    }
-
-                    let otherUsers = store.users.filter { $0.sessionId != store.mySessionId }
-                    if !otherUsers.isEmpty {
-                        Section("Direct Messages") {
-                            ForEach(otherUsers, id: \.sessionId) { u in
-                                Button("@\(u.name)") {
-                                    withAnimation {
-                                        store.openDirectChat(sessionId: u.sessionId, userName: u.name)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                } label: {
-                    HStack(spacing: 5) {
-                        Image(systemName: "plus.bubble.fill")
-                            .font(.caption2)
-                        Text("Open Chat")
-                            .font(.caption.bold())
-                    }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color.secondary.opacity(0.12), in: Capsule())
-                }
-                .menuStyle(.borderlessButton)
-                .menuIndicator(.hidden)
-                .help("Open channel or direct message chat tab")
-
-                // Close active tab button (if not server)
-                if store.activeChatTab != .server {
-                    Button(action: {
-                        withAnimation {
-                            store.closeChatTab(store.activeChatTab)
-                        }
-                    }) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "xmark.circle.fill")
-                                .font(.caption2)
-                            Text("Close Tab")
-                                .font(.caption)
-                        }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Color.secondary.opacity(0.12), in: Capsule())
-                    }
-                    .buttonStyle(.plain)
-                    .keyboardShortcut("w", modifiers: .command)
-                    .help("Close current chat tab (⌘W)")
-                }
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 12)
@@ -576,17 +466,8 @@ public struct ChatAndActivityView: View {
 
             Divider()
 
-            // Native SwiftUI TabView for different chats
-            TabView(selection: $store.activeChatTab) {
-                ForEach(store.openChatTabs) { tab in
-                    chatStreamView(for: tab)
-                        .tabItem {
-                            Label(tabTitle(tab), systemImage: tabIcon(tab))
-                        }
-                        .tag(tab)
-                        .badge(store.unreadTabCounts[tab.id] ?? 0)
-                }
-            }
+            // Chat Message Stream
+            chatStreamView
 
             Divider()
 
@@ -825,15 +706,8 @@ public struct ChatAndActivityView: View {
             }
         }
 
-        switch store.activeChatTab {
-        case .server:
-            let targetChId = store.selectedChannelId ?? store.myChannelId
-            store.sendChatMessage(channelId: targetChId, message: finalMessage)
-        case .channel(let cid):
-            store.sendChatMessage(channelId: cid, message: finalMessage)
-        case .direct(let sid, _):
-            store.sendUserMessage(sessionId: sid, message: finalMessage)
-        }
+        let targetChId = store.selectedChannelId ?? store.myChannelId
+        store.sendChatMessage(channelId: targetChId, message: finalMessage)
 
         composeText = ""
         stagedImage = nil
