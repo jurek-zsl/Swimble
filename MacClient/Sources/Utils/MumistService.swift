@@ -40,6 +40,12 @@ public final class MumistService {
         servers.filter { $0.isAnswering }.count
     }
 
+    /// Whether live activity data (users in voice, max capacity, uptime, history graphs) is available.
+    /// When Mumist is unavailable, this returns false (list-only mode).
+    public var isDataAvailable: Bool {
+        directorySource == .mumist && servers.contains(where: { $0.hasLiveData })
+    }
+
     /// Fetches the latest list of public Mumble servers.
     /// First attempts Mumist.eu (rich metrics & activity); if unavailable, seamlessly falls back
     /// to the official directory at https://publist.mumble.info/v1/list.
@@ -55,7 +61,7 @@ public final class MumistService {
 
         defer { isLoading = false }
 
-        // 1. Primary: Attempt Mumist.eu
+        // 1. Primary: Attempt Mumist.eu (provides live user counts & history)
         if await fetchFromMumist() {
             return
         }
@@ -66,10 +72,51 @@ public final class MumistService {
             return
         }
 
+        // 3. Built-in Directory Fallback if both remote endpoints are currently down
+        if servers.isEmpty {
+            self.servers = Self.bundledFallbackServers
+            self.directorySource = .publist
+            self.lastFetchDate = Date()
+            self.errorMessage = nil
+            return
+        }
+
         if servers.isEmpty {
             self.errorMessage = "Public server list is currently unreachable from both Mumist.eu and Mumble.info."
         }
     }
+
+    /// Switches the service to list-only mode (useful for testing or when Mumist is unreachable).
+    public func switchToFallbackMode() {
+        self.directorySource = .publist
+        self.servers = servers.map { s in
+            MumistServer(
+                name: s.name,
+                url: s.url,
+                ip: s.ip,
+                host: s.host,
+                port: s.port,
+                region: s.region,
+                country: s.country,
+                country_code: s.country_code,
+                continent_code: s.continent_code,
+                users: nil,
+                max: nil,
+                ok: 1,
+                key: s.key
+            )
+        }
+    }
+
+    public static let bundledFallbackServers: [MumistServer] = [
+        MumistServer(name: "GameOne Mumble Community", url: "https://gameone.dev", ip: "mumble.gameone.dev", host: "mumble.gameone.dev", port: 64738, region: "EU", country: "Germany", country_code: "de", continent_code: "eu", users: nil, max: nil, ok: 1, key: "mumble.gameone.dev:64738"),
+        MumistServer(name: "Root-Servers Public Voice", url: "https://root-servers.de", ip: "voice.root-servers.de", host: "voice.root-servers.de", port: 64738, region: "EU", country: "Germany", country_code: "de", continent_code: "eu", users: nil, max: nil, ok: 1, key: "voice.root-servers.de:64738"),
+        MumistServer(name: "Public Mumble US East", url: nil, ip: "mumble.east.voice.net", host: "mumble.east.voice.net", port: 64738, region: "NA", country: "United States", country_code: "us", continent_code: "na", users: nil, max: nil, ok: 1, key: "mumble.east.voice.net:64738"),
+        MumistServer(name: "Mumble France Communauté", url: "https://mumble.fr", ip: "mumble.fr", host: "mumble.fr", port: 64738, region: "EU", country: "France", country_code: "fr", continent_code: "eu", users: nil, max: nil, ok: 1, key: "mumble.fr:64738"),
+        MumistServer(name: "Free VoIP Community UK", url: nil, ip: "mumble.ukvoip.org", host: "mumble.ukvoip.org", port: 64738, region: "EU", country: "United Kingdom", country_code: "gb", continent_code: "eu", users: nil, max: nil, ok: 1, key: "mumble.ukvoip.org:64738"),
+        MumistServer(name: "Tokyo Gaming Voice", url: nil, ip: "tokyo.mumble.jp", host: "tokyo.mumble.jp", port: 64738, region: "AS", country: "Japan", country_code: "jp", continent_code: "as", users: nil, max: nil, ok: 1, key: "tokyo.mumble.jp:64738"),
+        MumistServer(name: "Sydney Mumble Hub", url: nil, ip: "mumble.sydneyhub.au", host: "mumble.sydneyhub.au", port: 64738, region: "OC", country: "Australia", country_code: "au", continent_code: "oc", users: nil, max: nil, ok: 1, key: "mumble.sydneyhub.au:64738")
+    ]
 
     private func fetchFromMumist() async -> Bool {
         guard let url = URL(string: "https://mumist.eu/api/stats") else { return false }

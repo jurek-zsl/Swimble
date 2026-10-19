@@ -81,6 +81,10 @@ public struct MumistServer: Identifiable, Codable, Equatable, Hashable, Sendable
         effectivePort == 64738 ? effectiveHost : "\(effectiveHost):\(effectivePort)"
     }
 
+    public var hasLiveData: Bool {
+        users != nil
+    }
+
     public var isAnswering: Bool {
         ok == 1
     }

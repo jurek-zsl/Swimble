@@ -45,8 +45,8 @@ public struct MumistPublicServersView: View {
     private var filteredServers: [MumistServer] {
         var list = service.servers
 
-        // 1. Min users filter
-        if minUsersFilter > 0 {
+        // 1. Min users filter (only applied when live activity data is available)
+        if service.isDataAvailable && minUsersFilter > 0 {
             list = list.filter { ($0.users ?? 0) >= minUsersFilter }
         }
 
@@ -70,15 +70,27 @@ public struct MumistPublicServersView: View {
         // 4. Sorting
         switch sortOption {
         case .users:
-            list.sort { ($0.users ?? 0) > ($1.users ?? 0) }
+            if service.isDataAvailable {
+                list.sort { ($0.users ?? 0) > ($1.users ?? 0) }
+            } else {
+                list.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+            }
         case .fullness:
-            list.sort { $0.fillRatio > $1.fillRatio }
+            if service.isDataAvailable {
+                list.sort { $0.fillRatio > $1.fillRatio }
+            } else {
+                list.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+            }
         case .name:
             list.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
         case .country:
             list.sort { $0.locationDisplay.localizedCaseInsensitiveCompare($1.locationDisplay) == .orderedAscending }
         case .uptime:
-            list.sort { ($0.uptime_7d ?? 0.0) > ($1.uptime_7d ?? 0.0) }
+            if service.isDataAvailable {
+                list.sort { ($0.uptime_7d ?? 0.0) > ($1.uptime_7d ?? 0.0) }
+            } else {
+                list.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+            }
         }
 
         return list
@@ -90,6 +102,35 @@ public struct MumistPublicServersView: View {
             headerStatsBar
 
             Divider()
+
+            // Notice banner when Mumist is unavailable (showing list without live data)
+            if !service.isDataAvailable && !service.servers.isEmpty {
+                HStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                        .font(.caption)
+                    Text("Mumist.eu is currently unavailable. Showing server list without live user counts, capacity, or activity charts.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button {
+                        Task { await service.fetchServers(force: true) }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "arrow.clockwise")
+                            Text("Retry Mumist")
+                        }
+                        .font(.caption2)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.mini)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 6)
+                .background(Color.orange.opacity(0.08))
+
+                Divider()
+            }
 
             // Filter & Search Controls Bar
             filterToolbar
@@ -156,19 +197,28 @@ public struct MumistPublicServersView: View {
     // MARK: - Subviews
 
     private var headerStatsBar: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: 12) {
             HStack(spacing: 6) {
                 Circle()
-                    .fill(Color.green)
+                    .fill(service.isDataAvailable ? Color.green : Color.orange)
                     .frame(width: 8, height: 8)
-                Text(service.directorySource == .mumist ? "Mumist.eu Live Directory" : "Mumble.info Public Directory")
+                Text(service.isDataAvailable ? "Mumist.eu Live Directory" : "Official Mumble Directory")
                     .font(.caption.bold())
+
+                if !service.isDataAvailable {
+                    Text("List Only • No Live Data")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(.orange)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.orange.opacity(0.18), in: Capsule())
+                }
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
-            .background(Color.green.opacity(0.12), in: Capsule())
+            .background((service.isDataAvailable ? Color.green : Color.orange).opacity(0.12), in: Capsule())
 
-            if service.totalUsersInVoice > 0 {
+            if service.isDataAvailable && service.totalUsersInVoice > 0 {
                 Text("\(service.totalUsersInVoice) people in voice")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -176,6 +226,10 @@ public struct MumistPublicServersView: View {
                     .font(.caption)
                     .foregroundStyle(.tertiary)
                 Text("\(service.totalServersAnswering) servers online")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else if !service.isDataAvailable {
+                Text("\(service.servers.count) servers listed")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -203,6 +257,33 @@ public struct MumistPublicServersView: View {
                 ProgressView()
                     .controlSize(.small)
             }
+
+            Menu {
+                Button {
+                    Task { await service.fetchServers(force: true) }
+                } label: {
+                    Label("Refresh Directory", systemImage: "arrow.clockwise")
+                }
+
+                if service.isDataAvailable {
+                    Button {
+                        service.switchToFallbackMode()
+                    } label: {
+                        Label("Preview List-Only Mode", systemImage: "eye.slash")
+                    }
+                } else {
+                    Button {
+                        Task { await service.fetchServers(force: true) }
+                    } label: {
+                        Label("Retry Mumist.eu Live Stats", systemImage: "arrow.triangle.2.circlepath")
+                    }
+                }
+            } label: {
+                Image(systemName: "ellipsis.circle")
+            }
+            .menuStyle(.borderlessButton)
+            .frame(width: 18)
+            .help("Directory options")
 
             Button {
                 Task {
@@ -259,12 +340,26 @@ public struct MumistPublicServersView: View {
             .controlSize(.small)
             .frame(width: 125)
 
-            // Min users chip group
-            HStack(spacing: 4) {
-                minUserChip(label: "Any", min: 0)
-                minUserChip(label: "1+", min: 1)
-                minUserChip(label: "5+", min: 5)
-                minUserChip(label: "20+", min: 20)
+            // Min users chip group (only available when live data is provided by Mumist)
+            if service.isDataAvailable {
+                HStack(spacing: 4) {
+                    minUserChip(label: "Any", min: 0)
+                    minUserChip(label: "1+", min: 1)
+                    minUserChip(label: "5+", min: 5)
+                    minUserChip(label: "20+", min: 20)
+                }
+            } else {
+                HStack(spacing: 4) {
+                    Image(systemName: "person.slash")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                    Text("Live count filter disabled")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color(nsColor: .controlBackgroundColor).opacity(0.4), in: Capsule())
             }
 
             Spacer()
@@ -364,7 +459,7 @@ public struct MumistPublicServersView: View {
                     Text(server.name)
                         .font(.subheadline.bold())
                         .lineLimit(1)
-                    if server.uptime_7d ?? 0 >= 0.99 {
+                    if service.isDataAvailable && (server.uptime_7d ?? 0) >= 0.99 {
                         Image(systemName: "checkmark.seal.fill")
                             .font(.caption2)
                             .foregroundStyle(store.accentTint)
@@ -388,34 +483,48 @@ public struct MumistPublicServersView: View {
 
             Spacer()
 
-            // User capacity pill
-            VStack(alignment: .trailing, spacing: 3) {
-                HStack(spacing: 4) {
-                    Image(systemName: "person.2.fill")
-                        .font(.caption2)
-                        .foregroundStyle((server.users ?? 0) > 0 ? store.accentTint : .secondary)
-                    Text("\(server.users ?? 0)")
-                        .font(.subheadline.monospacedDigit().bold())
-                        .foregroundStyle((server.users ?? 0) > 0 ? .primary : .secondary)
-                    if let max = server.max, max > 0 {
-                        Text("/ \(max)")
-                            .font(.caption2.monospacedDigit())
-                            .foregroundStyle(.tertiary)
+            // User capacity pill or List-only badge
+            if service.isDataAvailable && server.hasLiveData {
+                VStack(alignment: .trailing, spacing: 3) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "person.2.fill")
+                            .font(.caption2)
+                            .foregroundStyle((server.users ?? 0) > 0 ? store.accentTint : .secondary)
+                        Text("\(server.users ?? 0)")
+                            .font(.subheadline.monospacedDigit().bold())
+                            .foregroundStyle((server.users ?? 0) > 0 ? .primary : .secondary)
+                        if let max = server.max, max > 0 {
+                            Text("/ \(max)")
+                                .font(.caption2.monospacedDigit())
+                                .foregroundStyle(.tertiary)
+                        }
                     }
-                }
 
-                // Mini capacity bar
-                GeometryReader { geo in
-                    ZStack(alignment: .leading) {
-                        Capsule()
-                            .fill(Color.secondary.opacity(0.15))
-                            .frame(height: 3)
-                        Capsule()
-                            .fill(server.fillRatio > 0.8 ? Color.orange : store.accentTint)
-                            .frame(width: max(2, geo.size.width * server.fillRatio), height: 3)
+                    // Mini capacity bar
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            Capsule()
+                                .fill(Color.secondary.opacity(0.15))
+                                .frame(height: 3)
+                            Capsule()
+                                .fill(server.fillRatio > 0.8 ? Color.orange : store.accentTint)
+                                .frame(width: max(2, geo.size.width * server.fillRatio), height: 3)
+                        }
                     }
+                    .frame(width: 54, height: 3)
                 }
-                .frame(width: 54, height: 3)
+            } else {
+                HStack(spacing: 4) {
+                    Image(systemName: "list.bullet")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.secondary)
+                    Text("List only")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 4))
             }
 
             // Quick Connect Button
@@ -511,114 +620,174 @@ public struct MumistPublicServersView: View {
                     .background(Color(nsColor: .controlBackgroundColor).opacity(0.5), in: RoundedRectangle(cornerRadius: 10))
 
                     // Key Metrics Grid
-                    VStack(spacing: 8) {
-                        HStack {
-                            metricItem(
-                                title: "People in Voice",
-                                value: "\(server.onlineUsersCount)",
-                                subtitle: server.maxUsersCount > 0 ? "of \(server.maxUsersCount) slots" : "slots unlimited",
-                                icon: "person.2.fill"
-                            )
-                            metricItem(
-                                title: "24h Peak",
-                                value: server.peak_24h != nil ? "\(server.peak_24h!)" : "—",
-                                subtitle: "peak activity",
-                                icon: "chart.line.uptrend.xyaxis"
-                            )
-                        }
+                    if service.isDataAvailable && server.hasLiveData {
+                        VStack(spacing: 8) {
+                            HStack {
+                                metricItem(
+                                    title: "People in Voice",
+                                    value: "\(server.onlineUsersCount)",
+                                    subtitle: server.maxUsersCount > 0 ? "of \(server.maxUsersCount) slots" : "slots unlimited",
+                                    icon: "person.2.fill"
+                                )
+                                metricItem(
+                                    title: "24h Peak",
+                                    value: server.peak_24h != nil ? "\(server.peak_24h!)" : "—",
+                                    subtitle: "peak activity",
+                                    icon: "chart.line.uptrend.xyaxis"
+                                )
+                            }
 
-                        HStack {
-                            metricItem(
-                                title: "7-Day Uptime",
-                                value: server.uptimePercentage != nil ? String(format: "%.1f%%", server.uptimePercentage!) : "—",
-                                subtitle: "reliability score",
-                                icon: "shield.checkerboard"
-                            )
-                            metricItem(
-                                title: "Version",
-                                value: server.version ?? "1.5+",
-                                subtitle: "mumble protocol",
-                                icon: "cpu"
-                            )
+                            HStack {
+                                metricItem(
+                                    title: "7-Day Uptime",
+                                    value: server.uptimePercentage != nil ? String(format: "%.1f%%", server.uptimePercentage!) : "—",
+                                    subtitle: "reliability score",
+                                    icon: "shield.checkerboard"
+                                )
+                                metricItem(
+                                    title: "Version",
+                                    value: server.version ?? "1.5+",
+                                    subtitle: "mumble protocol",
+                                    icon: "cpu"
+                                )
+                            }
                         }
+                    } else {
+                        // Notice card explaining list-only mode
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack(spacing: 6) {
+                                Image(systemName: "chart.bar.xaxis")
+                                    .foregroundStyle(.orange)
+                                Text("Live Metrics Unavailable")
+                                    .font(.subheadline.bold())
+                            }
+                            Text("Mumist.eu is currently unavailable. This server was loaded from the directory without live user counts, capacity limits, or reliability ratings.")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+
+                            Divider()
+
+                            HStack {
+                                metricItem(
+                                    title: "Directory Type",
+                                    value: "List Only",
+                                    subtitle: "fallback mode",
+                                    icon: "list.bullet.rectangle"
+                                )
+                                metricItem(
+                                    title: "Direct Connect",
+                                    value: "Ready",
+                                    subtitle: "click Connect above",
+                                    icon: "bolt.fill"
+                                )
+                            }
+                        }
+                        .padding(12)
+                        .background(Color(nsColor: .controlBackgroundColor).opacity(0.4), in: RoundedRectangle(cornerRadius: 10))
                     }
 
                     // Historical Activity Chart
-                    VStack(alignment: .leading, spacing: 10) {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("People Over Time")
-                                    .font(.subheadline.bold())
-                                Text("Live telemetry from Mumist")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                            }
-
-                            Spacer()
-
-                            Picker("", selection: $chartRange) {
-                                Text("24h").tag("24h")
-                                Text("7d").tag("7d")
-                                Text("30d").tag("30d")
-                            }
-                            .pickerStyle(.segmented)
-                            .controlSize(.mini)
-                            .frame(width: 120)
-                        }
-
-                        if isLoadingHistory {
+                    if service.isDataAvailable && server.hasLiveData {
+                        VStack(alignment: .leading, spacing: 10) {
                             HStack {
-                                Spacer()
-                                ProgressView()
-                                    .controlSize(.small)
-                                Text("Loading chart...")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                Spacer()
-                            }
-                            .frame(height: 100)
-                        } else if serverHistory.isEmpty {
-                            VStack(spacing: 4) {
-                                Text("No recent history data recorded")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 90)
-                        } else {
-                            Chart(serverHistory) { point in
-                                AreaMark(
-                                    x: .value("Time", point.date),
-                                    y: .value("Users", point.users)
-                                )
-                                .foregroundStyle(
-                                    LinearGradient(
-                                        colors: [store.accentTint.opacity(0.35), store.accentTint.opacity(0.02)],
-                                        startPoint: .top,
-                                        endPoint: .bottom
-                                    )
-                                )
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("People Over Time")
+                                        .font(.subheadline.bold())
+                                    Text("Live telemetry from Mumist")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
 
-                                LineMark(
-                                    x: .value("Time", point.date),
-                                    y: .value("Users", point.users)
-                                )
-                                .foregroundStyle(store.accentTint)
-                                .lineStyle(StrokeStyle(lineWidth: 2))
+                                Spacer()
+
+                                Picker("", selection: $chartRange) {
+                                    Text("24h").tag("24h")
+                                    Text("7d").tag("7d")
+                                    Text("30d").tag("30d")
+                                }
+                                .pickerStyle(.segmented)
+                                .controlSize(.mini)
+                                .frame(width: 120)
                             }
-                            .chartXAxis {
-                                AxisMarks(values: .automatic(desiredCount: 4)) {
-                                    AxisValueLabel(format: .dateTime.hour().minute())
+
+                            if isLoadingHistory {
+                                HStack {
+                                    Spacer()
+                                    ProgressView()
+                                        .controlSize(.small)
+                                    Text("Loading chart...")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                    Spacer()
+                                }
+                                .frame(height: 100)
+                            } else if serverHistory.isEmpty {
+                                VStack(spacing: 4) {
+                                    Text("No recent history data recorded")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 90)
+                            } else {
+                                Chart(serverHistory) { point in
+                                    AreaMark(
+                                        x: .value("Time", point.date),
+                                        y: .value("Users", point.users)
+                                    )
+                                    .foregroundStyle(
+                                        LinearGradient(
+                                            colors: [store.accentTint.opacity(0.35), store.accentTint.opacity(0.02)],
+                                            startPoint: .top,
+                                            endPoint: .bottom
+                                        )
+                                    )
+
+                                    LineMark(
+                                        x: .value("Time", point.date),
+                                        y: .value("Users", point.users)
+                                    )
+                                    .foregroundStyle(store.accentTint)
+                                    .lineStyle(StrokeStyle(lineWidth: 2))
+                                }
+                                .chartXAxis {
+                                    AxisMarks(values: .automatic(desiredCount: 4)) {
+                                        AxisValueLabel(format: .dateTime.hour().minute())
+                                    }
+                                }
+                                .chartYAxis {
+                                    AxisMarks(values: .automatic(desiredCount: 3))
+                                }
+                                .frame(height: 110)
+                            }
+                        }
+                        .padding(12)
+                        .background(Color(nsColor: .controlBackgroundColor).opacity(0.5), in: RoundedRectangle(cornerRadius: 10))
+                    } else {
+                        // Explanatory card for unavailable chart
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("People Over Time")
+                                .font(.subheadline.bold())
+
+                            HStack(spacing: 10) {
+                                Image(systemName: "chart.line.uptrend.xyaxis")
+                                    .font(.title2)
+                                    .foregroundStyle(.secondary.opacity(0.5))
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Activity chart unavailable")
+                                        .font(.caption.bold())
+                                    Text("Historical voice curves are collected exclusively by Mumist.eu. In list-only mode, graphs cannot be plotted.")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
                                 }
                             }
-                            .chartYAxis {
-                                AxisMarks(values: .automatic(desiredCount: 3))
-                            }
-                            .frame(height: 110)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.vertical, 6)
                         }
+                        .padding(12)
+                        .background(Color(nsColor: .controlBackgroundColor).opacity(0.4), in: RoundedRectangle(cornerRadius: 10))
                     }
-                    .padding(12)
-                    .background(Color(nsColor: .controlBackgroundColor).opacity(0.5), in: RoundedRectangle(cornerRadius: 10))
 
                     // Address Info Details
                     VStack(alignment: .leading, spacing: 6) {
@@ -643,6 +812,16 @@ public struct MumistPublicServersView: View {
                             Spacer()
                             Text("\(server.effectivePort)")
                                 .font(.caption.monospaced())
+                        }
+
+                        HStack {
+                            Text("Data Mode:")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Text(server.hasLiveData ? "Live Telemetry" : "Directory List Only")
+                                .font(.caption.bold())
+                                .foregroundStyle(server.hasLiveData ? .green : .orange)
                         }
 
                         HStack {
