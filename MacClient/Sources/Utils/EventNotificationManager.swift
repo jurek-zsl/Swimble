@@ -36,7 +36,12 @@ public final class EventNotificationManager {
 
         // 1. Console (System message in chat)
         if item.console {
-            store.logSystemMessage("\(eventName): \(detail)")
+            if eventName == "You muted/deafened yourself" {
+                let icon = detail.contains("unmuted") ? "mic.fill" : (detail.contains("undeafened") ? "speaker.wave.2.fill" : (detail.contains("deafened") ? "speaker.slash.fill" : "mic.slash.fill"))
+                store.logSystemMessage(detail, icon: icon)
+            } else {
+                store.logSystemMessage("\(eventName): \(detail)")
+            }
         }
 
         // 2. Notification (macOS System Notification)

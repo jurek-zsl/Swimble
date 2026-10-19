@@ -16,7 +16,7 @@ use crate::framing::{
     TYPE_PERMISSION_DENIED, TYPE_PERMISSION_QUERY, TYPE_PING, TYPE_REJECT, TYPE_REQUEST_BLOB,
     TYPE_SERVER_CONFIG, TYPE_SERVER_SYNC,
     TYPE_TEXT_MESSAGE, TYPE_UDP_TUNNEL, TYPE_USER_LIST, TYPE_USER_REMOVE, TYPE_USER_STATE,
-    TYPE_VERSION, TYPE_VOICE_TARGET,
+    TYPE_USER_STATS, TYPE_VERSION, TYPE_VOICE_TARGET,
 };
 use crate::proto;
 use crate::state::ClientState;
@@ -24,8 +24,8 @@ use crate::voice_packet::{
     decode_server_voice, decode_udp_ping_reply, encode_client_voice, encode_udp_ping,
 };
 use crate::{
-    BanEntryInfo, ChannelInfo, ChatMessage, ConnectionStatus, MumbleEventHandler, RegisteredUser,
-    ServerConnectionInfo, UserInfo, VoiceTargetConfig,
+    BanEntryInfo, ChannelInfo, ChatMessage, ConnectionStatus, MumbleEventHandler, PacketStats,
+    RegisteredUser, ServerConnectionInfo, UserInfo, UserStatsInfo, VoiceTargetConfig,
 };
 
 fn is_ipv4_mapped(addr: &[u8]) -> bool {
@@ -455,6 +455,7 @@ impl MumbleClient {
                                         sender_session: 0,
                                         sender_name: "System".to_string(),
                                         channel_id: None,
+                                        recipient_session: None,
                                         html_body: "Connected to server.".to_string(),
                                         timestamp,
                                     };
@@ -467,6 +468,7 @@ impl MumbleClient {
                                                 sender_session: 0,
                                                 sender_name: "Server".to_string(),
                                                 channel_id: None,
+                                                recipient_session: None,
                                                 html_body: welcome,
                                                 timestamp,
                                             };
@@ -514,6 +516,7 @@ impl MumbleClient {
                                             sender_session: 0,
                                             sender_name: "System".to_string(),
                                             channel_id: None,
+                                            recipient_session: None,
                                             html_body: msg,
                                             timestamp,
                                         };
@@ -557,6 +560,7 @@ impl MumbleClient {
                                             sender_session: 0,
                                             sender_name: "System".to_string(),
                                             channel_id: None,
+                                            recipient_session: None,
                                             html_body: msg,
                                             timestamp,
                                         };
@@ -694,6 +698,7 @@ impl MumbleClient {
                                             sender_session: 0,
                                             sender_name: "System".to_string(),
                                             channel_id: None,
+                                            recipient_session: None,
                                             html_body: msg,
                                             timestamp,
                                         };
@@ -799,6 +804,7 @@ impl MumbleClient {
                                         sender_session: 0,
                                         sender_name: "System".to_string(),
                                         channel_id: None,
+                                        recipient_session: None,
                                         html_body: remove_msg,
                                         timestamp,
                                     };
@@ -822,6 +828,7 @@ impl MumbleClient {
                                             .unwrap_or_else(|| "Server".to_string())
                                     };
                                     let channel_id = tmsg.channel_id.first().copied();
+                                    let recipient_session = tmsg.session.first().copied();
                                     let timestamp = SystemTime::now()
                                         .duration_since(UNIX_EPOCH)
                                         .unwrap_or_default()
@@ -831,6 +838,7 @@ impl MumbleClient {
                                         sender_session,
                                         sender_name,
                                         channel_id,
+                                        recipient_session,
                                         html_body: tmsg.message,
                                         timestamp,
                                     };
@@ -891,6 +899,7 @@ impl MumbleClient {
                                             sender_session: 0,
                                             sender_name: "Server".to_string(),
                                             channel_id: None,
+                                            recipient_session: None,
                                             html_body: welcome,
                                             timestamp,
                                         };
@@ -1198,6 +1207,7 @@ impl MumbleClient {
                                         sender_session: 0,
                                         sender_name: "System".to_string(),
                                         channel_id: None,
+                                        recipient_session: None,
                                         html_body: formatted_msg,
                                         timestamp,
                                     };
@@ -1277,6 +1287,7 @@ impl MumbleClient {
                                         sender_session: 0,
                                         sender_name: "System".to_string(),
                                         channel_id: None,
+                                        recipient_session: None,
                                         html_body: format!("Connection rejected: {}", full_reason),
                                         timestamp,
                                     };
@@ -1338,6 +1349,88 @@ impl MumbleClient {
                                     handler_arc.on_ban_list_updated(bans);
                                 }
                             }
+                            TYPE_USER_STATS => {
+                                if let Ok(us) = proto::UserStats::decode(&packet.payload[..]) {
+                                    let session_id = us.session.unwrap_or(0);
+                                    let user_name = state_arc
+                                        .read()
+                                        .unwrap()
+                                        .users
+                                        .get(&session_id)
+                                        .map(|u| u.name.clone())
+                                        .unwrap_or_else(|| format!("User #{}", session_id));
+
+                                    let (ver_v, ver_rel, ver_os, ver_os_v) = if let Some(v) = us.version {
+                                        let v_int = v.version_v1.unwrap_or(0);
+                                        let v_str = if v_int > 0 {
+                                            format!("{}.{}.{}", (v_int >> 16) & 0xff, (v_int >> 8) & 0xff, v_int & 0xff)
+                                        } else if let Some(v2) = v.version_v2 {
+                                            format!("{}.{}.{}", (v2 >> 48) & 0xffff, (v2 >> 32) & 0xffff, (v2 >> 16) & 0xffff)
+                                        } else {
+                                            String::new()
+                                        };
+                                        (v_str, v.release.unwrap_or_default(), v.os.unwrap_or_default(), v.os_version.unwrap_or_default())
+                                    } else {
+                                        (String::new(), String::new(), String::new(), String::new())
+                                    };
+
+                                    let ip_address = us.address.as_deref().map(decode_ban_ip).unwrap_or_default();
+
+                                    let cert_der = us.certificates.first().cloned();
+                                    let cert_name = if cert_der.is_some() {
+                                        "Swimble User".to_string()
+                                    } else {
+                                        "None".to_string()
+                                    };
+                                    let cert_details = if let Some(ref der) = cert_der {
+                                        format!("Certificate ({} bytes DER)", der.len())
+                                    } else {
+                                        "No certificate".to_string()
+                                    };
+
+                                    let from_client = us.from_client.map(|s| PacketStats {
+                                        good: s.good.unwrap_or(0),
+                                        late: s.late.unwrap_or(0),
+                                        lost: s.lost.unwrap_or(0),
+                                        resync: s.resync.unwrap_or(0),
+                                    }).unwrap_or_default();
+
+                                    let from_server = us.from_server.map(|s| PacketStats {
+                                        good: s.good.unwrap_or(0),
+                                        late: s.late.unwrap_or(0),
+                                        lost: s.lost.unwrap_or(0),
+                                        resync: s.resync.unwrap_or(0),
+                                    }).unwrap_or_default();
+
+                                    let stats_info = UserStatsInfo {
+                                        session_id,
+                                        user_name,
+                                        version_v: ver_v,
+                                        version_os: ver_os,
+                                        version_os_version: ver_os_v,
+                                        version_release: ver_rel,
+                                        ip_address,
+                                        certificate_name: cert_name,
+                                        certificate_details: cert_details,
+                                        certificate_der: cert_der,
+                                        strong_certificate: us.strong_certificate.unwrap_or(false),
+                                        opus_supported: us.opus.unwrap_or(false),
+                                        tcp_ping_avg: us.tcp_ping_avg.unwrap_or(0.0),
+                                        tcp_ping_var: us.tcp_ping_var.unwrap_or(0.0),
+                                        udp_ping_avg: us.udp_ping_avg.unwrap_or(0.0),
+                                        udp_ping_var: us.udp_ping_var.unwrap_or(0.0),
+                                        tcp_packets: us.tcp_packets.unwrap_or(0),
+                                        udp_packets: us.udp_packets.unwrap_or(0),
+                                        from_client,
+                                        from_server,
+                                        bandwidth: us.bandwidth.unwrap_or(0),
+                                        onlinesecs: us.onlinesecs.unwrap_or(0),
+                                        idlesecs: us.idlesecs.unwrap_or(0),
+                                    };
+
+                                    handler_arc.on_user_stats_received(stats_info);
+                                }
+                            }
                             _ => {}
                         }
                     }
@@ -1361,6 +1454,7 @@ impl MumbleClient {
                     sender_session: 0,
                     sender_name: "System".to_string(),
                     channel_id: None,
+                    recipient_session: None,
                     html_body: "Server connection closed.".to_string(),
                     timestamp,
                 };
@@ -1826,6 +1920,15 @@ impl MumbleClient {
 
     pub fn get_ban_list(&self) -> Vec<BanEntryInfo> {
         self.state.read().unwrap().ban_list.clone()
+    }
+
+    pub fn request_user_stats(&self, session_id: u32, stats_only: bool) {
+        let msg = proto::UserStats {
+            session: Some(session_id),
+            stats_only: Some(stats_only),
+            ..Default::default()
+        };
+        self.send_proto(TYPE_USER_STATS, &msg);
     }
 }
 

@@ -154,9 +154,13 @@ public struct ChannelRowView: View {
             }
         )
         .onTapGesture {
-            store.selectedChannelId = channel.id
+            store.openChannelChat(channelId: channel.id)
         }
         .contextMenu {
+            Button("Open Chat Tab") {
+                store.openChannelChat(channelId: channel.id)
+            }
+
             Button(channel.canEnter ? "Join Channel" : "Channel Locked (Cannot Enter)") {
                 if channel.canEnter {
                     store.joinChannel(channelId: channel.id)

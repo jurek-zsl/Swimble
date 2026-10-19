@@ -4,7 +4,7 @@ use tokio::sync::Notify;
 
 use mumble_core::{
     generate_client_identity, BanEntryInfo, ChannelInfo, ChatMessage, ConnectionStatus, MumbleClient,
-    MumbleEventHandler, RegisteredUser, ServerConnectionInfo, TalkingState, UserInfo,
+    MumbleEventHandler, RegisteredUser, ServerConnectionInfo, TalkingState, UserInfo, UserStatsInfo,
 };
 
 #[derive(Default)]
@@ -88,6 +88,10 @@ impl MumbleEventHandler for TestHandler {
 
     fn on_ban_list_updated(&self, bans: Vec<BanEntryInfo>) {
         println!("TestHandler: ban list updated (count: {})", bans.len());
+    }
+
+    fn on_user_stats_received(&self, stats: UserStatsInfo) {
+        println!("TestHandler: user stats received: {:?}", stats);
     }
 }
 

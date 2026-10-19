@@ -259,10 +259,43 @@ public struct UserRowView: View {
         .contentShape(Rectangle())
         .selectionDisabled(true)
         .draggable(String(user.sessionId))
+        .overlay(
+            UserContextMenuOverlay(
+                store: store,
+                user: user,
+                onPrivateMessage: {
+                    privateMessageInput = ""
+                    showingPrivateMessageAlert = true
+                },
+                onKick: {
+                    kickReasonInput = ""
+                    showingKickAlert = true
+                },
+                onBan: {
+                    banReasonInput = ""
+                    showingBanAlert = true
+                },
+                onComment: {
+                    showCommentPopover = true
+                },
+                onAvatar: {
+                    showAvatarPopover = true
+                },
+                onPickAvatar: {
+                    pickAndSetAvatar()
+                }
+            )
+        )
         .contextMenu {
             if !isMe {
                 Text(user.name)
                     .font(.headline)
+                Divider()
+
+                Button("Information") {
+                    store.requestUserStats(sessionId: user.sessionId)
+                }
+
                 Divider()
 
                 if let comment = user.comment, !comment.isEmpty {
@@ -279,6 +312,10 @@ public struct UserRowView: View {
 
                 if (user.comment != nil && !user.comment!.isEmpty) || avatarImage != nil {
                     Divider()
+                }
+
+                Button("Open Chat Tab") {
+                    store.openDirectChat(sessionId: user.sessionId, userName: user.name)
                 }
 
                 Button("Send Private Message...") {
@@ -313,14 +350,6 @@ public struct UserRowView: View {
 
                 Divider()
 
-                Menu("Local Volume (\(Int(userVolume * 100))%)") {
-                    Button("Mute (0%)") { store.setUserVolume(sessionId: user.sessionId, volume: 0.0) }
-                    Button("50%") { store.setUserVolume(sessionId: user.sessionId, volume: 0.5) }
-                    Button("100% (Normal)") { store.setUserVolume(sessionId: user.sessionId, volume: 1.0) }
-                    Button("150%") { store.setUserVolume(sessionId: user.sessionId, volume: 1.5) }
-                    Button("200% (Maximum)") { store.setUserVolume(sessionId: user.sessionId, volume: 2.0) }
-                }
-
                 Slider(
                     value: Binding(
                         get: { Double(store.getUserVolume(sessionId: user.sessionId)) },
@@ -329,7 +358,7 @@ public struct UserRowView: View {
                     in: 0.0...2.0,
                     step: 0.05
                 ) {
-                    Text("Volume")
+                    Text("Volume: \(Int(userVolume * 100))%")
                 }
 
                 Divider()
@@ -362,6 +391,12 @@ public struct UserRowView: View {
             } else {
                 Text("\(user.name) (You)")
                     .font(.headline)
+                Divider()
+
+                Button("Information") {
+                    store.requestUserStats(sessionId: user.sessionId)
+                }
+
                 Divider()
 
                 Button("Register on Server") {

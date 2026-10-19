@@ -84,6 +84,7 @@ pub struct ChatMessage {
     pub sender_session: u32,
     pub sender_name: String,
     pub channel_id: Option<u32>,
+    pub recipient_session: Option<u32>,
     pub html_body: String,
     pub timestamp: u64,
 }
@@ -154,6 +155,41 @@ pub struct BanEntryInfo {
     pub duration: u32,
 }
 
+#[derive(uniffi::Record, Clone, Debug, Default, PartialEq)]
+pub struct PacketStats {
+    pub good: u32,
+    pub late: u32,
+    pub lost: u32,
+    pub resync: u32,
+}
+
+#[derive(uniffi::Record, Clone, Debug, PartialEq)]
+pub struct UserStatsInfo {
+    pub session_id: u32,
+    pub user_name: String,
+    pub version_v: String,
+    pub version_os: String,
+    pub version_os_version: String,
+    pub version_release: String,
+    pub ip_address: String,
+    pub certificate_name: String,
+    pub certificate_details: String,
+    pub certificate_der: Option<Vec<u8>>,
+    pub strong_certificate: bool,
+    pub opus_supported: bool,
+    pub tcp_ping_avg: f32,
+    pub tcp_ping_var: f32,
+    pub udp_ping_avg: f32,
+    pub udp_ping_var: f32,
+    pub tcp_packets: u32,
+    pub udp_packets: u32,
+    pub from_client: PacketStats,
+    pub from_server: PacketStats,
+    pub bandwidth: u32,
+    pub onlinesecs: u32,
+    pub idlesecs: u32,
+}
+
 #[uniffi::export(callback_interface)]
 pub trait MumbleEventHandler: Send + Sync {
     fn on_connection_status_changed(&self, status: ConnectionStatus);
@@ -165,4 +201,6 @@ pub trait MumbleEventHandler: Send + Sync {
     fn on_server_connection_info_updated(&self, info: ServerConnectionInfo);
     fn on_registered_users_updated(&self, users: Vec<RegisteredUser>);
     fn on_ban_list_updated(&self, bans: Vec<BanEntryInfo>);
+    fn on_user_stats_received(&self, stats: UserStatsInfo);
 }
+

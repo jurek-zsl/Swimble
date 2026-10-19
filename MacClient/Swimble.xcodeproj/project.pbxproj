@@ -34,6 +34,7 @@
 		6ED7163362404FFBB09BAA1B /* EventNotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08B4FC6ED1628E58EC8F9621 /* EventNotificationManager.swift */; };
 		7459BEF006ECE1CDB5C4E4C3 /* RegisteredUsersModal.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD1ACB1CCCD91B54D8D3E60B /* RegisteredUsersModal.swift */; };
 		7CD50DF939B92B5302748E65 /* MacAudioEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51AE2862ABAC495191B6AA2F /* MacAudioEngine.swift */; };
+		842252055E22E2811DCEADB4 /* UserContextMenuView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F56940CF4B77E2577888893 /* UserContextMenuView.swift */; };
 		872EE86E1C64DACC265696FC /* CoreAudioDeviceManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = D44B6F056A925DEEA15EE380 /* CoreAudioDeviceManager.swift */; };
 		879D83BFB29D6D38688D32BD /* MumbleStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10389079B3AED4788E13A3CD /* MumbleStore.swift */; };
 		8A857310C9F80088302BF7C8 /* AudioToolbox.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 90281F12C63E300CFA61BE16 /* AudioToolbox.framework */; };
@@ -57,6 +58,7 @@
 		DE181B7F1F566FC9A5015AF8 /* BanListModal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D33FD6E755DD4CACB3900E2 /* BanListModal.swift */; };
 		E3353E6AF351FE9465F07F38 /* CoreAudio.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 95D67961E1365E062F455260 /* CoreAudio.framework */; };
 		E41A216900C75FABD2AB9EFA /* AVFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4D06299B7CE33F3BCF39062D /* AVFoundation.framework */; };
+		EB35A148DCAB8A39D8A4AA95 /* UserStatsModal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85CFE21850D8222E1FE29AD6 /* UserStatsModal.swift */; };
 		EC373E80CC6AB3A65B889942 /* RichDescriptionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC4EBD274AC49EEF39C1F3A9 /* RichDescriptionView.swift */; };
 		EFFD97E5CD5CE47EA637E8C1 /* OverlaySettingsTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D396A33F11564A1B200D65E /* OverlaySettingsTab.swift */; };
 		F1FAA6A66EB6740A4591CFA8 /* GlobalPTT.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4ABCAE82B83EF2D8086B07F2 /* GlobalPTT.swift */; };
@@ -77,6 +79,7 @@
 		2D396A33F11564A1B200D65E /* OverlaySettingsTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlaySettingsTab.swift; sourceTree = "<group>"; };
 		2EFFD1440A493EFEB411994B /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
 		3ECCE4CE0E12E9D18C13E95D /* SettingsCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsCard.swift; sourceTree = "<group>"; };
+		3F56940CF4B77E2577888893 /* UserContextMenuView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserContextMenuView.swift; sourceTree = "<group>"; };
 		42526C1F80D3ADA0B4BB4411 /* AudioStatisticsModal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioStatisticsModal.swift; sourceTree = "<group>"; };
 		4465EC52752E78B45234A582 /* ChatAndActivityView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatAndActivityView.swift; sourceTree = "<group>"; };
 		4ABCAE82B83EF2D8086B07F2 /* GlobalPTT.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalPTT.swift; sourceTree = "<group>"; };
@@ -97,6 +100,7 @@
 		7D33FD6E755DD4CACB3900E2 /* BanListModal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BanListModal.swift; sourceTree = "<group>"; };
 		800F4E30AAC0ECCA5750B0CA /* FloatingOverlayWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingOverlayWindow.swift; sourceTree = "<group>"; };
 		8180F638748EA13ADEFBBE87 /* SoundManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoundManager.swift; sourceTree = "<group>"; };
+		85CFE21850D8222E1FE29AD6 /* UserStatsModal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserStatsModal.swift; sourceTree = "<group>"; };
 		8C8E3D10662080C8C58BBB25 /* ChannelTreeNode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChannelTreeNode.swift; sourceTree = "<group>"; };
 		8D75388A3A0B276E8E23E2A3 /* ChannelTreeSidebar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChannelTreeSidebar.swift; sourceTree = "<group>"; };
 		90281F12C63E300CFA61BE16 /* AudioToolbox.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AudioToolbox.framework; path = System/Library/Frameworks/AudioToolbox.framework; sourceTree = SDKROOT; };
@@ -170,6 +174,7 @@
 				FEA6C7D03FA5BEA5BB8BE052 /* ChannelRowView.swift */,
 				CC4EBD274AC49EEF39C1F3A9 /* RichDescriptionView.swift */,
 				B65D69B0D575EC2E37531211 /* SpeakingOrbView.swift */,
+				3F56940CF4B77E2577888893 /* UserContextMenuView.swift */,
 				0E13181C0A3D7784E5BA1981 /* UserRowView.swift */,
 			);
 			path = Components;
@@ -272,6 +277,7 @@
 				CD1ACB1CCCD91B54D8D3E60B /* RegisteredUsersModal.swift */,
 				0E8170BD8B1AB9190553D093 /* ServerInformationModal.swift */,
 				A52CA21CD1DADE40D5D22B45 /* TTSModal.swift */,
+				85CFE21850D8222E1FE29AD6 /* UserStatsModal.swift */,
 			);
 			path = Modals;
 			sourceTree = "<group>";
@@ -408,8 +414,10 @@
 				0BE3913C5C1E27A70CDFDBB3 /* SpeakingOrbView.swift in Sources */,
 				F435778F5EBE9A363AC4E6E1 /* TTSEngine.swift in Sources */,
 				0AAB0AD58BE247A14355ACBD /* TTSModal.swift in Sources */,
+				842252055E22E2811DCEADB4 /* UserContextMenuView.swift in Sources */,
 				4A016511D57DA9DA2BE776AE /* UserInterfaceSettingsTab.swift in Sources */,
 				C919859158FAAA84E0B8795C /* UserRowView.swift in Sources */,
+				EB35A148DCAB8A39D8A4AA95 /* UserStatsModal.swift in Sources */,
 				15A5488C85F5CC37D574AFFD /* mumble_core.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

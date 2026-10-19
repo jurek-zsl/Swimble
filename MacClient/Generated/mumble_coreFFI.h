@@ -306,6 +306,13 @@ typedef void (*UniffiCallbackInterfaceMumbleEventHandlerMethod8)(uint64_t, RustB
     );
 
 #endif
+#ifndef UNIFFI_FFIDEF_CALLBACK_INTERFACE_MUMBLE_EVENT_HANDLER_METHOD9
+#define UNIFFI_FFIDEF_CALLBACK_INTERFACE_MUMBLE_EVENT_HANDLER_METHOD9
+typedef void (*UniffiCallbackInterfaceMumbleEventHandlerMethod9)(uint64_t, RustBuffer, void* _Nonnull, 
+        RustCallStatus *_Nonnull uniffiCallStatus
+    );
+
+#endif
 #ifndef UNIFFI_FFIDEF_V_TABLE_CALLBACK_INTERFACE_MUMBLE_EVENT_HANDLER
 #define UNIFFI_FFIDEF_V_TABLE_CALLBACK_INTERFACE_MUMBLE_EVENT_HANDLER
 typedef struct UniffiVTableCallbackInterfaceMumbleEventHandler {
@@ -320,6 +327,7 @@ typedef struct UniffiVTableCallbackInterfaceMumbleEventHandler {
     UniffiCallbackInterfaceMumbleEventHandlerMethod6 _Nonnull onServerConnectionInfoUpdated;
     UniffiCallbackInterfaceMumbleEventHandlerMethod7 _Nonnull onRegisteredUsersUpdated;
     UniffiCallbackInterfaceMumbleEventHandlerMethod8 _Nonnull onBanListUpdated;
+    UniffiCallbackInterfaceMumbleEventHandlerMethod9 _Nonnull onUserStatsReceived;
 } UniffiVTableCallbackInterfaceMumbleEventHandler;
 
 #endif
@@ -481,6 +489,11 @@ void uniffi_mumble_core_fn_method_mumbleclient_request_blob(uint64_t ptr, RustBu
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_REQUEST_REGISTERED_USERS
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_REQUEST_REGISTERED_USERS
 void uniffi_mumble_core_fn_method_mumbleclient_request_registered_users(uint64_t ptr, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_REQUEST_USER_STATS
+#define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_REQUEST_USER_STATS
+void uniffi_mumble_core_fn_method_mumbleclient_request_user_stats(uint64_t ptr, uint32_t session_id, int8_t stats_only, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_SEND_CHAT_MESSAGE
@@ -1052,6 +1065,12 @@ uint16_t uniffi_mumble_core_checksum_method_mumbleclient_request_registered_user
     
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_REQUEST_USER_STATS
+#define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_REQUEST_USER_STATS
+uint16_t uniffi_mumble_core_checksum_method_mumbleclient_request_user_stats(void
+    
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_SEND_CHAT_MESSAGE
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_SEND_CHAT_MESSAGE
 uint16_t uniffi_mumble_core_checksum_method_mumbleclient_send_chat_message(void
@@ -1199,6 +1218,12 @@ uint16_t uniffi_mumble_core_checksum_method_mumbleeventhandler_on_registered_use
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLEEVENTHANDLER_ON_BAN_LIST_UPDATED
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLEEVENTHANDLER_ON_BAN_LIST_UPDATED
 uint16_t uniffi_mumble_core_checksum_method_mumbleeventhandler_on_ban_list_updated(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLEEVENTHANDLER_ON_USER_STATS_RECEIVED
+#define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLEEVENTHANDLER_ON_USER_STATS_RECEIVED
+uint16_t uniffi_mumble_core_checksum_method_mumbleeventhandler_on_user_stats_received(void
     
 );
 #endif

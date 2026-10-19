@@ -715,6 +715,8 @@ public protocol MumbleClientProtocol: AnyObject, Sendable {
     
     func requestRegisteredUsers() 
     
+    func requestUserStats(sessionId: UInt32, statsOnly: Bool) 
+    
     func sendChatMessage(channelId: UInt32, message: String) 
     
     func sendUserMessage(sessionId: UInt32, message: String) 
@@ -1086,6 +1088,16 @@ open func requestRegisteredUsers()  {try! rustCall() {
 }
 }
     
+open func requestUserStats(sessionId: UInt32, statsOnly: Bool)  {try! rustCall() {
+        uniffiCallStatus in
+    uniffi_mumble_core_fn_method_mumbleclient_request_user_stats(
+            self.uniffiCloneHandle(),
+        FfiConverterUInt32.lower(sessionId),
+        FfiConverterBool.lower(statsOnly),uniffiCallStatus
+    )
+}
+}
+    
 open func sendChatMessage(channelId: UInt32, message: String)  {try! rustCall() {
         uniffiCallStatus in
     uniffi_mumble_core_fn_method_mumbleclient_send_chat_message(
@@ -1432,15 +1444,17 @@ public struct ChatMessage: Equatable, Hashable {
     public var senderSession: UInt32
     public var senderName: String
     public var channelId: UInt32?
+    public var recipientSession: UInt32?
     public var htmlBody: String
     public var timestamp: UInt64
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(senderSession: UInt32, senderName: String, channelId: UInt32?, htmlBody: String, timestamp: UInt64) {
+    public init(senderSession: UInt32, senderName: String, channelId: UInt32?, recipientSession: UInt32?, htmlBody: String, timestamp: UInt64) {
         self.senderSession = senderSession
         self.senderName = senderName
         self.channelId = channelId
+        self.recipientSession = recipientSession
         self.htmlBody = htmlBody
         self.timestamp = timestamp
     }
@@ -1464,6 +1478,7 @@ public struct FfiConverterTypeChatMessage: FfiConverterRustBuffer {
                 senderSession: FfiConverterUInt32.read(from: &buf), 
                 senderName: FfiConverterString.read(from: &buf), 
                 channelId: FfiConverterOptionUInt32.read(from: &buf), 
+                recipientSession: FfiConverterOptionUInt32.read(from: &buf), 
                 htmlBody: FfiConverterString.read(from: &buf), 
                 timestamp: FfiConverterUInt64.read(from: &buf)
         )
@@ -1473,6 +1488,7 @@ public struct FfiConverterTypeChatMessage: FfiConverterRustBuffer {
         FfiConverterUInt32.write(value.senderSession, into: &buf)
         FfiConverterString.write(value.senderName, into: &buf)
         FfiConverterOptionUInt32.write(value.channelId, into: &buf)
+        FfiConverterOptionUInt32.write(value.recipientSession, into: &buf)
         FfiConverterString.write(value.htmlBody, into: &buf)
         FfiConverterUInt64.write(value.timestamp, into: &buf)
     }
@@ -1545,6 +1561,68 @@ public func FfiConverterTypeClientIdentity_lift(_ buf: RustBuffer) throws -> Cli
 #endif
 public func FfiConverterTypeClientIdentity_lower(_ value: ClientIdentity) -> RustBuffer {
     return FfiConverterTypeClientIdentity.lower(value)
+}
+
+
+public struct PacketStats: Equatable, Hashable {
+    public var good: UInt32
+    public var late: UInt32
+    public var lost: UInt32
+    public var resync: UInt32
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(good: UInt32, late: UInt32, lost: UInt32, resync: UInt32) {
+        self.good = good
+        self.late = late
+        self.lost = lost
+        self.resync = resync
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension PacketStats: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypePacketStats: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> PacketStats {
+        return
+            try PacketStats(
+                good: FfiConverterUInt32.read(from: &buf), 
+                late: FfiConverterUInt32.read(from: &buf), 
+                lost: FfiConverterUInt32.read(from: &buf), 
+                resync: FfiConverterUInt32.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: PacketStats, into buf: inout [UInt8]) {
+        FfiConverterUInt32.write(value.good, into: &buf)
+        FfiConverterUInt32.write(value.late, into: &buf)
+        FfiConverterUInt32.write(value.lost, into: &buf)
+        FfiConverterUInt32.write(value.resync, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypePacketStats_lift(_ buf: RustBuffer) throws -> PacketStats {
+    return try FfiConverterTypePacketStats.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypePacketStats_lower(_ value: PacketStats) -> RustBuffer {
+    return FfiConverterTypePacketStats.lower(value)
 }
 
 
@@ -1885,6 +1963,144 @@ public func FfiConverterTypeUserInfo_lift(_ buf: RustBuffer) throws -> UserInfo 
 #endif
 public func FfiConverterTypeUserInfo_lower(_ value: UserInfo) -> RustBuffer {
     return FfiConverterTypeUserInfo.lower(value)
+}
+
+
+public struct UserStatsInfo: Equatable, Hashable {
+    public var sessionId: UInt32
+    public var userName: String
+    public var versionV: String
+    public var versionOs: String
+    public var versionOsVersion: String
+    public var versionRelease: String
+    public var ipAddress: String
+    public var certificateName: String
+    public var certificateDetails: String
+    public var certificateDer: Data?
+    public var strongCertificate: Bool
+    public var opusSupported: Bool
+    public var tcpPingAvg: Float
+    public var tcpPingVar: Float
+    public var udpPingAvg: Float
+    public var udpPingVar: Float
+    public var tcpPackets: UInt32
+    public var udpPackets: UInt32
+    public var fromClient: PacketStats
+    public var fromServer: PacketStats
+    public var bandwidth: UInt32
+    public var onlinesecs: UInt32
+    public var idlesecs: UInt32
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(sessionId: UInt32, userName: String, versionV: String, versionOs: String, versionOsVersion: String, versionRelease: String, ipAddress: String, certificateName: String, certificateDetails: String, certificateDer: Data?, strongCertificate: Bool, opusSupported: Bool, tcpPingAvg: Float, tcpPingVar: Float, udpPingAvg: Float, udpPingVar: Float, tcpPackets: UInt32, udpPackets: UInt32, fromClient: PacketStats, fromServer: PacketStats, bandwidth: UInt32, onlinesecs: UInt32, idlesecs: UInt32) {
+        self.sessionId = sessionId
+        self.userName = userName
+        self.versionV = versionV
+        self.versionOs = versionOs
+        self.versionOsVersion = versionOsVersion
+        self.versionRelease = versionRelease
+        self.ipAddress = ipAddress
+        self.certificateName = certificateName
+        self.certificateDetails = certificateDetails
+        self.certificateDer = certificateDer
+        self.strongCertificate = strongCertificate
+        self.opusSupported = opusSupported
+        self.tcpPingAvg = tcpPingAvg
+        self.tcpPingVar = tcpPingVar
+        self.udpPingAvg = udpPingAvg
+        self.udpPingVar = udpPingVar
+        self.tcpPackets = tcpPackets
+        self.udpPackets = udpPackets
+        self.fromClient = fromClient
+        self.fromServer = fromServer
+        self.bandwidth = bandwidth
+        self.onlinesecs = onlinesecs
+        self.idlesecs = idlesecs
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension UserStatsInfo: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeUserStatsInfo: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> UserStatsInfo {
+        return
+            try UserStatsInfo(
+                sessionId: FfiConverterUInt32.read(from: &buf), 
+                userName: FfiConverterString.read(from: &buf), 
+                versionV: FfiConverterString.read(from: &buf), 
+                versionOs: FfiConverterString.read(from: &buf), 
+                versionOsVersion: FfiConverterString.read(from: &buf), 
+                versionRelease: FfiConverterString.read(from: &buf), 
+                ipAddress: FfiConverterString.read(from: &buf), 
+                certificateName: FfiConverterString.read(from: &buf), 
+                certificateDetails: FfiConverterString.read(from: &buf), 
+                certificateDer: FfiConverterOptionData.read(from: &buf), 
+                strongCertificate: FfiConverterBool.read(from: &buf), 
+                opusSupported: FfiConverterBool.read(from: &buf), 
+                tcpPingAvg: FfiConverterFloat.read(from: &buf), 
+                tcpPingVar: FfiConverterFloat.read(from: &buf), 
+                udpPingAvg: FfiConverterFloat.read(from: &buf), 
+                udpPingVar: FfiConverterFloat.read(from: &buf), 
+                tcpPackets: FfiConverterUInt32.read(from: &buf), 
+                udpPackets: FfiConverterUInt32.read(from: &buf), 
+                fromClient: FfiConverterTypePacketStats.read(from: &buf), 
+                fromServer: FfiConverterTypePacketStats.read(from: &buf), 
+                bandwidth: FfiConverterUInt32.read(from: &buf), 
+                onlinesecs: FfiConverterUInt32.read(from: &buf), 
+                idlesecs: FfiConverterUInt32.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: UserStatsInfo, into buf: inout [UInt8]) {
+        FfiConverterUInt32.write(value.sessionId, into: &buf)
+        FfiConverterString.write(value.userName, into: &buf)
+        FfiConverterString.write(value.versionV, into: &buf)
+        FfiConverterString.write(value.versionOs, into: &buf)
+        FfiConverterString.write(value.versionOsVersion, into: &buf)
+        FfiConverterString.write(value.versionRelease, into: &buf)
+        FfiConverterString.write(value.ipAddress, into: &buf)
+        FfiConverterString.write(value.certificateName, into: &buf)
+        FfiConverterString.write(value.certificateDetails, into: &buf)
+        FfiConverterOptionData.write(value.certificateDer, into: &buf)
+        FfiConverterBool.write(value.strongCertificate, into: &buf)
+        FfiConverterBool.write(value.opusSupported, into: &buf)
+        FfiConverterFloat.write(value.tcpPingAvg, into: &buf)
+        FfiConverterFloat.write(value.tcpPingVar, into: &buf)
+        FfiConverterFloat.write(value.udpPingAvg, into: &buf)
+        FfiConverterFloat.write(value.udpPingVar, into: &buf)
+        FfiConverterUInt32.write(value.tcpPackets, into: &buf)
+        FfiConverterUInt32.write(value.udpPackets, into: &buf)
+        FfiConverterTypePacketStats.write(value.fromClient, into: &buf)
+        FfiConverterTypePacketStats.write(value.fromServer, into: &buf)
+        FfiConverterUInt32.write(value.bandwidth, into: &buf)
+        FfiConverterUInt32.write(value.onlinesecs, into: &buf)
+        FfiConverterUInt32.write(value.idlesecs, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeUserStatsInfo_lift(_ buf: RustBuffer) throws -> UserStatsInfo {
+    return try FfiConverterTypeUserStatsInfo.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeUserStatsInfo_lower(_ value: UserStatsInfo) -> RustBuffer {
+    return FfiConverterTypeUserStatsInfo.lower(value)
 }
 
 
@@ -2242,6 +2458,8 @@ public protocol MumbleEventHandler: AnyObject, Sendable {
     
     func onBanListUpdated(bans: [BanEntryInfo]) 
     
+    func onUserStatsReceived(stats: UserStatsInfo) 
+    
 }
 
 
@@ -2480,6 +2698,30 @@ fileprivate struct UniffiCallbackInterfaceMumbleEventHandler {
                 }
                 return uniffiObj.onBanListUpdated(
                      bans: try FfiConverterSequenceTypeBanEntryInfo.lift(bans)
+                )
+            }
+
+            
+            let writeReturn = { () }
+            uniffiTraitInterfaceCall(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn
+            )
+        },
+        onUserStatsReceived: { (
+            uniffiHandle: UInt64,
+            stats: RustBuffer,
+            uniffiOutReturn: UnsafeMutableRawPointer,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let makeCall = {
+                () throws -> () in
+                guard let uniffiObj = try? FfiConverterCallbackInterfaceMumbleEventHandler.handleMap.get(handle: uniffiHandle) else {
+                    throw UniffiInternalError.unexpectedStaleHandle
+                }
+                return uniffiObj.onUserStatsReceived(
+                     stats: try FfiConverterTypeUserStatsInfo_lift(stats)
                 )
             }
 
@@ -3057,6 +3299,9 @@ private let initializationResult: InitializationResult = {
     if (uniffi_mumble_core_checksum_method_mumbleclient_request_registered_users() != 23351) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_mumble_core_checksum_method_mumbleclient_request_user_stats() != 61536) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_mumble_core_checksum_method_mumbleclient_send_chat_message() != 59388) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -3130,6 +3375,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_mumble_core_checksum_method_mumbleeventhandler_on_ban_list_updated() != 34707) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_mumble_core_checksum_method_mumbleeventhandler_on_user_stats_received() != 63321) {
         return InitializationResult.apiChecksumMismatch
     }
 

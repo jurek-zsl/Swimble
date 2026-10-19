@@ -54,6 +54,8 @@ public struct ServerSplitView: View {
                     TTSModal(store: store)
                 case .overlaySettings:
                     OverlaySettingsModal(store: store)
+                case .userStats:
+                    UserStatsModal(store: store)
                 }
             }
         }

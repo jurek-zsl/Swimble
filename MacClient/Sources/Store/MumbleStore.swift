@@ -16,8 +16,26 @@ public enum ActiveModal: String, Identifiable {
     case certificateWizard
     case ttsSettings
     case overlaySettings
+    case userStats
 
     public var id: String { rawValue }
+}
+
+public enum ChatTabTarget: Hashable, Equatable, Identifiable {
+    case server
+    case channel(UInt32)
+    case direct(UInt32, String)
+
+    public var id: String {
+        switch self {
+        case .server:
+            return "server"
+        case .channel(let cid):
+            return "ch_\(cid)"
+        case .direct(let sid, _):
+            return "dm_\(sid)"
+        }
+    }
 }
 
 /// Main application state store managing Mumble server networking, channel hierarchies,
@@ -35,6 +53,8 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
     public var tcpPingMs: Float = 0.0
     public var udpPingMs: Float = 0.0
     public var usingUdpTunnel: Bool = false
+    public var isUserInitiatedDisconnect: Bool = false
+    public var currentUserStats: UserStatsInfo? = nil
 
     // Channel & User Tree
     public var channels: [ChannelInfo] = []
@@ -44,8 +64,11 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
     public var selectedChannelId: UInt32? = nil
     public var mySessionId: UInt32? = nil
 
-    // Chat
+    // Chat & Tabs
     public var chatMessages: [ChatMessage] = []
+    public var openChatTabs: [ChatTabTarget] = [.server]
+    public var activeChatTab: ChatTabTarget = .server
+    public var unreadTabCounts: [String: Int] = [:]
 
     // Local Mute & Deafen
     public var isSelfMuted: Bool = false
@@ -132,6 +155,7 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
             senderSession: 0,
             senderName: "System",
             channelId: self.selectedChannelId ?? self.myChannelId,
+            recipientSession: nil,
             htmlBody: text,
             timestamp: UInt64(Date().timeIntervalSince1970 * 1000)
         )
@@ -242,6 +266,9 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
     // MARK: - Server Connection Actions
 
     public func connect(bookmark: ServerBookmark) {
+        self.isUserInitiatedDisconnect = false
+        self.reconnectTimer?.invalidate()
+        self.reconnectTimer = nil
         self.activeBookmark = bookmark
         self.connectionStatus = .connecting
 
@@ -269,9 +296,13 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
     }
 
     public func disconnect() {
+        self.isUserInitiatedDisconnect = true
+        self.reconnectTimer?.invalidate()
+        self.reconnectTimer = nil
         audioEngine.stop()
         client.disconnect()
         self.connectionStatus = .disconnected
+        self.activeBookmark = nil
         self.channels = []
         self.channelTree = []
         self.users = []
@@ -279,11 +310,59 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
         self.selectedChannelId = nil
         self.hasLoggedInitialJoin = false
         self.lastKnownMyChannelId = nil
+        self.openChatTabs = [.server]
+        self.activeChatTab = .server
+        self.unreadTabCounts.removeAll()
         self.pendingUserMoves.removeAll()
         self.previousUserChannelMap.removeAll()
         self.previousUserNames.removeAll()
         self.previousUserMuteMap.removeAll()
         self.previousUserDeafMap.removeAll()
+    }
+
+    // MARK: - Chat Tabs & User Stats
+
+    public func openChannelChat(channelId: UInt32) {
+        let target = ChatTabTarget.channel(channelId)
+        if !openChatTabs.contains(where: { $0.id == target.id }) {
+            openChatTabs.append(target)
+        }
+        activeChatTab = target
+        selectedChannelId = channelId
+        unreadTabCounts[target.id] = 0
+    }
+
+    public func openDirectChat(sessionId: UInt32, userName: String) {
+        let target = ChatTabTarget.direct(sessionId, userName)
+        if !openChatTabs.contains(where: { $0.id == target.id }) {
+            openChatTabs.append(target)
+        }
+        activeChatTab = target
+        unreadTabCounts[target.id] = 0
+    }
+
+    public func selectChatTab(_ target: ChatTabTarget) {
+        activeChatTab = target
+        unreadTabCounts[target.id] = 0
+        if case .channel(let cid) = target {
+            selectedChannelId = cid
+        }
+    }
+
+    public func closeChatTab(_ target: ChatTabTarget) {
+        guard target != .server else { return }
+        if let idx = openChatTabs.firstIndex(where: { $0.id == target.id }) {
+            openChatTabs.remove(at: idx)
+            unreadTabCounts.removeValue(forKey: target.id)
+            if activeChatTab.id == target.id {
+                let newIdx = max(0, idx - 1)
+                activeChatTab = openChatTabs[newIdx]
+            }
+        }
+    }
+
+    public func requestUserStats(sessionId: UInt32) {
+        client.requestUserStats(sessionId: sessionId, statsOnly: false)
     }
 
     // MARK: - Channel & User Actions
@@ -303,6 +382,7 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
             senderSession: mySessionId ?? 0,
             senderName: activeBookmark?.username ?? "Me",
             channelId: targetId,
+            recipientSession: nil,
             htmlBody: message,
             timestamp: UInt64(Date().timeIntervalSince1970 * 1000)
         )
@@ -419,6 +499,15 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
     public func sendUserMessage(sessionId: UInt32, message: String) {
         guard !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         client.sendUserMessage(sessionId: sessionId, message: message)
+        let localMsg = ChatMessage(
+            senderSession: mySessionId ?? 0,
+            senderName: activeBookmark?.username ?? "Me",
+            channelId: nil,
+            recipientSession: sessionId,
+            htmlBody: message,
+            timestamp: UInt64(Date().timeIntervalSince1970 * 1000)
+        )
+        self.chatMessages.append(localMsg)
     }
 
     public var isMyPrioritySpeaker: Bool {
@@ -767,12 +856,12 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
     }
 
     public func scheduleAutoReconnect() {
-        guard let bm = activeBookmark else { return }
+        guard !isUserInitiatedDisconnect, let bm = activeBookmark else { return }
         reconnectTimer?.invalidate()
         logSystemMessage("Connection lost. Automatically reconnecting in 5 seconds...", icon: "arrow.clockwise")
         reconnectTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: false) { [weak self] _ in
             Task { @MainActor in
-                guard let self = self, self.connectionStatus == .disconnected else { return }
+                guard let self = self, !self.isUserInitiatedDisconnect, self.connectionStatus == .disconnected else { return }
                 self.connect(bookmark: bm)
             }
         }
@@ -813,7 +902,7 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
                 if SettingsState.shared.clearChatWindowOnExit {
                     self.chatMessages.removeAll()
                 }
-                if SettingsState.shared.reconnectAutomatically && self.activeBookmark != nil {
+                if !self.isUserInitiatedDisconnect && SettingsState.shared.reconnectAutomatically && self.activeBookmark != nil {
                     self.scheduleAutoReconnect()
                 }
             }
@@ -911,25 +1000,33 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
 
                     if let prevMuted = self.previousUserMuteMap[u.sessionId] {
                         if !prevMuted && isMuted {
-                            if u.sessionId == myId && u.isMuted && !u.isSelfMuted {
-                                EventNotificationManager.shared.dispatch(
-                                    eventName: "You were muted/deafened (by admin)",
-                                    detail: "You were muted by an administrator.",
-                                    store: self
-                                )
+                            if u.sessionId == myId {
+                                if u.isMuted && !u.isSelfMuted {
+                                    EventNotificationManager.shared.dispatch(
+                                        eventName: "You were muted/deafened (by admin)",
+                                        detail: "You were muted by an administrator.",
+                                        store: self
+                                    )
+                                }
                             } else {
                                 self.logSystemMessage("\(subject) now muted.", icon: "mic.slash.fill")
                             }
                         } else if prevMuted && !isMuted {
-                            self.logSystemMessage("\(subject) now unmuted.", icon: "mic.fill")
+                            if u.sessionId != myId {
+                                self.logSystemMessage("\(subject) now unmuted.", icon: "mic.fill")
+                            }
                         }
                     }
 
                     if let prevDeaf = self.previousUserDeafMap[u.sessionId] {
                         if !prevDeaf && isDeafened {
-                            self.logSystemMessage("\(subject) now deafened.", icon: "speaker.slash.fill")
+                            if u.sessionId != myId {
+                                self.logSystemMessage("\(subject) now deafened.", icon: "speaker.slash.fill")
+                            }
                         } else if prevDeaf && !isDeafened {
-                            self.logSystemMessage("\(subject) now undeafened.", icon: "speaker.wave.2.fill")
+                            if u.sessionId != myId {
+                                self.logSystemMessage("\(subject) now undeafened.", icon: "speaker.wave.2.fill")
+                            }
                         }
                     }
 
@@ -1025,6 +1122,24 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
                 )
             }
 
+            // Update tab unread counts
+            let targetTabId: String
+            if let cid = message.channelId {
+                targetTabId = "ch_\(cid)"
+            } else if message.senderSession != 0 && message.senderSession != self.mySessionId {
+                targetTabId = "dm_\(message.senderSession)"
+                let dmTarget = ChatTabTarget.direct(message.senderSession, message.senderName)
+                if !self.openChatTabs.contains(where: { $0.id == dmTarget.id }) {
+                    self.openChatTabs.append(dmTarget)
+                }
+            } else {
+                targetTabId = "server"
+            }
+
+            if self.activeChatTab.id != targetTabId {
+                self.unreadTabCounts[targetTabId, default: 0] += 1
+            }
+
             // Cap chatMessages at maxChatBlockCount
             let maxBlocks = SettingsState.shared.maxChatBlockCount
             if maxBlocks > 0 && self.chatMessages.count > maxBlocks {
@@ -1056,6 +1171,7 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
                         senderSession: 0,
                         senderName: "Server",
                         channelId: nil,
+                        recipientSession: nil,
                         htmlBody: trimmed,
                         timestamp: UInt64(Date().timeIntervalSince1970 * 1000)
                     )
@@ -1076,6 +1192,14 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
         Task { @MainActor [weak self] in
             guard let self = self else { return }
             self.banList = bans
+        }
+    }
+
+    nonisolated public func onUserStatsReceived(stats: UserStatsInfo) {
+        Task { @MainActor [weak self] in
+            guard let self = self else { return }
+            self.currentUserStats = stats
+            self.activeModal = .userStats
         }
     }
 }
