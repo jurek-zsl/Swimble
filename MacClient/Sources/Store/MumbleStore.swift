@@ -67,7 +67,14 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
     // Chat & Tabs
     public var chatMessages: [ChatMessage] = []
     public var openChatTabs: [ChatTabTarget] = [.server]
-    public var activeChatTab: ChatTabTarget = .server
+    public var activeChatTab: ChatTabTarget = .server {
+        didSet {
+            unreadTabCounts[activeChatTab.id] = 0
+            if case .channel(let cid) = activeChatTab {
+                selectedChannelId = cid
+            }
+        }
+    }
     public var unreadTabCounts: [String: Int] = [:]
 
     // Local Mute & Deafen

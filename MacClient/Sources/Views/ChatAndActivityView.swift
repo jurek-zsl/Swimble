@@ -314,8 +314,8 @@ public struct ChatAndActivityView: View {
         }
     }
 
-    private var filteredChatMessages: [ChatMessage] {
-        switch store.activeChatTab {
+    private func messagesForTab(_ tab: ChatTabTarget) -> [ChatMessage] {
+        switch tab {
         case .server:
             return store.chatMessages
         case .channel(let cid):
@@ -335,103 +335,55 @@ public struct ChatAndActivityView: View {
         }
     }
 
-    private var chatTabBar: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(store.openChatTabs) { tab in
-                    let isSelected = store.activeChatTab.id == tab.id
-                    let unread = store.unreadTabCounts[tab.id] ?? 0
+    private var filteredChatMessages: [ChatMessage] {
+        messagesForTab(store.activeChatTab)
+    }
 
-                    Button(action: {
-                        withAnimation(.easeInOut(duration: 0.15)) {
-                            store.selectChatTab(tab)
+    @ViewBuilder
+    private func chatStreamView(for tab: ChatTabTarget) -> some View {
+        let messages = messagesForTab(tab)
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 14) {
+                    if messages.isEmpty {
+                        VStack(spacing: 10) {
+                            Image(systemName: "bubble.left.and.bubble.right")
+                                .font(.system(size: 40))
+                                .foregroundStyle(.tertiary)
+                            Text("No messages in \(tabTitle(tab)) yet")
+                                .font(.headline)
+                                .foregroundStyle(.secondary)
+                            Text("Type a message below to start chatting.")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
                         }
-                    }) {
-                        HStack(spacing: 6) {
-                            Image(systemName: tabIcon(tab))
-                                .font(.system(size: 11))
-                                .foregroundStyle(isSelected ? store.accentTint : Color.secondary)
-
-                            Text(tabTitle(tab))
-                                .font(.system(size: 12, weight: isSelected ? .bold : .medium))
-                                .foregroundStyle(isSelected ? Color.primary : Color.secondary)
-
-                            if unread > 0 {
-                                Text("\(unread)")
-                                    .font(.system(size: 9.5, weight: .bold))
-                                    .padding(.horizontal, 5)
-                                    .padding(.vertical, 1)
-                                    .background(store.accentTint, in: Capsule())
-                                    .foregroundStyle(.white)
-                            }
-
-                            if tab != .server {
-                                Button(action: {
-                                    withAnimation(.easeInOut(duration: 0.15)) {
-                                        store.closeChatTab(tab)
-                                    }
-                                }) {
-                                    Image(systemName: "xmark")
-                                        .font(.system(size: 9, weight: .bold))
-                                        .foregroundStyle(.secondary)
-                                }
-                                .buttonStyle(.plain)
-                                .help("Close tab")
-                            }
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 60)
+                    } else {
+                        ForEach(Array(messages.enumerated()), id: \.offset) { index, msg in
+                            ChatMessageRow(message: msg, accentTint: store.accentTint)
+                                .id("msg_\(index)")
                         }
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .fill(isSelected ? store.accentTint.opacity(0.18) : Color.primary.opacity(0.04))
-                        )
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .strokeBorder(isSelected ? store.accentTint.opacity(0.4) : Color.clear, lineWidth: 1)
-                        }
+
+                        // Explicit anchor at the absolute bottom of the chat stream
+                        Color.clear
+                            .frame(height: 1)
+                            .id(bottomAnchorId)
                     }
-                    .buttonStyle(.plain)
                 }
-
-                // Add Tab Menu Button
-                Menu {
-                    Section("Channels") {
-                        ForEach(store.channels, id: \.id) { ch in
-                            Button("#\(ch.name)") {
-                                withAnimation {
-                                    store.openChannelChat(channelId: ch.id)
-                                }
-                            }
-                        }
-                    }
-
-                    let otherUsers = store.users.filter { $0.sessionId != store.mySessionId }
-                    if !otherUsers.isEmpty {
-                        Section("Users (Direct Message)") {
-                            ForEach(otherUsers, id: \.sessionId) { u in
-                                Button("@\(u.name)") {
-                                    withAnimation {
-                                        store.openDirectChat(sessionId: u.sessionId, userName: u.name)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                } label: {
-                    Image(systemName: "plus")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(.secondary)
-                        .padding(6)
-                        .background(Color.primary.opacity(0.05), in: Circle())
-                }
-                .menuStyle(.borderlessButton)
-                .menuIndicator(.hidden)
-                .help("Open channel or direct chat tab")
+                .padding(20)
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 6)
+            .defaultScrollAnchor(.bottom)
+            .onChange(of: messages.count) { _, _ in
+                scrollToBottom(proxy: proxy, animated: true)
+            }
+            .onChange(of: messages.last?.htmlBody) { _, _ in
+                scrollToBottom(proxy: proxy, animated: true)
+            }
+            .onAppear {
+                scrollToBottom(proxy: proxy, animated: false)
+            }
         }
-        .background(Color(NSColor.controlBackgroundColor).opacity(0.35))
     }
 
     @ViewBuilder
@@ -556,6 +508,67 @@ public struct ChatAndActivityView: View {
                 .popover(isPresented: $showPingPopover) {
                     PingStatsPopover(store: store)
                 }
+
+                // Open Chat Menu Button
+                Menu {
+                    Section("Channels") {
+                        ForEach(store.channels, id: \.id) { ch in
+                            Button("#\(ch.name)") {
+                                withAnimation {
+                                    store.openChannelChat(channelId: ch.id)
+                                }
+                            }
+                        }
+                    }
+
+                    let otherUsers = store.users.filter { $0.sessionId != store.mySessionId }
+                    if !otherUsers.isEmpty {
+                        Section("Direct Messages") {
+                            ForEach(otherUsers, id: \.sessionId) { u in
+                                Button("@\(u.name)") {
+                                    withAnimation {
+                                        store.openDirectChat(sessionId: u.sessionId, userName: u.name)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: "plus.bubble.fill")
+                            .font(.caption2)
+                        Text("Open Chat")
+                            .font(.caption.bold())
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.secondary.opacity(0.12), in: Capsule())
+                }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .help("Open channel or direct message chat tab")
+
+                // Close active tab button (if not server)
+                if store.activeChatTab != .server {
+                    Button(action: {
+                        withAnimation {
+                            store.closeChatTab(store.activeChatTab)
+                        }
+                    }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.caption2)
+                            Text("Close Tab")
+                                .font(.caption)
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.secondary.opacity(0.12), in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .keyboardShortcut("w", modifiers: .command)
+                    .help("Close current chat tab (⌘W)")
+                }
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 12)
@@ -563,58 +576,15 @@ public struct ChatAndActivityView: View {
 
             Divider()
 
-            // Chat Tab Bar
-            chatTabBar
-
-            Divider()
-
-            // Chat Message Stream
-            ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 14) {
-                        if filteredChatMessages.isEmpty {
-                            VStack(spacing: 10) {
-                                Image(systemName: "bubble.left.and.bubble.right")
-                                    .font(.system(size: 40))
-                                    .foregroundStyle(.tertiary)
-                                Text("No messages in \(activeChannelName) yet")
-                                    .font(.headline)
-                                    .foregroundStyle(.secondary)
-                                Text("Type a message below to start chatting.")
-                                    .font(.caption)
-                                    .foregroundStyle(.tertiary)
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding(.top, 60)
-                        } else {
-                            ForEach(Array(filteredChatMessages.enumerated()), id: \.offset) { index, msg in
-                                ChatMessageRow(message: msg, accentTint: store.accentTint)
-                                    .id("msg_\(index)")
-                            }
-
-                            // Explicit anchor at the absolute bottom of the chat stream
-                            Color.clear
-                                .frame(height: 1)
-                                .id(bottomAnchorId)
+            // Native SwiftUI TabView for different chats
+            TabView(selection: $store.activeChatTab) {
+                ForEach(store.openChatTabs) { tab in
+                    chatStreamView(for: tab)
+                        .tabItem {
+                            Label(tabTitle(tab), systemImage: tabIcon(tab))
                         }
-                    }
-                    .padding(20)
-                }
-                .defaultScrollAnchor(.bottom)
-                .onChange(of: filteredChatMessages.count) { _, _ in
-                    scrollToBottom(proxy: proxy, animated: true)
-                }
-                .onChange(of: filteredChatMessages.last?.htmlBody) { _, _ in
-                    scrollToBottom(proxy: proxy, animated: true)
-                }
-                .onChange(of: store.activeChatTab) { _, _ in
-                    scrollToBottom(proxy: proxy, animated: false)
-                }
-                .onAppear {
-                    scrollToBottom(proxy: proxy, animated: false)
-                }
-                .onChange(of: store.selectedChannelId) { _, _ in
-                    scrollToBottom(proxy: proxy, animated: false)
+                        .tag(tab)
+                        .badge(store.unreadTabCounts[tab.id] ?? 0)
                 }
             }
 
