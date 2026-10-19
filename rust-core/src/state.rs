@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use crate::{
     BanEntryInfo, ChannelInfo, ConnectionStatus, RegisteredUser, ServerConnectionInfo,
-    TalkingState, UserInfo,
+    TalkingState, UserInfo, UserStatsInfo,
 };
 use crate::proto;
 
@@ -15,6 +15,7 @@ pub struct ClientState {
     pub server_info: ServerConnectionInfo,
     pub registered_users: Vec<RegisteredUser>,
     pub ban_list: Vec<BanEntryInfo>,
+    pub user_stats: HashMap<u32, UserStatsInfo>,
     pub is_synced: bool,
 }
 
@@ -52,6 +53,7 @@ impl ClientState {
             },
             registered_users: Vec::new(),
             ban_list: Vec::new(),
+            user_stats: HashMap::new(),
             is_synced: false,
         }
     }
@@ -62,6 +64,7 @@ impl ClientState {
         self.users.clear();
         self.registered_users.clear();
         self.ban_list.clear();
+        self.user_stats.clear();
         self.connection_status = ConnectionStatus::Disconnected;
         self.server_info = Self::new().server_info;
         self.is_synced = false;

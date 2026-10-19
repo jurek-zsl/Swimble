@@ -1360,6 +1360,11 @@ impl MumbleClient {
                                         .map(|u| u.name.clone())
                                         .unwrap_or_else(|| format!("User #{}", session_id));
 
+                                    let prev = {
+                                        let state = state_arc.read().unwrap();
+                                        state.user_stats.get(&session_id).cloned()
+                                    };
+
                                     let (ver_v, ver_rel, ver_os, ver_os_v) = if let Some(v) = us.version {
                                         let v_int = v.version_v1.unwrap_or(0);
                                         let v_str = if v_int > 0 {
@@ -1370,20 +1375,36 @@ impl MumbleClient {
                                             String::new()
                                         };
                                         (v_str, v.release.unwrap_or_default(), v.os.unwrap_or_default(), v.os_version.unwrap_or_default())
+                                    } else if let Some(ref p) = prev {
+                                        (p.version_v.clone(), p.version_release.clone(), p.version_os.clone(), p.version_os_version.clone())
                                     } else {
                                         (String::new(), String::new(), String::new(), String::new())
                                     };
 
-                                    let ip_address = us.address.as_deref().map(decode_ban_ip).unwrap_or_default();
+                                    let ip_address = if let Some(addr) = us.address.as_deref().map(decode_ban_ip) {
+                                        if !addr.is_empty() { addr } else { prev.as_ref().map(|p| p.ip_address.clone()).unwrap_or_default() }
+                                    } else {
+                                        prev.as_ref().map(|p| p.ip_address.clone()).unwrap_or_default()
+                                    };
 
-                                    let cert_der = us.certificates.first().cloned();
+                                    let cert_der = if !us.certificates.is_empty() {
+                                        us.certificates.first().cloned()
+                                    } else {
+                                        prev.as_ref().and_then(|p| p.certificate_der.clone())
+                                    };
+
                                     let cert_name = if cert_der.is_some() {
                                         "Swimble User".to_string()
+                                    } else if let Some(ref p) = prev {
+                                        p.certificate_name.clone()
                                     } else {
                                         "None".to_string()
                                     };
+
                                     let cert_details = if let Some(ref der) = cert_der {
                                         format!("Certificate ({} bytes DER)", der.len())
+                                    } else if let Some(ref p) = prev {
+                                        p.certificate_details.clone()
                                     } else {
                                         "No certificate".to_string()
                                     };
@@ -1393,14 +1414,14 @@ impl MumbleClient {
                                         late: s.late.unwrap_or(0),
                                         lost: s.lost.unwrap_or(0),
                                         resync: s.resync.unwrap_or(0),
-                                    }).unwrap_or_default();
+                                    }).unwrap_or_else(|| prev.as_ref().map(|p| p.from_client.clone()).unwrap_or_default());
 
                                     let from_server = us.from_server.map(|s| PacketStats {
                                         good: s.good.unwrap_or(0),
                                         late: s.late.unwrap_or(0),
                                         lost: s.lost.unwrap_or(0),
                                         resync: s.resync.unwrap_or(0),
-                                    }).unwrap_or_default();
+                                    }).unwrap_or_else(|| prev.as_ref().map(|p| p.from_server.clone()).unwrap_or_default());
 
                                     let stats_info = UserStatsInfo {
                                         session_id,
@@ -1413,20 +1434,25 @@ impl MumbleClient {
                                         certificate_name: cert_name,
                                         certificate_details: cert_details,
                                         certificate_der: cert_der,
-                                        strong_certificate: us.strong_certificate.unwrap_or(false),
-                                        opus_supported: us.opus.unwrap_or(false),
-                                        tcp_ping_avg: us.tcp_ping_avg.unwrap_or(0.0),
-                                        tcp_ping_var: us.tcp_ping_var.unwrap_or(0.0),
-                                        udp_ping_avg: us.udp_ping_avg.unwrap_or(0.0),
-                                        udp_ping_var: us.udp_ping_var.unwrap_or(0.0),
-                                        tcp_packets: us.tcp_packets.unwrap_or(0),
-                                        udp_packets: us.udp_packets.unwrap_or(0),
+                                        strong_certificate: us.strong_certificate.unwrap_or_else(|| prev.as_ref().map(|p| p.strong_certificate).unwrap_or(false)),
+                                        opus_supported: us.opus.unwrap_or_else(|| prev.as_ref().map(|p| p.opus_supported).unwrap_or(true)),
+                                        tcp_ping_avg: us.tcp_ping_avg.unwrap_or_else(|| prev.as_ref().map(|p| p.tcp_ping_avg).unwrap_or(0.0)),
+                                        tcp_ping_var: us.tcp_ping_var.unwrap_or_else(|| prev.as_ref().map(|p| p.tcp_ping_var).unwrap_or(0.0)),
+                                        udp_ping_avg: us.udp_ping_avg.unwrap_or_else(|| prev.as_ref().map(|p| p.udp_ping_avg).unwrap_or(0.0)),
+                                        udp_ping_var: us.udp_ping_var.unwrap_or_else(|| prev.as_ref().map(|p| p.udp_ping_var).unwrap_or(0.0)),
+                                        tcp_packets: us.tcp_packets.unwrap_or_else(|| prev.as_ref().map(|p| p.tcp_packets).unwrap_or(0)),
+                                        udp_packets: us.udp_packets.unwrap_or_else(|| prev.as_ref().map(|p| p.udp_packets).unwrap_or(0)),
                                         from_client,
                                         from_server,
-                                        bandwidth: us.bandwidth.unwrap_or(0),
-                                        onlinesecs: us.onlinesecs.unwrap_or(0),
-                                        idlesecs: us.idlesecs.unwrap_or(0),
+                                        bandwidth: us.bandwidth.unwrap_or_else(|| prev.as_ref().map(|p| p.bandwidth).unwrap_or(0)),
+                                        onlinesecs: us.onlinesecs.unwrap_or_else(|| prev.as_ref().map(|p| p.onlinesecs).unwrap_or(0)),
+                                        idlesecs: us.idlesecs.unwrap_or_else(|| prev.as_ref().map(|p| p.idlesecs).unwrap_or(0)),
                                     };
+
+                                    {
+                                        let mut state = state_arc.write().unwrap();
+                                        state.user_stats.insert(session_id, stats_info.clone());
+                                    }
 
                                     handler_arc.on_user_stats_received(stats_info);
                                 }

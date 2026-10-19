@@ -2,7 +2,7 @@ import SwiftUI
 import AppKit
 
 /// User Statistics modal displaying connection information, ping statistics,
-/// UDP packet metrics, and bandwidth usage, identical to original Mumble client.
+/// UDP packet metrics, and bandwidth usage, replicating the iconic Mumble diagnostic tool.
 public struct UserStatsModal: View {
     @Bindable public var store: MumbleStore
     @Environment(\.dismiss) private var dismiss
@@ -14,6 +14,89 @@ public struct UserStatsModal: View {
 
     private var stats: UserStatsInfo? {
         store.currentUserStats
+    }
+
+    private var isMe: Bool {
+        guard let s = stats else { return false }
+        return s.sessionId == store.mySessionId
+    }
+
+    // MARK: - Metric Fallbacks & Effective Values
+
+    private var effectiveTcpPackets: UInt32 {
+        guard let s = stats else { return 0 }
+        if s.tcpPackets > 0 { return s.tcpPackets }
+        if isMe {
+            return store.connectionInfo?.tcpPacketsSent ?? 0
+        }
+        return 0
+    }
+
+    private var effectiveTcpPingAvg: Float {
+        guard let s = stats else { return 0.0 }
+        if s.tcpPingAvg > 0.0 { return s.tcpPingAvg }
+        if isMe && store.tcpPingMs > 0.0 {
+            return store.tcpPingMs
+        }
+        return 0.0
+    }
+
+    private var effectiveTcpPingDev: Float {
+        guard let s = stats else { return 0.0 }
+        if s.tcpPingVar > 0.0 { return s.tcpPingVar.squareRoot() }
+        return 0.0
+    }
+
+    private var effectiveUdpPackets: UInt32 {
+        guard let s = stats else { return 0 }
+        if s.udpPackets > 0 { return s.udpPackets }
+        if isMe {
+            return store.connectionInfo?.udpPacketsSent ?? 0
+        }
+        return 0
+    }
+
+    private var effectiveUdpPingAvg: Float {
+        guard let s = stats else { return 0.0 }
+        if s.udpPingAvg > 0.0 { return s.udpPingAvg }
+        if isMe && store.udpPingMs > 0.0 {
+            return store.udpPingMs
+        }
+        return 0.0
+    }
+
+    private var effectiveUdpPingDev: Float {
+        guard let s = stats else { return 0.0 }
+        if s.udpPingVar > 0.0 { return s.udpPingVar.squareRoot() }
+        return 0.0
+    }
+
+    private var effectiveFromClientGood: UInt32 {
+        guard let s = stats else { return 0 }
+        if s.fromClient.good > 0 { return s.fromClient.good }
+        if isMe { return store.connectionInfo?.goodPackets ?? 0 }
+        return 0
+    }
+
+    private var effectiveFromClientLate: UInt32 {
+        guard let s = stats else { return 0 }
+        if s.fromClient.late > 0 { return s.fromClient.late }
+        if isMe { return store.connectionInfo?.latePackets ?? 0 }
+        return 0
+    }
+
+    private var effectiveFromClientLost: UInt32 {
+        guard let s = stats else { return 0 }
+        if s.fromClient.lost > 0 { return s.fromClient.lost }
+        if isMe { return store.connectionInfo?.lostPackets ?? 0 }
+        return 0
+    }
+
+    private var effectiveFromClientResync: UInt32 {
+        guard let s = stats else { return 0 }
+        if s.fromClient.resync > 0 { return s.fromClient.resync }
+        if isMe { return store.connectionInfo?.resyncPackets ?? 0 }
+        return 0
     }
 
     private func formatPercent(_ count: UInt32, total: UInt32) -> String {
@@ -46,17 +129,34 @@ public struct UserStatsModal: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            // Title Header Bar
-            HStack {
-                Text(stats?.userName ?? "User Statistics")
-                    .font(.headline.bold())
+            // Header Bar
+            HStack(spacing: 10) {
+                Image(systemName: "person.crop.circle.fill")
+                    .font(.title2)
+                    .foregroundStyle(store.accentTint)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(stats?.userName ?? "User Statistics")
+                        .font(.headline.weight(.semibold))
+                    if let s = stats {
+                        Text(isMe ? "Your Connection Diagnostics" : "Session #\(s.sessionId)")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
 
                 Spacer()
 
-                Button("Done") {
+                Button {
                     dismiss()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.title3)
+                        .foregroundStyle(.secondary)
                 }
-                .keyboardShortcut(.defaultAction)
+                .buttonStyle(.plain)
+                .help("Close (Esc)")
+                .keyboardShortcut(.cancelAction)
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 14)
@@ -65,7 +165,7 @@ public struct UserStatsModal: View {
             Divider()
 
             ScrollView {
-                VStack(spacing: 16) {
+                VStack(spacing: 14) {
                     if let s = stats {
                         // 1. Connection Information
                         statsCard("Connection Information") {
@@ -124,142 +224,160 @@ public struct UserStatsModal: View {
                             .font(.system(size: 13))
                         }
 
-                        // 2. Ping Statistics
+                        // 2. Ping Statistics (Exact Grid Alignment)
                         statsCard("Ping Statistics") {
-                            VStack(spacing: 8) {
-                                HStack {
-                                    Spacer().frame(width: 100)
+                            Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 6) {
+                                GridRow {
+                                    Color.clear
+                                        .frame(width: 105, height: 1)
+                                        .gridCellUnsizedAxes([.horizontal, .vertical])
+
                                     Text("Pings received")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
-                                        .frame(width: 90, alignment: .trailing)
+                                        .gridColumnAlignment(.trailing)
+
                                     Text("Average ping")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
-                                        .frame(width: 85, alignment: .trailing)
+                                        .gridColumnAlignment(.trailing)
+
                                     Text("Ping deviation")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
-                                        .frame(width: 90, alignment: .trailing)
+                                        .gridColumnAlignment(.trailing)
                                 }
 
                                 Divider()
 
-                                HStack {
+                                GridRow {
                                     Text("TCP (Control)")
                                         .font(.system(size: 12.5))
-                                        .frame(width: 100, alignment: .leading)
-                                    Text("\(s.tcpPackets)")
+
+                                    Text("\(effectiveTcpPackets)")
                                         .font(.system(size: 12.5).monospacedDigit())
-                                        .frame(width: 90, alignment: .trailing)
-                                    Text(String(format: "%.2f", s.tcpPingAvg))
+
+                                    Text(String(format: "%.2f", effectiveTcpPingAvg))
                                         .font(.system(size: 12.5).monospacedDigit())
-                                        .frame(width: 85, alignment: .trailing)
-                                    Text(String(format: "%.2f", s.tcpPingVar.squareRoot()))
+
+                                    Text(String(format: "%.2f", effectiveTcpPingDev))
                                         .font(.system(size: 12.5).monospacedDigit())
-                                        .frame(width: 90, alignment: .trailing)
                                 }
 
-                                HStack {
+                                GridRow {
                                     Text("UDP (Voice)")
                                         .font(.system(size: 12.5))
-                                        .frame(width: 100, alignment: .leading)
-                                    Text("\(s.udpPackets)")
+
+                                    Text("\(effectiveUdpPackets)")
                                         .font(.system(size: 12.5).monospacedDigit())
-                                        .frame(width: 90, alignment: .trailing)
-                                    Text(String(format: "%.2f", s.udpPingAvg))
+
+                                    Text(String(format: "%.2f", effectiveUdpPingAvg))
                                         .font(.system(size: 12.5).monospacedDigit())
-                                        .frame(width: 85, alignment: .trailing)
-                                    Text(String(format: "%.2f", s.udpPingVar.squareRoot()))
+
+                                    Text(String(format: "%.2f", effectiveUdpPingDev))
                                         .font(.system(size: 12.5).monospacedDigit())
-                                        .frame(width: 90, alignment: .trailing)
                                 }
                             }
                         }
 
-                        // 3. UDP Network statistics
+                        // 3. UDP Network statistics (Exact Grid Alignment)
                         statsCard("UDP Network statistics") {
-                            VStack(spacing: 8) {
-                                HStack {
-                                    Spacer().frame(width: 85)
+                            let fcGood = effectiveFromClientGood
+                            let fcLate = effectiveFromClientLate
+                            let fcLost = effectiveFromClientLost
+                            let fcResync = effectiveFromClientResync
+                            let fcTotal = fcGood + fcLate + fcLost
+
+                            let fs = s.fromServer
+                            let fsGood = fs.good
+                            let fsLate = fs.late
+                            let fsLost = fs.lost
+                            let fsResync = fs.resync
+                            let fsTotal = fsGood + fsLate + fsLost
+
+                            Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 6) {
+                                GridRow {
+                                    Color.clear
+                                        .frame(width: 82, height: 1)
+                                        .gridCellUnsizedAxes([.horizontal, .vertical])
+
                                     Text("Good")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
-                                        .frame(width: 44, alignment: .trailing)
+                                        .gridColumnAlignment(.trailing)
+
                                     Text("Late")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
-                                        .frame(width: 44, alignment: .trailing)
+                                        .gridColumnAlignment(.trailing)
+
                                     Text("%")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
-                                        .frame(width: 44, alignment: .trailing)
+                                        .gridColumnAlignment(.trailing)
+
                                     Text("Lost")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
-                                        .frame(width: 44, alignment: .trailing)
+                                        .gridColumnAlignment(.trailing)
+
                                     Text("%")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
-                                        .frame(width: 44, alignment: .trailing)
+                                        .gridColumnAlignment(.trailing)
+
                                     Text("Resync")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
-                                        .frame(width: 48, alignment: .trailing)
+                                        .gridColumnAlignment(.trailing)
                                 }
 
                                 Divider()
 
-                                let fc = s.fromClient
-                                let fcTotal = fc.good + fc.late + fc.lost
-                                HStack {
+                                GridRow {
                                     Text("From Client")
                                         .font(.system(size: 12))
-                                        .frame(width: 85, alignment: .leading)
-                                    Text("\(fc.good)")
+
+                                    Text("\(fcGood)")
                                         .font(.system(size: 12).monospacedDigit())
-                                        .frame(width: 44, alignment: .trailing)
-                                    Text("\(fc.late)")
+
+                                    Text("\(fcLate)")
                                         .font(.system(size: 12).monospacedDigit())
-                                        .frame(width: 44, alignment: .trailing)
-                                    Text(formatPercent(fc.late, total: fcTotal))
+
+                                    Text(formatPercent(fcLate, total: fcTotal))
                                         .font(.system(size: 12).monospacedDigit())
-                                        .frame(width: 44, alignment: .trailing)
-                                    Text("\(fc.lost)")
+
+                                    Text("\(fcLost)")
                                         .font(.system(size: 12).monospacedDigit())
-                                        .frame(width: 44, alignment: .trailing)
-                                    Text(formatPercent(fc.lost, total: fcTotal))
+
+                                    Text(formatPercent(fcLost, total: fcTotal))
                                         .font(.system(size: 12).monospacedDigit())
-                                        .frame(width: 44, alignment: .trailing)
-                                    Text("\(fc.resync)")
+
+                                    Text("\(fcResync)")
                                         .font(.system(size: 12).monospacedDigit())
-                                        .frame(width: 48, alignment: .trailing)
                                 }
 
-                                let fs = s.fromServer
-                                let fsTotal = fs.good + fs.late + fs.lost
-                                HStack {
+                                GridRow {
                                     Text("To Client")
                                         .font(.system(size: 12))
-                                        .frame(width: 85, alignment: .leading)
-                                    Text("\(fs.good)")
+
+                                    Text("\(fsGood)")
                                         .font(.system(size: 12).monospacedDigit())
-                                        .frame(width: 44, alignment: .trailing)
-                                    Text("\(fs.late)")
+
+                                    Text("\(fsLate)")
                                         .font(.system(size: 12).monospacedDigit())
-                                        .frame(width: 44, alignment: .trailing)
-                                    Text(formatPercent(fs.late, total: fsTotal))
+
+                                    Text(formatPercent(fsLate, total: fsTotal))
                                         .font(.system(size: 12).monospacedDigit())
-                                        .frame(width: 44, alignment: .trailing)
-                                    Text("\(fs.lost)")
+
+                                    Text("\(fsLost)")
                                         .font(.system(size: 12).monospacedDigit())
-                                        .frame(width: 44, alignment: .trailing)
-                                    Text(formatPercent(fs.lost, total: fsTotal))
+
+                                    Text(formatPercent(fsLost, total: fsTotal))
                                         .font(.system(size: 12).monospacedDigit())
-                                        .frame(width: 44, alignment: .trailing)
-                                    Text("\(fs.resync)")
+
+                                    Text("\(fsResync)")
                                         .font(.system(size: 12).monospacedDigit())
-                                        .frame(width: 48, alignment: .trailing)
                                 }
                             }
                         }
@@ -295,12 +413,23 @@ public struct UserStatsModal: View {
                         .frame(maxWidth: .infinity, minHeight: 200)
                     }
                 }
-                .padding(20)
+                .padding(.horizontal, 18)
+                .padding(.top, 16)
+                .padding(.bottom, 24)
             }
         }
-        .frame(width: 420, height: 600)
+        .frame(width: 440)
+        .frame(minHeight: 650, idealHeight: 680, maxHeight: 720)
         .sheet(isPresented: $showCertDetails) {
             certificateDetailsSheet
+        }
+        .task(id: stats?.sessionId) {
+            guard let sessionId = stats?.sessionId else { return }
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+                if Task.isCancelled { break }
+                store.requestUserStats(sessionId: sessionId, statsOnly: true)
+            }
         }
     }
 
@@ -308,17 +437,20 @@ public struct UserStatsModal: View {
     private func statsCard<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(title)
-                .font(.subheadline.bold())
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.primary)
 
             content()
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(NSColor.controlBackgroundColor).opacity(0.6))
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .background {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color(NSColor.controlBackgroundColor).opacity(0.55))
+        }
         .overlay {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
         }
     }
 
@@ -326,40 +458,67 @@ public struct UserStatsModal: View {
     private var certificateDetailsSheet: some View {
         VStack(spacing: 16) {
             HStack {
-                Text("Certificate Details")
-                    .font(.headline.bold())
+                HStack(spacing: 8) {
+                    Image(systemName: "checkmark.seal.fill")
+                        .foregroundStyle(Color.green)
+                    Text("Certificate Details")
+                        .font(.headline.weight(.semibold))
+                }
+
                 Spacer()
+
                 Button("Done") {
                     showCertDetails = false
                 }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .keyboardShortcut(.cancelAction)
             }
 
             Divider()
 
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 10) {
                 if let der = stats?.certificateDer, let secCert = SecCertificateCreateWithData(nil, der as CFData) {
                     if let summary = SecCertificateCopySubjectSummary(secCert) as String? {
-                        HStack {
+                        HStack(alignment: .top) {
                             Text("Subject:")
-                                .bold()
+                                .font(.subheadline.bold())
+                                .frame(width: 80, alignment: .leading)
                             Text(summary)
+                                .font(.subheadline)
                         }
                     }
                     HStack {
                         Text("Size:")
-                            .bold()
-                        Text("\(der.count) bytes (DER)")
+                            .font(.subheadline.bold())
+                            .frame(width: 80, alignment: .leading)
+                        Text("\(der.count) bytes (DER encoded)")
+                            .font(.subheadline.monospacedDigit())
+                    }
+                    HStack {
+                        Text("Validation:")
+                            .font(.subheadline.bold())
+                            .frame(width: 80, alignment: .leading)
+                        Text(stats?.strongCertificate == true ? "Strong (CA Verified)" : "Self-Signed / Mumble Native")
+                            .font(.subheadline)
+                            .foregroundStyle(stats?.strongCertificate == true ? Color.green : Color.orange)
                     }
                 } else {
                     Text(stats?.certificateDetails ?? "No certificate details available.")
                         .font(.body)
+                        .foregroundStyle(.secondary)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(14)
+            .background {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(Color(NSColor.controlBackgroundColor).opacity(0.5))
+            }
 
             Spacer()
         }
         .padding(20)
-        .frame(width: 380, height: 260)
+        .frame(width: 400, height: 260)
     }
 }

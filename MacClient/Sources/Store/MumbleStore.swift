@@ -368,8 +368,8 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
         }
     }
 
-    public func requestUserStats(sessionId: UInt32) {
-        client.requestUserStats(sessionId: sessionId, statsOnly: false)
+    public func requestUserStats(sessionId: UInt32, statsOnly: Bool = false) {
+        client.requestUserStats(sessionId: sessionId, statsOnly: statsOnly)
     }
 
     // MARK: - Channel & User Actions
@@ -1206,7 +1206,9 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
         Task { @MainActor [weak self] in
             guard let self = self else { return }
             self.currentUserStats = stats
-            self.activeModal = .userStats
+            if self.activeModal != .userStats {
+                self.activeModal = .userStats
+            }
         }
     }
 }
