@@ -134,7 +134,7 @@ struct ChannelTreeNodeView: View {
 
     var body: some View {
         if node.children.isEmpty && node.users.isEmpty {
-            ChannelRowView(store: store, channel: node.channel, userCount: 0)
+            ChannelRowView(store: store, channel: node.channel, userCount: node.totalUserCount)
                 .tag(node.channel.id)
         } else {
             DisclosureGroup(isExpanded: $isExpanded) {
@@ -151,7 +151,7 @@ struct ChannelTreeNodeView: View {
                 ChannelRowView(
                     store: store,
                     channel: node.channel,
-                    userCount: node.users.count
+                    userCount: node.totalUserCount
                 )
                 .tag(node.channel.id)
             }
@@ -197,6 +197,17 @@ struct SearchChannelRow: View {
             }
 
             Spacer()
+
+            let count = store.totalUsers(in: channel.id)
+            if count > 0 {
+                Text("\(count)")
+                    .font(.caption2.bold())
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.secondary.opacity(0.15), in: Capsule())
+                    .foregroundStyle(Color.primary)
+            }
+
             if !isJoined {
                 Button(isLocked ? "Locked" : "Join") {
                     if channel.canEnter {

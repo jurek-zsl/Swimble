@@ -145,6 +145,23 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
         return "Root"
     }
 
+    /// Returns the total number of users currently in this channel plus all recursive child subchannels.
+    public func totalUsers(in channelId: UInt32) -> Int {
+        var allIds: Set<UInt32> = [channelId]
+        var queue = [channelId]
+        while !queue.isEmpty {
+            let current = queue.removeFirst()
+            let childIds = channels.filter { $0.parentId == current && $0.id != current }.map { $0.id }
+            for cid in childIds {
+                if !allIds.contains(cid) {
+                    allIds.insert(cid)
+                    queue.append(cid)
+                }
+            }
+        }
+        return users.filter { allIds.contains($0.channelId) }.count
+    }
+
     public func logSystemMessage(_ text: String, icon: String = "info.circle.fill") {
         let sysMsg = ChatMessage(
             senderSession: 0,

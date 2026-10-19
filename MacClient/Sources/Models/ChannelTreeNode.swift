@@ -13,6 +13,11 @@ public struct ChannelTreeNode: Identifiable, Hashable, Equatable, Sendable {
         self.users = users
     }
 
+    /// Total count of users in this channel plus all of its recursive child subchannels.
+    public var totalUserCount: Int {
+        users.count + children.reduce(0) { $0 + $1.totalUserCount }
+    }
+
     /// Recursively constructs the hierarchical channel tree from flat channel and user lists.
     public static func buildTree(
         channels: [ChannelInfo],
