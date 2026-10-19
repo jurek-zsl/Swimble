@@ -19,12 +19,14 @@
 		15AD4297491797A7F7697575 /* ChangeCommentModal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E16BCEE35061B61400BAD4E /* ChangeCommentModal.swift */; };
 		1A634F47E1F3DEEBBD79A91A /* SettingsCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3ECCE4CE0E12E9D18C13E95D /* SettingsCard.swift */; };
 		1B85E328D40EE4EE8A6DDC95 /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 2EFFD1440A493EFEB411994B /* Security.framework */; };
+		1BEFA26753DA2349EF6CB6CF /* MumistServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75882538A16F9965C4A2FB93 /* MumistServer.swift */; };
 		2506CF39704029479B9198A7 /* FloatingOverlayWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 800F4E30AAC0ECCA5750B0CA /* FloatingOverlayWindow.swift */; };
 		2C95187369DE7CDE894F1122 /* libmumble_core.a in Frameworks */ = {isa = PBXBuildFile; fileRef = D8F6FDC552592B89A0AFC0E3 /* libmumble_core.a */; };
 		2D4BEFCBD407ACC44D89391E /* NetworkSettingsTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = D896DDF54AD8EDA605DD07E3 /* NetworkSettingsTab.swift */; };
 		31607922D299153BF65E6C09 /* SettingsState.swift in Sources */ = {isa = PBXBuildFile; fileRef = E997A0E907756CE5B5E4CE8C /* SettingsState.swift */; };
 		3C1D0E3F827064A7DA8B55BF /* ServerConnectSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE6E22E77DE84EE1F67ED920 /* ServerConnectSheet.swift */; };
 		3D31DE6D2BB3985B64EE178E /* AudioWizardModal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72D28EFA9EEE6D487F58B435 /* AudioWizardModal.swift */; };
+		3ED5CEBC64C0E2E769168BFE /* MumistPublicServersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54C1D152596BF8393C081D33 /* MumistPublicServersView.swift */; };
 		48961B702CCAFE2B3667A995 /* AudioSettingsPopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = E79E8587A42576CCE43718FE /* AudioSettingsPopover.swift */; };
 		4A016511D57DA9DA2BE776AE /* UserInterfaceSettingsTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CE5F6B9E39F18B4350B0637 /* UserInterfaceSettingsTab.swift */; };
 		50F0164E212B5ED1A161AE04 /* AudioStatisticsModal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42526C1F80D3ADA0B4BB4411 /* AudioStatisticsModal.swift */; };
@@ -37,6 +39,7 @@
 		842252055E22E2811DCEADB4 /* UserContextMenuView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F56940CF4B77E2577888893 /* UserContextMenuView.swift */; };
 		872EE86E1C64DACC265696FC /* CoreAudioDeviceManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = D44B6F056A925DEEA15EE380 /* CoreAudioDeviceManager.swift */; };
 		879D83BFB29D6D38688D32BD /* MumbleStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10389079B3AED4788E13A3CD /* MumbleStore.swift */; };
+		8A7A4E93E559180C7670C98D /* MumistService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F1174DCF0B8BD3291AC54DB /* MumistService.swift */; };
 		8A857310C9F80088302BF7C8 /* AudioToolbox.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 90281F12C63E300CFA61BE16 /* AudioToolbox.framework */; };
 		939FE2124252397C0EA22380 /* AudioInputSettingsTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25FEE7D6B6281DDE4BDD8660 /* AudioInputSettingsTab.swift */; };
 		94E3A43492A19643FE39FF8C /* GeneralSettingsTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DBA6C1381F4384703C77CBA /* GeneralSettingsTab.swift */; };
@@ -92,6 +95,7 @@
 		51AE2862ABAC495191B6AA2F /* MacAudioEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacAudioEngine.swift; sourceTree = "<group>"; };
 		52D3F6861DBD75EF1515ADC1 /* MessagesSettingsTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessagesSettingsTab.swift; sourceTree = "<group>"; };
 		545CE9D26991175867CB02E7 /* TTSEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTSEngine.swift; sourceTree = "<group>"; };
+		54C1D152596BF8393C081D33 /* MumistPublicServersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MumistPublicServersView.swift; sourceTree = "<group>"; };
 		55568C3F69D99EF643DCC4DA /* CertificateWizardModal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CertificateWizardModal.swift; sourceTree = "<group>"; };
 		5F416F2F98FB55738E749671 /* App.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App.swift; sourceTree = "<group>"; };
 		617A686B998774A5BFA7D2B6 /* ServerSplitView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerSplitView.swift; sourceTree = "<group>"; };
@@ -99,9 +103,11 @@
 		6895F39510A176E1E00B7EC6 /* SettingsFooterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsFooterView.swift; sourceTree = "<group>"; };
 		6DBA6C1381F4384703C77CBA /* GeneralSettingsTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneralSettingsTab.swift; sourceTree = "<group>"; };
 		72D28EFA9EEE6D487F58B435 /* AudioWizardModal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioWizardModal.swift; sourceTree = "<group>"; };
+		75882538A16F9965C4A2FB93 /* MumistServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MumistServer.swift; sourceTree = "<group>"; };
 		76460BAEDDDBDF6FCA5BCA5C /* ShortcutsSettingsTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutsSettingsTab.swift; sourceTree = "<group>"; };
 		7AB377838FC88B339CD7CF7B /* AccessTokensModal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessTokensModal.swift; sourceTree = "<group>"; };
 		7D33FD6E755DD4CACB3900E2 /* BanListModal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BanListModal.swift; sourceTree = "<group>"; };
+		7F1174DCF0B8BD3291AC54DB /* MumistService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MumistService.swift; sourceTree = "<group>"; };
 		800F4E30AAC0ECCA5750B0CA /* FloatingOverlayWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingOverlayWindow.swift; sourceTree = "<group>"; };
 		8180F638748EA13ADEFBBE87 /* SoundManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoundManager.swift; sourceTree = "<group>"; };
 		85CFE21850D8222E1FE29AD6 /* UserStatsModal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserStatsModal.swift; sourceTree = "<group>"; };
@@ -155,6 +161,7 @@
 				8D75388A3A0B276E8E23E2A3 /* ChannelTreeSidebar.swift */,
 				4465EC52752E78B45234A582 /* ChatAndActivityView.swift */,
 				056BE1AC86EFA30EC46854F4 /* FloatingVoiceHUD.swift */,
+				54C1D152596BF8393C081D33 /* MumistPublicServersView.swift */,
 				CE6E22E77DE84EE1F67ED920 /* ServerConnectSheet.swift */,
 				617A686B998774A5BFA7D2B6 /* ServerSplitView.swift */,
 				661A9CD108363C6BF4AF6A62 /* Components */,
@@ -200,6 +207,7 @@
 				08B4FC6ED1628E58EC8F9621 /* EventNotificationManager.swift */,
 				00F18A7CAF3950C2B1905380 /* MumbleURLHandler.swift */,
 				F5715ABDF1F49ADF03C58457 /* MumbleURLParser.swift */,
+				7F1174DCF0B8BD3291AC54DB /* MumistService.swift */,
 			);
 			path = Utils;
 			sourceTree = "<group>";
@@ -218,6 +226,7 @@
 			isa = PBXGroup;
 			children = (
 				8C8E3D10662080C8C58BBB25 /* ChannelTreeNode.swift */,
+				75882538A16F9965C4A2FB93 /* MumistServer.swift */,
 				C13C038913297A3FE49E3863 /* ServerBookmark.swift */,
 			);
 			path = Models;
@@ -406,6 +415,9 @@
 				879D83BFB29D6D38688D32BD /* MumbleStore.swift in Sources */,
 				BA5AAFE15882ED9B820488CF /* MumbleURLHandler.swift in Sources */,
 				B3B4C24BA2DA86DFB2414D28 /* MumbleURLParser.swift in Sources */,
+				3ED5CEBC64C0E2E769168BFE /* MumistPublicServersView.swift in Sources */,
+				1BEFA26753DA2349EF6CB6CF /* MumistServer.swift in Sources */,
+				8A7A4E93E559180C7670C98D /* MumistService.swift in Sources */,
 				2D4BEFCBD407ACC44D89391E /* NetworkSettingsTab.swift in Sources */,
 				EB78D3EA74EE027A1BFE6DD1 /* OpenMumbleLinkModal.swift in Sources */,
 				99B13F9EC5DF3B69962E66F1 /* OverlaySettingsModal.swift in Sources */,

@@ -1,11 +1,19 @@
 import SwiftUI
 import AppKit
 
+public enum ServerConnectTab: String, CaseIterable, Identifiable {
+    case saved = "Saved Servers"
+    case publicList = "Public Servers (Mumist)"
+
+    public var id: String { rawValue }
+}
+
 /// Sheet for managing server bookmarks and initiating server connections.
 public struct ServerConnectSheet: View {
     @Bindable public var store: MumbleStore
     @Environment(\.dismiss) private var dismiss
 
+    @State private var selectedTab: ServerConnectTab = .saved
     @State private var selectedBookmarkId: UUID?
     @State private var isEditing: Bool = false
 
@@ -36,22 +44,57 @@ public struct ServerConnectSheet: View {
     public var body: some View {
         VStack(spacing: 0) {
             // Header
-            HStack {
-                Text("Swimble Server Connect")
-                    .font(.title2.bold())
+            HStack(spacing: 16) {
+                Text("Connect to Server")
+                    .font(.title3.bold())
+
                 Spacer()
+
+                Picker("", selection: $selectedTab) {
+                    Label("Saved Servers", systemImage: "star.fill")
+                        .tag(ServerConnectTab.saved)
+                    Label("Public Directory (Mumist)", systemImage: "globe")
+                        .tag(ServerConnectTab.publicList)
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 330)
+
+                Spacer()
+
                 Button("Done") {
                     dismiss()
                 }
                 .keyboardShortcut(.cancelAction)
             }
-            .padding(.horizontal, 24)
-            .padding(.top, 20)
+            .padding(.horizontal, 20)
+            .padding(.top, 16)
             .padding(.bottom, 12)
 
             Divider()
 
-            HStack(spacing: 0) {
+            switch selectedTab {
+            case .saved:
+                savedBookmarksView
+            case .publicList:
+                MumistPublicServersView(store: store, onConnect: { dismiss() })
+            }
+        }
+        .frame(minWidth: 760, idealWidth: 800, maxWidth: 880, minHeight: 520, idealHeight: 540)
+        .onAppear {
+            if selectedBookmarkId == nil, let first = store.bookmarks.first {
+                selectBookmark(first)
+            }
+            store.pingAllBookmarks()
+        }
+        .onChange(of: selectedBookmarkId) { _, newId in
+            if let id = newId, let bm = store.bookmarks.first(where: { $0.id == id }) {
+                loadForm(bm)
+            }
+        }
+    }
+
+    private var savedBookmarksView: some View {
+        HStack(spacing: 0) {
                 // Left Column: Saved Bookmarks List
                 VStack(spacing: 0) {
                     List(selection: $selectedBookmarkId) {
@@ -237,19 +280,6 @@ public struct ServerConnectSheet: View {
                 }
             }
         }
-        .frame(width: 640, height: 460)
-        .onAppear {
-            if selectedBookmarkId == nil, let first = store.bookmarks.first {
-                selectBookmark(first)
-            }
-            store.pingAllBookmarks()
-        }
-        .onChange(of: selectedBookmarkId) { _, newId in
-            if let id = newId, let bm = store.bookmarks.first(where: { $0.id == id }) {
-                loadForm(bm)
-            }
-        }
-    }
 
     private func selectBookmark(_ bm: ServerBookmark) {
         selectedBookmarkId = bm.id
