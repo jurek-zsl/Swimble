@@ -17,6 +17,7 @@ public enum ActiveModal: String, Identifiable {
     case ttsSettings
     case overlaySettings
     case userStats
+    case openMumbleLink
 
     public var id: String { rawValue }
 }
@@ -59,6 +60,7 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
     public var users: [UserInfo] = []
     public var selectedChannelId: UInt32? = nil
     public var mySessionId: UInt32? = nil
+    public var pendingTargetChannelPath: [String]? = nil
 
     // Chat Activity Stream
     public var chatMessages: [ChatMessage] = []
@@ -165,6 +167,13 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
         lastKnownMyChannelId = me.channelId
         let chName = channelName(for: me.channelId)
         logSystemMessage("You joined \(chName).", icon: "arrow.right.circle.fill")
+
+        if let path = pendingTargetChannelPath, !path.isEmpty {
+            if let targetCh = findChannel(byPath: path) {
+                pendingTargetChannelPath = nil
+                joinChannel(channelId: targetCh.id)
+            }
+        }
     }
 
     public var myChannel: ChannelInfo? {
@@ -312,6 +321,7 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
         self.selectedChannelId = nil
         self.hasLoggedInitialJoin = false
         self.lastKnownMyChannelId = nil
+        self.pendingTargetChannelPath = nil
     }
 
     // MARK: - User Stats
@@ -320,11 +330,106 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
         client.requestUserStats(sessionId: sessionId, statsOnly: statsOnly)
     }
 
-    // MARK: - Channel & User Actions
-
     public func joinChannel(channelId: UInt32) {
         client.joinChannel(channelId: channelId)
         self.selectedChannelId = channelId
+    }
+
+    // MARK: - Mumble URL Scheme Handling
+
+    public func handleMumbleLink(_ linkInfo: MumbleLinkInfo) {
+        if !linkInfo.channelPath.isEmpty {
+            self.pendingTargetChannelPath = linkInfo.channelPath
+        } else {
+            self.pendingTargetChannelPath = nil
+        }
+
+        let isSameServer = (connectionStatus == .connected) &&
+            (activeBookmark?.host.caseInsensitiveCompare(linkInfo.host) == .orderedSame) &&
+            (activeBookmark?.port == linkInfo.port)
+
+        if isSameServer {
+            if let path = pendingTargetChannelPath, !path.isEmpty {
+                navigateToChannel(path: path)
+            }
+            return
+        }
+
+        let fallbackUser = bookmarks.first?.username ?? "User"
+        let bookmark: ServerBookmark
+        if let existing = bookmarks.first(where: { $0.host.caseInsensitiveCompare(linkInfo.host) == .orderedSame && $0.port == linkInfo.port }) {
+            var merged = existing
+            if let u = linkInfo.username, !u.isEmpty {
+                merged.username = u
+            }
+            if let p = linkInfo.password, !p.isEmpty {
+                merged.password = p
+            }
+            bookmark = merged
+        } else {
+            let newBm = linkInfo.makeBookmark(fallbackUsername: fallbackUser)
+            addBookmark(newBm)
+            bookmark = newBm
+        }
+
+        connect(bookmark: bookmark)
+    }
+
+    public func navigateToChannel(path: [String]) {
+        guard !path.isEmpty else { return }
+        if let targetCh = findChannel(byPath: path) {
+            pendingTargetChannelPath = nil
+            joinChannel(channelId: targetCh.id)
+            logSystemMessage("Joined channel \(targetCh.name).", icon: "arrow.right.circle.fill")
+        }
+    }
+
+    public func findChannel(byPath components: [String]) -> ChannelInfo? {
+        guard !components.isEmpty else { return nil }
+
+        // Root channel in Mumble has parentId == nil or id == 0
+        let root = channels.first(where: { $0.parentId == nil || $0.id == 0 })
+        var searchComponents = components
+
+        // If root channel matches first component, step past root
+        if let root = root, let first = searchComponents.first, first.caseInsensitiveCompare(root.name) == .orderedSame {
+            searchComponents.removeFirst()
+        }
+
+        if searchComponents.isEmpty {
+            return root
+        }
+
+        return searchChannelSubtree(parentId: root?.id, remaining: searchComponents)
+    }
+
+    private func searchChannelSubtree(parentId: UInt32?, remaining: [String]) -> ChannelInfo? {
+        guard let targetName = remaining.first else { return nil }
+
+        let matchingChild = channels.first { ch in
+            let parentMatches: Bool
+            if let pid = parentId {
+                parentMatches = (ch.parentId == pid)
+            } else {
+                parentMatches = (ch.parentId == nil || ch.parentId == 0)
+            }
+            return parentMatches && ch.name.caseInsensitiveCompare(targetName) == .orderedSame
+        }
+
+        if let child = matchingChild {
+            let rest = Array(remaining.dropFirst())
+            if rest.isEmpty {
+                return child
+            }
+            return searchChannelSubtree(parentId: child.id, remaining: rest)
+        }
+
+        // Direct search fallback if hierarchy matching failed
+        if remaining.count == 1 {
+            return channels.first { $0.name.caseInsensitiveCompare(targetName) == .orderedSame }
+        }
+
+        return nil
     }
 
     public func sendChatMessage(channelId: UInt32?, message: String) {
@@ -878,6 +983,12 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
             }
             self.rebuildTree()
             self.checkInitialJoin()
+            if let path = self.pendingTargetChannelPath, !path.isEmpty {
+                if let targetCh = self.findChannel(byPath: path) {
+                    self.pendingTargetChannelPath = nil
+                    self.joinChannel(channelId: targetCh.id)
+                }
+            }
         }
     }
 

@@ -56,6 +56,8 @@ public struct ServerSplitView: View {
                     OverlaySettingsModal(store: store)
                 case .userStats:
                     UserStatsModal(store: store)
+                case .openMumbleLink:
+                    OpenMumbleLinkModal(store: store)
                 }
             }
         }

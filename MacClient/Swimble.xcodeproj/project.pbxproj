@@ -44,9 +44,11 @@
 		A7675A834373E97F10CC88C2 /* AudioRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = A486915DB41767B0D66C9F44 /* AudioRecorder.swift */; };
 		AA64A68DAFE6C49117EFDDD4 /* ChannelRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEA6C7D03FA5BEA5BB8BE052 /* ChannelRowView.swift */; };
 		ABEB616D0EB07E43AA80D58D /* ServerBookmark.swift in Sources */ = {isa = PBXBuildFile; fileRef = C13C038913297A3FE49E3863 /* ServerBookmark.swift */; };
+		B3B4C24BA2DA86DFB2414D28 /* MumbleURLParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5715ABDF1F49ADF03C58457 /* MumbleURLParser.swift */; };
 		B7FEBD69DA5F9D581B6BA403 /* AirPodsAudioLock.swift in Sources */ = {isa = PBXBuildFile; fileRef = B57B5BE9226854864653B2EA /* AirPodsAudioLock.swift */; };
 		B9B1A69E2E28A622498DF550 /* FloatingVoiceHUD.swift in Sources */ = {isa = PBXBuildFile; fileRef = 056BE1AC86EFA30EC46854F4 /* FloatingVoiceHUD.swift */; };
 		B9C84063F0AFDCF38B8F1BE5 /* MessagesSettingsTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52D3F6861DBD75EF1515ADC1 /* MessagesSettingsTab.swift */; };
+		BA5AAFE15882ED9B820488CF /* MumbleURLHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00F18A7CAF3950C2B1905380 /* MumbleURLHandler.swift */; };
 		C063E0833576BE1D6A7040B4 /* ShortcutsSettingsTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76460BAEDDDBDF6FCA5BCA5C /* ShortcutsSettingsTab.swift */; };
 		C3015566C62991871ED1327C /* ChatAndActivityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4465EC52752E78B45234A582 /* ChatAndActivityView.swift */; };
 		C3F71E0026ECF73B8D59EC6E /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F7E4BB298077680C9B6786F /* SettingsView.swift */; };
@@ -59,6 +61,7 @@
 		E3353E6AF351FE9465F07F38 /* CoreAudio.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 95D67961E1365E062F455260 /* CoreAudio.framework */; };
 		E41A216900C75FABD2AB9EFA /* AVFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4D06299B7CE33F3BCF39062D /* AVFoundation.framework */; };
 		EB35A148DCAB8A39D8A4AA95 /* UserStatsModal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85CFE21850D8222E1FE29AD6 /* UserStatsModal.swift */; };
+		EB78D3EA74EE027A1BFE6DD1 /* OpenMumbleLinkModal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C79B0192157D38E58756B39 /* OpenMumbleLinkModal.swift */; };
 		EC373E80CC6AB3A65B889942 /* RichDescriptionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC4EBD274AC49EEF39C1F3A9 /* RichDescriptionView.swift */; };
 		EFFD97E5CD5CE47EA637E8C1 /* OverlaySettingsTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D396A33F11564A1B200D65E /* OverlaySettingsTab.swift */; };
 		F1FAA6A66EB6740A4591CFA8 /* GlobalPTT.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4ABCAE82B83EF2D8086B07F2 /* GlobalPTT.swift */; };
@@ -67,6 +70,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		00F18A7CAF3950C2B1905380 /* MumbleURLHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MumbleURLHandler.swift; sourceTree = "<group>"; };
 		056BE1AC86EFA30EC46854F4 /* FloatingVoiceHUD.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingVoiceHUD.swift; sourceTree = "<group>"; };
 		08B4FC6ED1628E58EC8F9621 /* EventNotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventNotificationManager.swift; sourceTree = "<group>"; };
 		090F1C2C11C1D6A404A98B96 /* mumble_core.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mumble_core.swift; sourceTree = "<group>"; };
@@ -105,6 +109,7 @@
 		8D75388A3A0B276E8E23E2A3 /* ChannelTreeSidebar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChannelTreeSidebar.swift; sourceTree = "<group>"; };
 		90281F12C63E300CFA61BE16 /* AudioToolbox.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AudioToolbox.framework; path = System/Library/Frameworks/AudioToolbox.framework; sourceTree = SDKROOT; };
 		95D67961E1365E062F455260 /* CoreAudio.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreAudio.framework; path = System/Library/Frameworks/CoreAudio.framework; sourceTree = SDKROOT; };
+		9C79B0192157D38E58756B39 /* OpenMumbleLinkModal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenMumbleLinkModal.swift; sourceTree = "<group>"; };
 		9E16BCEE35061B61400BAD4E /* ChangeCommentModal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChangeCommentModal.swift; sourceTree = "<group>"; };
 		A486915DB41767B0D66C9F44 /* AudioRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioRecorder.swift; sourceTree = "<group>"; };
 		A52CA21CD1DADE40D5D22B45 /* TTSModal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTSModal.swift; sourceTree = "<group>"; };
@@ -123,6 +128,7 @@
 		E79E8587A42576CCE43718FE /* AudioSettingsPopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioSettingsPopover.swift; sourceTree = "<group>"; };
 		E997A0E907756CE5B5E4CE8C /* SettingsState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsState.swift; sourceTree = "<group>"; };
 		EABB288D78F88716DCE03174 /* EditChannelDescriptionModal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditChannelDescriptionModal.swift; sourceTree = "<group>"; };
+		F5715ABDF1F49ADF03C58457 /* MumbleURLParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MumbleURLParser.swift; sourceTree = "<group>"; };
 		FC56BA7EC71874FC4A157C2F /* OverlaySettingsModal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlaySettingsModal.swift; sourceTree = "<group>"; };
 		FEA6C7D03FA5BEA5BB8BE052 /* ChannelRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChannelRowView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -192,6 +198,8 @@
 			isa = PBXGroup;
 			children = (
 				08B4FC6ED1628E58EC8F9621 /* EventNotificationManager.swift */,
+				00F18A7CAF3950C2B1905380 /* MumbleURLHandler.swift */,
+				F5715ABDF1F49ADF03C58457 /* MumbleURLParser.swift */,
 			);
 			path = Utils;
 			sourceTree = "<group>";
@@ -273,6 +281,7 @@
 				55568C3F69D99EF643DCC4DA /* CertificateWizardModal.swift */,
 				9E16BCEE35061B61400BAD4E /* ChangeCommentModal.swift */,
 				EABB288D78F88716DCE03174 /* EditChannelDescriptionModal.swift */,
+				9C79B0192157D38E58756B39 /* OpenMumbleLinkModal.swift */,
 				FC56BA7EC71874FC4A157C2F /* OverlaySettingsModal.swift */,
 				CD1ACB1CCCD91B54D8D3E60B /* RegisteredUsersModal.swift */,
 				0E8170BD8B1AB9190553D093 /* ServerInformationModal.swift */,
@@ -395,7 +404,10 @@
 				7CD50DF939B92B5302748E65 /* MacAudioEngine.swift in Sources */,
 				B9C84063F0AFDCF38B8F1BE5 /* MessagesSettingsTab.swift in Sources */,
 				879D83BFB29D6D38688D32BD /* MumbleStore.swift in Sources */,
+				BA5AAFE15882ED9B820488CF /* MumbleURLHandler.swift in Sources */,
+				B3B4C24BA2DA86DFB2414D28 /* MumbleURLParser.swift in Sources */,
 				2D4BEFCBD407ACC44D89391E /* NetworkSettingsTab.swift in Sources */,
+				EB78D3EA74EE027A1BFE6DD1 /* OpenMumbleLinkModal.swift in Sources */,
 				99B13F9EC5DF3B69962E66F1 /* OverlaySettingsModal.swift in Sources */,
 				EFFD97E5CD5CE47EA637E8C1 /* OverlaySettingsTab.swift in Sources */,
 				7459BEF006ECE1CDB5C4E4C3 /* RegisteredUsersModal.swift in Sources */,
@@ -493,14 +505,12 @@
 					"$(inherited)",
 					"\"Generated\"",
 				);
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
 				HEADER_SEARCH_PATHS = (
 					"$(PROJECT_DIR)/Generated",
 					/opt/homebrew/opt/opus/include,
 				);
-				INFOPLIST_KEY_CFBundleDisplayName = Swimble;
-				INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsArbitraryLoads = YES;
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Swimble requires microphone access for voice chat.";
+				INFOPLIST_FILE = Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -540,14 +550,12 @@
 					"$(inherited)",
 					"\"Generated\"",
 				);
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
 				HEADER_SEARCH_PATHS = (
 					"$(PROJECT_DIR)/Generated",
 					/opt/homebrew/opt/opus/include,
 				);
-				INFOPLIST_KEY_CFBundleDisplayName = Swimble;
-				INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsArbitraryLoads = YES;
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Swimble requires microphone access for voice chat.";
+				INFOPLIST_FILE = Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",

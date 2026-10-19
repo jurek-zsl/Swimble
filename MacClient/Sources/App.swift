@@ -13,6 +13,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    func application(_ application: NSApplication, open urls: [URL]) {
+        for url in urls {
+            MumbleURLHandler.shared.handle(url: url)
+        }
+    }
+
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         let anyConnected = MumbleStore.activeStores.contains(where: { $0.connectionStatus == .connected })
         if SettingsState.shared.displayQuitConfirmation && anyConnected {
@@ -98,6 +104,11 @@ struct SwimbleApp: App {
                     activeStore?.activeModal = .serverConnect
                 }
                 .keyboardShortcut("o", modifiers: [.command])
+
+                Button("Open Mumble Link...") {
+                    activeStore?.activeModal = .openMumbleLink
+                }
+                .keyboardShortcut("l", modifiers: [.command])
 
                 Button("Disconnect") {
                     activeStore?.disconnect()
@@ -400,8 +411,15 @@ struct ServerWindowView: View {
             .frame(minWidth: 820, minHeight: 540)
             .focusedValue(\.mumbleStore, store)
             .navigationTitle(store.activeBookmark?.name ?? (store.connectionStatus == .connected ? "Connected" : "Swimble"))
+            .onOpenURL { url in
+                MumbleURLHandler.shared.handle(url: url)
+            }
             .onAppear {
-                if store.connectionStatus == .disconnected && !didPromptInitialConnect {
+                if let pending = MumbleURLHandler.shared.consumePendingLink() {
+                    didPromptInitialConnect = true
+                    store.activeModal = nil
+                    store.handleMumbleLink(pending)
+                } else if store.connectionStatus == .disconnected && !didPromptInitialConnect {
                     didPromptInitialConnect = true
                     store.activeModal = .serverConnect
                 }

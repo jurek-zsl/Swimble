@@ -11,6 +11,17 @@ targets:
     sources:
       - Sources
       - Generated/mumble_core.swift
+    info:
+      path: Info.plist
+      properties:
+        CFBundleDisplayName: "Swimble"
+        NSMicrophoneUsageDescription: "Swimble requires microphone access for voice chat."
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
+        CFBundleURLTypes:
+          - CFBundleURLName: com.swimble.mumble
+            CFBundleURLSchemes:
+              - mumble
     dependencies:
       - sdk: AudioToolbox.framework
       - sdk: AVFoundation.framework
@@ -24,10 +35,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.swimble.Swimble
         MACOSX_DEPLOYMENT_TARGET: "26.0"
         SWIFT_VERSION: "6.0"
-        GENERATE_INFOPLIST_FILE: YES
-        INFOPLIST_KEY_NSMicrophoneUsageDescription: "Swimble requires microphone access for voice chat."
-        INFOPLIST_KEY_CFBundleDisplayName: "Swimble"
-        INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsArbitraryLoads: YES
+        GENERATE_INFOPLIST_FILE: NO
         SWIFT_INCLUDE_PATHS:
           - "$(PROJECT_DIR)/Generated"
         HEADER_SEARCH_PATHS:
