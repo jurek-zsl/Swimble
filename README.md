@@ -1,271 +1,152 @@
-# Swimble
-
 <p align="center">
   <img src="assets/swimble-banner/Swimble-Banner.png" alt="Swimble — Mumble voice chat. Native to macOS." width="700"/>
 </p>
 
-<p align="center">
-  <strong>The Next-Generation Native macOS Mumble VoIP Client</strong><br/>
-  Engineered with <strong>macOS 26 Liquid Glass SwiftUI</strong> and a high-performance <strong>Rust Core</strong>.
-</p>
+**Swimble** is a native macOS voice chat client for Mumble servers. It combines a SwiftUI interface with a Rust core for the Mumble protocol, audio codecs, and connection state.
 
-<p align="center">
-  <img src="https://img.shields.io/badge/Platform-macOS%2026%2B-blue?style=flat-square&logo=apple" alt="macOS 26+"/>
-  <img src="https://img.shields.io/badge/Swift-6.0-F05138?style=flat-square&logo=swift" alt="Swift 6"/>
-  <img src="https://img.shields.io/badge/Rust-2021%20Edition-black?style=flat-square&logo=rust" alt="Rust 2021"/>
-  <img src="https://img.shields.io/badge/Protocol-Murmur%201.5%20%2F%201.6-4B8BBE?style=flat-square" alt="Mumble Protocol"/>
-  <img src="https://img.shields.io/badge/Audio-48kHz%20Opus%20VoIP-green?style=flat-square" alt="48kHz Opus"/>
-  <img src="https://img.shields.io/badge/Design-Liquid%20Glass-7B61FF?style=flat-square" alt="Liquid Glass"/>
-  <img src="https://img.shields.io/badge/License-MIT-lightgrey?style=flat-square" alt="License"/>
-</p>
+The project targets standard Mumble 1.5 and 1.6 servers, commonly known as Murmur. It uses the existing Mumble protocol and does not require server extensions.
 
----
+[Download](https://github.com/jurek-zsl/Swimble/releases/latest) · [Release history](https://github.com/jurek-zsl/Swimble/releases) · [Build from source](#build-from-source) · [Report an issue](https://github.com/jurek-zsl/Swimble/issues)
 
-## Overview
+## Requirements and installation
 
-Swimble is a native macOS client engineered specifically for standard **Mumble (`Murmur`)** VoIP servers (TCP/TLS and UDP port 64738).
+Published builds require an **Apple Silicon Mac running macOS 26 or later**. The DMG includes the Opus audio library; Homebrew is not required to run the application.
 
-Rather than wrapping legacy Qt/C++ codebases, Swimble implements a dual-layer architecture built natively for Apple Silicon and macOS 26:
-- **Zero Legacy Frameworks**: Built from scratch using native SwiftUI conforming to the macOS 26 Liquid Glass design language.
-- **Memory-Safe Rust Engine**: All cryptographic networking, Protobuf framing, UDP OCB2-AES128 encryption, Opus encoding/decoding, and per-user jitter buffering execute in an isolated, multi-threaded Rust core.
-- **Hardware-Accelerated Audio**: Direct integration with Apple `AVAudioEngine` utilizing `.voiceProcessingIO` for hardware acoustic echo cancellation (AEC), automatic gain control, and low-latency rendering.
-- **Full Murmur Compatibility**: Implements standard Mumble 1.5 and 1.6 protocols without requiring server modifications or proprietary extensions.
+1. Download the DMG from the [latest release](https://github.com/jurek-zsl/Swimble/releases/latest).
+2. Open the disk image and drag **Swimble** into **Applications**.
+3. Launch Swimble from Applications and allow microphone access when prompted.
+4. Open **Server → Connect**, then add a server or choose one from the public directory.
 
----
+Global push-to-talk and other system-wide shortcuts require Accessibility permission. Audio devices, transmission mode, and key bindings can be configured in Settings.
 
-## Architectural Boundary
+Current release builds are ad hoc signed and are not Apple-notarized. Each release includes a SHA-256 checksum for the DMG.
 
-Swimble enforces a strict separation between low-level networking DSP and the high-level user interface:
+## Features
 
-```mermaid
-flowchart TB
-    subgraph RustCore ["rust-core (Networking & DSP Engine)"]
-        direction TB
-        TLS["tokio-rustls: TLS 1.3 Handshake & TCP 6-Byte Framing"]
-        Proto["Protobuf Message Serialization (Mumble.proto via prost)"]
-        Crypto["OCB2-AES128 CryptState: Nonce Resync & 100-Packet Replay Window"]
-        Opus["48kHz Opus Encoder / Decoder Map with Soft-Clipping Mixer"]
-        Cert["X.509 Identity Generation (rcgen) & PKCS#12 (.p12) Exporter"]
-        Ping["12-Byte UDP Latency & Server Prober"]
-    end
+| Area | Capabilities |
+| --- | --- |
+| Voice | 48 kHz mono Opus audio; push-to-talk, voice activity, and continuous transmission; mute, deafen, whisper, and per-user volume controls. |
+| Servers | Saved connections, public server browsing, DNS SRV lookup, `mumble://` links, connection diagnostics, and TCP voice tunneling. |
+| Channels and messaging | Channel navigation, participant lists, text chat, formatted channel descriptions, user comments, and moderation actions subject to server permissions. |
+| Audio controls | Input and output device selection, microphone monitoring, echo cancellation through AVAudioEngine voice processing, and local WAV recording. |
+| macOS integration | SwiftUI Liquid Glass interface, menu bar controls, global shortcuts, a floating speaker overlay, and Keychain storage for credentials and client identities. |
+| Client identities | Certificate generation and PKCS#12 import and export. |
 
-    subgraph Bridge ["Mozilla UniFFI Bridge"]
-        UniFFI["mumble_core.swift / mumble_coreFFI.h / libmumble_core.a\nThread-Safe C-ABI Scaffolding & Lock-Free Ring Buffers"]
-    end
+Public server browsing uses Mumist.eu, with a fallback to the Mumble.info directory. Live activity data depends on the directory source and is not available in the fallback list-only mode.
 
-    subgraph SwiftClient ["MacClient (SwiftUI Liquid Glass Frontend)"]
-        Store["@Observable @MainActor MumbleStore: State & Event Dispatcher"]
-        Audio["MacAudioEngine: AVAudioEngine with .voiceProcessingIO & AirPods Protection"]
-        UI["SwiftUI Views: NavigationSplitView, GlassEffectContainer, Morphing Controls"]
-        Overlay["Floating HUD: Non-Intrusive Game Overlay with FPS & Clock"]
-        OS["macOS Integration: Keychain Services, CGEvent Hotkeys, MenuBarExtra"]
-    end
+## Compatibility and limitations
 
-    RustCore <--> Bridge
-    Bridge <--> SwiftClient
+- Standard Mumble connections use TCP/TLS for control traffic and UDP for voice, on port `64738` by default. Voice can be tunneled over TCP when UDP is unavailable.
+- The implementation targets Mumble 1.5 and 1.6; feature availability also depends on server configuration and permissions.
+- **Server identity verification is currently disabled.** The [TLS connection implementation](rust-core/src/connection.rs) accepts server certificates and handshake signatures without validation. TLS transport does not establish a verified server identity in the current implementation.
+- Published binaries are for Apple Silicon. Intel builds are not provided.
+
+## Architecture
+
+The application separates Mumble protocol handling from the macOS interface and audio hardware integration.
+
+| Component | Responsibility |
+| --- | --- |
+| [`rust-core/`](rust-core/) | Mumble TCP/TLS and UDP transport, Protobuf messages, OCB2-AES128 packet encryption, Opus encoding and decoding, audio mixing, receive buffering, DNS SRV resolution, and client certificate operations. |
+| [`MacClient/`](MacClient/) | SwiftUI views and application state, AVAudioEngine input and output, CoreAudio device selection, global shortcuts, Keychain integration, and macOS notifications. |
+| UniFFI and `rtrb` | Generated Rust–Swift bindings for commands and events, with ring buffers for PCM audio exchange. |
+
+The protocol definition is kept in [`rust-core/proto/Mumble.proto`](rust-core/proto/Mumble.proto). Generated Swift bindings and the Rust static library are consumed by the Xcode target.
+
+## Build from source
+
+### Prerequisites
+
+- An Apple Silicon Mac running macOS 26 or later.
+- Xcode with the macOS 26 SDK or later and its command line tools. Select this Xcode installation as the active developer directory.
+- Rust and Cargo, installed through [rustup](https://rustup.rs/).
+- Homebrew packages for Opus, XcodeGen, and the Protocol Buffers compiler:
+
+  ```sh
+  brew install opus xcodegen protobuf
+  ```
+
+The current release was built with Xcode 27.0 and Rust 1.92.0. The repository does not declare a minimum supported Rust version.
+
+### Development build
+
+Clone the repository and build the Rust library and Swift bindings:
+
+```sh
+git clone https://github.com/jurek-zsl/Swimble.git
+cd Swimble
+MACOSX_DEPLOYMENT_TARGET=26.0 ./scripts/build_bridge.sh
 ```
 
-### Layer Responsibilities
+The bridge script compiles the Rust core, generates the UniFFI bindings, copies the static library into `MacClient/Generated/`, and runs XcodeGen.
 
-| Subsystem | Location | Primary Responsibilities |
-| :--- | :--- | :--- |
-| **Rust Core** | `rust-core/` | TCP framing (6-byte header), TLS 1.3 session management, Protobuf encoding/decoding, UDP OCB2-AES128 packet encryption, Opus audio encoding/decoding (48kHz mono), per-user jitter buffers, automatic UDP-to-TCP tunnel fallback, X.509 certificate generation via `rcgen`, and PKCS#12 import/export. |
-| **UniFFI Bridge** | Mozilla `uniffi` | Generates safe, high-speed C-ABI foreign function interface bindings and Swift bridging code via `uniffi::setup_scaffolding!()`. |
-| **Swift Frontend** | `MacClient/` | Native macOS 26 SwiftUI interface, `AVAudioEngine` hardware I/O, live CoreAudio device switching, global `CGEvent` hotkey taps, Apple Keychain certificate/password persistence, and HUD rendering. |
+Build and launch the application:
 
----
-
-## Feature Matrix
-
-### 1. macOS 26 Liquid Glass User Interface
-- **Morphing Voice Control HUD**: Floating voice controls wrapped in `GlassEffectContainer` using `.glassEffect(.regular.tint(...).interactive(), in: .capsule)` with spring morph animations across Mute, Deafen, Push-to-Talk, and Disconnect.
-- **Dynamic Speaking Indicators**: Real-time visual feedback indicating voice state:
-  - Normal channel audio
-  - Targeted whispers (cyan glow)
-  - Channel tree shouts (orange glow)
-- **Accent Personalization**: Selectable Liquid Glass accent colors (Cyan, Emerald, Sapphire, Amethyst, Amber, Ruby) applied across buttons, selections, and background glows.
-- **Menu Bar Extra**: Lightweight menu bar icon displaying real-time connection status, active speaking indications, and quick mute/deafen toggles.
-- **Floating Game Overlay**: Dedicated `NSWindow.Level.floating` HUD showing an active speaker list, live framerate (FPS) counter, and digital clock for full-screen gameplay.
-
-### 2. Audio Pipeline & Processing
-- **48 kHz Mono Opus**: Standardized on 48,000 Hz at 10ms frame intervals (480 samples/frame) for minimal latency and maximum voice clarity.
-- **Hardware Echo Cancellation**: Powered by `AVAudioEngine` using `.voiceProcessingIO` to eliminate speaker bleed without adding CPU overhead.
-- **Voice Activity Detection (VAD)**: Schmitt-trigger voice gate with customizable silence/speech threshold bounds, dynamic hold timer, and real-time 3-zone visual level meter.
-- **Push-to-Talk (PTT)**: Configurable global hotkey support via `CGEvent` taps, double-push trigger window, configurable release hold delay, and customizable audio cue chimes for start and stop.
-- **AirPods Protection Lock**: Intelligent input isolation preventing macOS from downgrading Bluetooth headphones to low-bandwidth Hands-Free Profile (SCO) during voice transmission.
-- **Per-User Volume Control**: Individual audio gain scaling from 0% to 200% with automatic soft-clipping protection.
-- **Local Audio Recording**: One-click session recording capturing mixed inbound and outbound audio to standard WAV files.
-- **Loopback Microphone Test**: Hardware feedback loop allowing users to calibrate audio levels, VAD thresholds, and voice quality locally before connecting to a live channel.
-
-### 3. Channel Management & Rich Content
-- **Rich Text & Inline Images**: Full rendering of HTML/BBCode formatted channel descriptions and user profiles, including remote image downloads and embedded base64 data URIs with caching.
-- **Extended Popover Inspection**: Non-truncating popovers for channel topics, user profiles, and certificate fingerprints.
-- **Channel Drag-and-Drop**: Rearrange channels and move connected users via intuitive native drag-and-drop operations (`.dropDestination`).
-- **Contextual Administration**: Kick, ban, mute, deafen, priority speaker assignment, and channel access control via contextual menus.
-- **Diagnostic Connection Monitor**: Real-time diagnostics detailing server software version, OS platform, active TLS cipher suite, transmission bandwidth (kbps), UDP vs. TCP tunnel status, and packet counters (Good, Late, Lost, Resync).
-
-### 4. Comprehensive Settings Architecture
-Swimble features a dedicated macOS Settings window (`Cmd + ,`) structured into nine functional categories:
-
-1. **Audio Input**: CoreAudio hardware microphone selection, AirPods / Bluetooth High-Quality Audio Lock, transmission modes (Voice Activity, Continuous, Push-To-Talk), live 3-zone audio level meter bar, Schmitt-trigger VAD thresholds (Silence Below, Speech Above), voice hold duration, PTT release hold timer, PTT audio cues with custom sound file selectors and preview, microphone amplification gain (1.0x to 5.0x), Apple Silicon hardware VoiceProcessingIO acoustic echo cancellation, mute chimes, transmitting indicator highlight, and idle AFK automation.
-2. **Audio Output**: Output device selection, master listening volume slider (0% to 200%), network jitter buffer tuning (10ms to 100ms), Apple VoiceProcessingIO audio ducking (automatically lowers background music and games during speech), and zero-latency local microphone loopback test.
-3. **User Interface**: Liquid Glass accent color picker (Cyan, Emerald, Sapphire, Amethyst, Amber, Ruby), appearance theme (System Default, Dark, Light), quit confirmation dialog, unread chat Dock badge, channel tree participant sorting (Alphabetical vs. User ID), hover-to-adjust participant volume, channel user count badges, empty channel search filter, menu bar extra speaking state indicators, and favorite server prioritization.
-4. **Shortcuts**: Global system-wide keybind recorders (Push-to-Talk, Push-to-Whisper, Toggle Mute, Toggle Deafen, Toggle Game Overlay) via `CGEvent` taps, auxiliary mouse buttons 4 & 5 support, and live macOS Accessibility permission monitoring with direct System Settings access.
-5. **Network**: TCP compatibility mode (tunnels voice over TCP when UDP 64738 is blocked), automatic reconnect on dropped connection, auto-connect to last used server on launch, certificate warning suppression, external remote image blocking (prevents IP leakage via embedded images), automatic clearing of comments and chat on exit, macOS OS metadata stripping, and GitHub release update checks.
-6. **Messages & Notifications**: Granular 4-channel event routing matrix (Console, macOS Notification, Text-To-Speech, Audio Cue) across 13 distinct Mumble events, custom sound file bindings with live preview, speech synthesizer volume and character length threshold, and in-memory chat history size control.
-7. **Overlay**: Floating Game Overlay toggle, interactive 4-quadrant screen positioning grid (Top-Left, Top-Right, Bottom-Left, Bottom-Right), live rendering FPS counter, digital clock display, and custom overlay accent color picker.
-8. **Access Tokens**: Channel password token storage synchronized with Murmur ACL security groups.
-9. **Certificates**: Client-side X.509 certificate generation, SHA-256 fingerprint inspection, password-protected PKCS#12 (`.p12`) export and import, and secure macOS Keychain storage.
-
----
-
-## Prerequisites
-
-Before building Swimble, ensure your development environment includes:
-
-- **macOS 15.0 or later** (macOS 26 recommended for Liquid Glass rendering)
-- **Xcode 16.0 or later** (with Command Line Tools installed via `xcode-select --install`)
-- **Rust Toolchain**: Stable Rust 1.80+ installed via [rustup](https://rustup.rs):
-  ```bash
-  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-  ```
-- **Homebrew Packages**:
-  ```bash
-  brew install opus xcodegen
-  ```
-- **Docker** *(optional, for running a local Murmur test container)*:
-  ```bash
-  docker pull mumblevoip/mumble-server:latest
-  ```
-
----
-
-## Build Instructions
-
-### 1. Build the Rust Core and UniFFI Bridge
-Execute the bridge build script. This step compiles `rust-core` in release mode, generates the Swift UniFFI bindings, creates the static C library (`libmumble_core.a`), and regenerates the Xcode project via XcodeGen:
-
-```bash
-./scripts/build_bridge.sh
-```
-
-### 2. Build the macOS Application Bundle
-Compile the release application bundle using `xcodebuild`:
-
-```bash
+```sh
 xcodebuild -project MacClient/Swimble.xcodeproj \
-           -scheme Swimble \
-           -destination 'platform=macOS' \
-           -configuration Release build
+  -scheme Swimble \
+  -destination 'platform=macOS' \
+  -configuration Debug \
+  -derivedDataPath build/development build
+
+open build/development/Build/Products/Debug/Swimble.app
 ```
 
-The resulting standalone app bundle is placed in:
-```bash
-build/Swimble.app
+Development builds link against the local Homebrew Opus library. Use the release workflow below to produce a distributable application with Opus included.
+
+[`MacClient/project.yml`](MacClient/project.yml) is the source of truth for the Xcode project. Edit that file rather than `project.pbxproj`, then regenerate the project:
+
+```sh
+(cd MacClient && xcodegen generate)
 ```
 
-Launch the application:
-```bash
-open build/Swimble.app
+### Release packaging
+
+The release workflow also requires Python 3 with `venv` and `pip`. It downloads and verifies the pinned Opus source archive and installs the packaging dependencies into a local virtual environment.
+
+```sh
+./scripts/build_release.sh
 ```
 
-> [!IMPORTANT]
-> **Xcode Project Management Rule**: Do not edit `.pbxproj` files directly. The Xcode project is generated from [`MacClient/project.yml`](file:///Users/jurekzsl/Documents/code/Swimble/MacClient/project.yml). To regenerate the Xcode project at any time, execute `xcodegen generate` inside `MacClient/`.
+The script produces `build/Swimble-<version>.dmg` and its `.dmg.sha256` file. It builds Opus for macOS 26, embeds the library and its license, signs the staged application, and saves the installer background and icon positions. The final read-only image is remounted to verify its contents and Finder metadata.
 
----
+See [`scripts/RELEASING.md`](scripts/RELEASING.md) for versioning and packaging details.
 
-## Testing & Verification
+## Testing
 
-### Local Murmur Docker Container
-A live Murmur server can be deployed locally using Docker to verify real-time TCP/TLS, UDP OCB2 crypto, voice transmission, and administrative commands:
+The Rust test suite covers packet serialization, cryptographic packet handling, certificate import and export, state updates, DNS resolution, and live server connections.
 
-```bash
-docker run -d --name murmur-test -p 64738:64738 -p 64738:64738/udp mumblevoip/mumble-server:latest
+The local integration tests expect a Murmur server at `127.0.0.1:64738`. If the `murmur-test` container already exists, start it with `docker start murmur-test`. Otherwise, create it with:
+
+```sh
+docker run --detach --name murmur-test \
+  --publish 127.0.0.1:64738:64738/tcp \
+  --publish 127.0.0.1:64738:64738/udp \
+  mumblevoip/mumble-server:latest
 ```
 
-### Run Rust Unit and Integration Tests
-Execute the Rust test suite, which includes cryptographic verification, packet serialization, VarInt roundtrips, PKCS#12 handling, and live TLS/UDP handshakes against the local Murmur container:
+Run the suite from the repository root:
 
-```bash
+```sh
 cd rust-core
 cargo test
 ```
 
-Expected output:
-```text
-running 8 tests
-test voice_packet::tests::test_client_voice_packet_roundtrip ... ok
-test voice_packet::tests::test_udp_ping_roundtrip ... ok
-test voice_packet::tests::test_varint_roundtrip ... ok
-test crypt_ocb2::tests::test_ocb2_replay_fails ... ok
-test crypt_ocb2::tests::test_ocb2_tampered_tag_fails ... ok
-test crypt_ocb2::tests::test_ocb2_encrypt_decrypt_roundtrip ... ok
-test cert::tests::test_pkcs12_empty_password_roundtrip ... ok
-test cert::tests::test_pkcs12_export_import_roundtrip ... ok
+The full suite also includes DNS lookups and a public-server ping test, so it requires network access. To run only the local server integration checks:
 
-test result: ok. 8 passed; 0 failed; finished in 0.10s
-
-running 1 test
-test test_murmur_live_integration ... ok
-
-test result: ok. 1 passed; 0 failed; finished in 0.43s
+```sh
+cargo test --test murmur_integration test_murmur_live_integration
+cargo test --test murmur_integration test_ping_mumble_server_udp_and_tcp
 ```
 
----
+## Contributing
 
-## Keyboard Shortcuts
+Bug reports and focused pull requests are welcome. For connection or audio issues, include the Swimble version, macOS version, server version, audio device details where relevant, reproduction steps, and logs.
 
-| Action | Shortcut | Scope |
-| :--- | :--- | :--- |
-| Open Settings Window | `Cmd + ,` | Application |
-| Toggle Microphone Mute | `Cmd + Shift + M` | Application / Menu Bar |
-| Toggle Audio Deafen | `Cmd + Shift + D` | Application / Menu Bar |
-| Toggle Game Overlay | `Cmd + Shift + O` | Application / Menu Bar |
-| Push-to-Talk (Hold) | `~` (Configurable) | Global System / Games |
-| Push-to-Whisper (Hold) | `\` (Configurable) | Global System / Games |
-| Send Chat Message | `Return` | Chat View |
-| Join Channel / Quick Connect | `Double Click` | Channel Tree / Server List |
-
----
-
-## Project Structure
-
-```text
-Swimble/
-├── MacClient/                  # Native macOS SwiftUI Liquid Glass Client
-│   ├── project.yml             # XcodeGen project specification (source of truth)
-│   ├── Swimble.xcodeproj       # Generated Xcode project file
-│   ├── Generated/              # UniFFI bindings & libmumble_core.a static library
-│   └── Sources/
-│       ├── App.swift           # Application lifecycle, WindowGroup, Settings, MenuBarExtra
-│       ├── KeychainHelper.swift# Secure macOS Keychain storage for credentials and certificates
-│       ├── Audio/              # CoreAudio device management, MacAudioEngine, GlobalPTT, SoundManager
-│       ├── Models/             # ServerBookmark, ChannelTreeNode, MessageItem, SettingsModel
-│       ├── Store/              # MumbleStore (@Observable central application state)
-│       └── Views/              # Liquid Glass split view, channel sidebar, voice HUD, chat, settings
-├── rust-core/                  # High-Performance Rust Networking & DSP Core
-│   ├── Cargo.toml              # Dependencies (tokio, prost, rcgen, p12, ring, etc.)
-│   ├── proto/Mumble.proto      # Official Mumble Protobuf protocol specification
-│   ├── src/
-│   │   ├── client.rs           # MumbleClient coordinator & UniFFI bridge bindings
-│   │   ├── connection.rs       # TLS connection, TCP/UDP framing, UDPTunnel fallback
-│   │   ├── crypt_ocb2.rs       # OCB2-AES128 packet crypto & sliding replay window
-│   │   ├── voice_packet.rs     # VarInt encoding/decoding & Opus packet serialization
-│   │   ├── audio_mixer.rs      # Multi-user Opus decoding & soft-clipping audio mixer
-│   │   ├── cert.rs             # X.509 certificate generation & PKCS#12 (.p12) handling
-│   │   ├── ping.rs             # 12-byte UDP ping latency probing client
-│   │   └── state.rs            # Thread-safe server state, permissions & diagnostic stats
-│   └── tests/                  # Integration tests executing against local Murmur container
-├── scripts/
-│   └── build_bridge.sh         # UniFFI compilation and binding generation pipeline
-└── build/
-    └── Swimble.app             # Standalone compiled application bundle
-```
-
----
+Keep Mumble protocol and codec changes in `rust-core/`, and macOS interface and hardware integration changes in `MacClient/`. Regenerate the UniFFI bindings when changing exported Rust types or commands. Protocol changes should include integration coverage against the local Murmur server.
 
 ## License
 
-Swimble is open-source software licensed under the **MIT License**. See [LICENSE](LICENSE) for details.
+Swimble is licensed under the [MIT License](LICENSE). Bundled third-party components retain their own licenses; the release application includes the Opus license.
 
-Mumble and Murmur are trademarks of the Mumble Project. Swimble is an independent open-source client.
+Swimble is an independent client and is not affiliated with the Mumble project. Mumble and Murmur are trademarks of their respective owners.
