@@ -47,18 +47,9 @@ pub async fn ping_mumble_server(host: String, port: u16, timeout_ms: u64) -> Res
         )));
     }
 
-    // 1. Try standard UDP Mumble ping probe first (short timeout)
-    let udp_timeout = Duration::from_millis(timeout_ms.min(1000).max(400));
+    let probe_timeout = timeout_ms.max(2000);
     for &addr in &addrs {
-        if let Ok(info) = ping_udp_target(addr, udp_timeout).await {
-            return Ok(info);
-        }
-    }
-
-    // 2. Fall back to TCP connection probe (measures handshake latency)
-    let tcp_timeout = Duration::from_millis(timeout_ms.max(1500));
-    for &addr in &addrs {
-        if let Ok(info) = ping_tcp_target(addr, tcp_timeout).await {
+        if let Ok(info) = probe_address(addr, probe_timeout).await {
             return Ok(info);
         }
     }
@@ -67,6 +58,38 @@ pub async fn ping_mumble_server(host: String, port: u16, timeout_ms: u64) -> Res
         "Server {}:{} is unreachable",
         target_host, target_port
     )))
+}
+
+async fn probe_address(addr: SocketAddr, timeout_ms: u64) -> Result<ServerPingInfo, MumbleError> {
+    let udp_timeout = Duration::from_millis(timeout_ms.min(1000).max(400));
+    let tcp_timeout = Duration::from_millis(timeout_ms.max(1500));
+
+    let udp_fut = ping_udp_target(addr, udp_timeout);
+    let tcp_fut = ping_tcp_target(addr, tcp_timeout);
+    tokio::pin!(udp_fut);
+    tokio::pin!(tcp_fut);
+
+    tokio::select! {
+        udp_res = &mut udp_fut => {
+            if let Ok(info) = udp_res {
+                return Ok(info);
+            }
+            // UDP failed (e.g. dropped/firewalled), wait for TCP
+            tcp_fut.await
+        }
+        tcp_res = &mut tcp_fut => {
+            if let Ok(tcp_info) = tcp_res {
+                // TCP succeeded fast! Give UDP up to 350ms to finish so we might get full stats
+                let extra_udp_wait = tokio::time::timeout(Duration::from_millis(350), &mut udp_fut);
+                if let Ok(Ok(udp_info)) = extra_udp_wait.await {
+                    return Ok(udp_info);
+                }
+                return Ok(tcp_info);
+            }
+            // TCP failed, wait for UDP
+            udp_fut.await
+        }
+    }
 }
 
 async fn ping_udp_target(addr: SocketAddr, timeout_dur: Duration) -> Result<ServerPingInfo, MumbleError> {

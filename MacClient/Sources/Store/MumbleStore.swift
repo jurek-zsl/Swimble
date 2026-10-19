@@ -76,6 +76,14 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
     // Bookmarks & Identity
     public var bookmarks: [ServerBookmark] = []
     public var activeBookmark: ServerBookmark? = nil
+    public var lastUsedBookmark: ServerBookmark? {
+        if let idStr = UserDefaults.standard.string(forKey: "Swimble_LastUsedBookmarkId"),
+           let uuid = UUID(uuidString: idStr),
+           let bm = bookmarks.first(where: { $0.id == uuid }) {
+            return bm
+        }
+        return bookmarks.first(where: { $0.isFavorite }) ?? bookmarks.first
+    }
     public var clientIdentity: ClientIdentity!
     public var certFingerprint: String = ""
 
@@ -83,6 +91,7 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
     public var serverPingResults: [String: ServerPingInfo] = [:]
     public var serverPingFailed: [String: Bool] = [:]
     public var isPingingServers: Bool = false
+    private var backgroundPingTimer: Timer? = nil
 
     // Server Connection Information
     public var connectionInfo: ServerConnectionInfo? = nil
@@ -263,6 +272,8 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
         // 4. Load saved bookmarks & access tokens
         loadBookmarks()
         loadAccessTokens()
+        pingAllBookmarks()
+        startBackgroundPingTimer()
 
         // 5. Initialize accent tint, apply saved settings, and auto-connect if enabled
         self.accentTint = Self.colorFromName(self.accentColorName)
@@ -274,7 +285,7 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
         }
 
         if (self.autoReconnectOnLaunch || SettingsState.shared.autoConnectLastUsedServer),
-           let fav = self.bookmarks.first(where: { $0.isFavorite }) ?? self.bookmarks.first {
+           let fav = self.lastUsedBookmark ?? self.bookmarks.first {
             Task { @MainActor [weak self] in
                 self?.connect(bookmark: fav)
             }
@@ -299,6 +310,7 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
         self.reconnectTimer = nil
         self.activeBookmark = bookmark
         self.connectionStatus = .connecting
+        UserDefaults.standard.set(bookmark.id.uuidString, forKey: "Swimble_LastUsedBookmarkId")
 
         // Resolve password from Keychain if present
         let password = bookmark.password ?? KeychainHelper.loadServerPassword(bookmarkId: bookmark.id)
@@ -339,6 +351,7 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
         self.hasLoggedInitialJoin = false
         self.lastKnownMyChannelId = nil
         self.pendingTargetChannelPath = nil
+        pingAllBookmarks()
     }
 
     // MARK: - User Stats
@@ -769,12 +782,47 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
         isPingingServers = true
         let list = self.bookmarks
         Task { [weak self] in
-            for bookmark in list {
-                Task { [weak self] in
-                    await self?.pingBookmark(bookmark)
+            await withTaskGroup(of: (String, ServerPingInfo?).self) { group in
+                for bookmark in list {
+                    let cleanHost = bookmark.host.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !cleanHost.isEmpty else { continue }
+                    let port = bookmark.port
+                    let key = Self.pingKey(host: cleanHost, port: port)
+                    group.addTask {
+                        do {
+                            let info = try await pingMumbleServer(host: cleanHost, port: port, timeoutMs: 3000)
+                            return (key, info)
+                        } catch {
+                            return (key, nil)
+                        }
+                    }
+                }
+                for await (key, info) in group {
+                    await MainActor.run { [weak self] in
+                        guard let self = self else { return }
+                        if let info = info {
+                            self.serverPingResults[key] = info
+                            self.serverPingFailed[key] = false
+                        } else {
+                            self.serverPingResults[key] = nil
+                            self.serverPingFailed[key] = true
+                        }
+                    }
                 }
             }
-            self?.isPingingServers = false
+            await MainActor.run { [weak self] in
+                self?.isPingingServers = false
+            }
+        }
+    }
+
+    private func startBackgroundPingTimer() {
+        self.backgroundPingTimer?.invalidate()
+        self.backgroundPingTimer = Timer.scheduledTimer(withTimeInterval: 25.0, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self = self, self.connectionStatus == .disconnected, !self.bookmarks.isEmpty else { return }
+                self.pingAllBookmarks()
+            }
         }
     }
 

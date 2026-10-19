@@ -101,7 +101,7 @@ public struct MumistPublicServersView: View {
                 VStack(spacing: 12) {
                     ProgressView()
                         .controlSize(.regular)
-                    Text("Fetching public servers from Mumist.eu...")
+                    Text("Fetching public servers...")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
@@ -111,7 +111,7 @@ public struct MumistPublicServersView: View {
                     Image(systemName: "wifi.exclamationmark")
                         .font(.system(size: 36))
                         .foregroundStyle(.orange)
-                    Text("Could not reach Mumist.eu")
+                    Text("Could not reach public servers")
                         .font(.headline)
                     Text(error)
                         .font(.caption)
@@ -156,12 +156,12 @@ public struct MumistPublicServersView: View {
     // MARK: - Subviews
 
     private var headerStatsBar: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: 14) {
             HStack(spacing: 6) {
                 Circle()
                     .fill(Color.green)
                     .frame(width: 8, height: 8)
-                Text("Mumist.eu Live Directory")
+                Text(service.directorySource == .mumist ? "Mumist.eu Live Directory" : "Mumble.info Public Directory")
                     .font(.caption.bold())
             }
             .padding(.horizontal, 8)
@@ -181,6 +181,23 @@ public struct MumistPublicServersView: View {
             }
 
             Spacer()
+
+            // Small button linking directly to mumist.eu
+            Link(destination: URL(string: "https://mumist.eu")!) {
+                HStack(spacing: 4) {
+                    Image(systemName: "safari")
+                        .font(.caption2)
+                    Text("mumist.eu")
+                        .font(.caption.bold())
+                    Image(systemName: "arrow.up.right")
+                        .font(.system(size: 8, weight: .bold))
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color.primary.opacity(0.06), in: Capsule())
+            }
+            .buttonStyle(.plain)
+            .help("Open mumist.eu website in browser")
 
             if service.isLoading {
                 ProgressView()

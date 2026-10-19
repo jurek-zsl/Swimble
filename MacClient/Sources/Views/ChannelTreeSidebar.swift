@@ -92,31 +92,77 @@ public struct ChannelTreeSidebar: View {
 
             // Bottom Server Status Bar
             Divider()
+            let targetBookmark = store.activeBookmark ?? store.lastUsedBookmark
+            let pingKey = targetBookmark.map { store.pingKey(for: $0) }
+            let pingInfo = pingKey.flatMap { store.serverPingResults[$0] }
+            let pingFailed = pingKey.flatMap { store.serverPingFailed[$0] } ?? false
+
             HStack(spacing: 10) {
                 Circle()
-                    .fill(store.connectionStatus == .connected ? Color.green : (store.connectionStatus == .connecting ? Color.orange : Color.secondary.opacity(0.4)))
+                    .fill(
+                        store.connectionStatus == .connected ? Color.green :
+                        (store.connectionStatus == .connecting ? Color.orange :
+                         (pingInfo != nil ? Color.green :
+                          (pingFailed ? Color.red : Color.secondary.opacity(0.4))))
+                    )
                     .frame(width: 8, height: 8)
 
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(store.activeBookmark?.name ?? (store.connectionStatus == .connected ? "Connected" : "Offline"))
+                    Text(store.activeBookmark?.name ?? (targetBookmark?.name ?? "Not Connected"))
                         .font(.caption.bold())
                         .lineLimit(1)
 
                     if store.connectionStatus == .connected {
-                        Text("\(store.users.count) user\(store.users.count == 1 ? "" : "s") online")
+                        Text("\(store.users.count) user\(store.users.count == 1 ? "" : "s") online • \(Int(store.tcpPingMs)) ms")
                             .font(.system(size: 10))
                             .foregroundStyle(.secondary)
+                    } else if store.connectionStatus == .connecting {
+                        Text("Connecting...")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.orange)
+                    } else if let ping = pingInfo {
+                        HStack(spacing: 4) {
+                            Text("Online • \(Int(ping.latencyMs)) ms")
+                                .font(.system(size: 10))
+                                .foregroundStyle(.secondary)
+                            if ping.maxUsers > 0 {
+                                Text("(\(ping.currentUsers)/\(ping.maxUsers))")
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(.tertiary)
+                            }
+                        }
+                    } else if pingFailed {
+                        Text("Offline")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.red)
+                    } else if targetBookmark != nil {
+                        Text("Checking status...")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text("No servers added")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.tertiary)
                     }
                 }
 
                 Spacer()
+
+                if store.connectionStatus == .disconnected, let target = targetBookmark {
+                    Button("Connect") {
+                        store.connect(bookmark: target)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.mini)
+                    .tint(store.accentTint)
+                }
 
                 Button(action: { showConnectSheet = true }) {
                     Image(systemName: "server.rack")
                         .font(.caption)
                 }
                 .buttonStyle(.borderless)
-                .help("Servers")
+                .help("Manage Servers")
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
