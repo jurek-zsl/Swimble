@@ -16,7 +16,7 @@ cargo build --release
 
 # 2. Run uniffi-bindgen to generate Swift bindings
 echo "==> Generating Swift bindings with uniffi-bindgen..."
-cargo run --bin uniffi-bindgen generate --library target/release/libmumble_core.dylib --language swift --out-dir ../MacClient/Generated
+cargo run --release --bin uniffi-bindgen -- generate --library target/release/libmumble_core.dylib --language swift --out-dir ../MacClient/Generated
 
 # Keep generated text stable across bindgen runs.
 python3 - <<'PYTHON'

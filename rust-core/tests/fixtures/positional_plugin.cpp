@@ -6,6 +6,7 @@ void mumble_shutdown() {}
 void mumble_registerAPIFunctions(void *) {}
 mumble_version_t mumble_getAPIVersion() { return {1,2,0}; }
 MumbleStringWrapper mumble_getName() { return {"Fixture",7,false}; }
+MumbleStringWrapper mumble_getPositionalDataContextPrefix() { return {"SharedGame",10,false}; }
 uint8_t mumble_initPositionalData(const char *const *, const uint64_t *, size_t) { return MUMBLE_PDEC_OK; }
 void mumble_shutdownPositionalData() {}
 bool mumble_fetchPositionalData(float *avatar,float *front,float *top,float *camera,float *cameraFront,float *cameraTop,const char **context,const char **identity) {

@@ -104,7 +104,8 @@ extern "C" void *swimble_plugin_open(const char *path) {
     reg(&api);
     if (init(1) != MUMBLE_STATUS_OK) { delete host; return nullptr; }
     host->stop = reinterpret_cast<decltype(host->stop)>(dlsym(host->library, "mumble_shutdown"));
-    auto name = reinterpret_cast<decltype(&mumble_getName)>(dlsym(host->library, "mumble_getName"));
+    auto name = reinterpret_cast<decltype(&mumble_getPositionalDataContextPrefix)>(dlsym(host->library, "mumble_getPositionalDataContextPrefix"));
+    if (!name) name = reinterpret_cast<decltype(name)>(dlsym(host->library, "mumble_getName"));
     if (name) {
         auto value = name(); if (value.data && value.size < 4096) host->name.assign(value.data, value.size);
         auto release = reinterpret_cast<decltype(&mumble_releaseResource)>(dlsym(host->library, "mumble_releaseResource"));

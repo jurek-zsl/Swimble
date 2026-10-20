@@ -98,7 +98,7 @@ mod tests {
         let data = plugin.read().unwrap();
         assert_eq!(data.avatar, [1.0, 2.0, 3.0]);
         assert_eq!(data.camera, [4.0, 5.0, 6.0]);
-        assert_eq!(data.context, b"Fixture\0world");
+        assert_eq!(data.context, b"SharedGame\0world");
         assert_eq!(data.identity, "player");
     }
 }
