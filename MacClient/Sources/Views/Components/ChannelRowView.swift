@@ -6,6 +6,7 @@ public struct ChannelRowView: View {
     public let channel: ChannelInfo
     public let userCount: Int
 
+    @State private var showingEditChannel = false
     @State private var showingAddSubchannelAlert = false
     @State private var subchannelName = ""
     @State private var subchannelDesc = ""
@@ -17,6 +18,7 @@ public struct ChannelRowView: View {
     @State private var isHoveringRow = false
     @State private var isHoveringPopover = false
     @State private var hoverTask: Task<Void, Never>? = nil
+    @State private var showingPrivileges = false
     @State private var showingRemoveAlert = false
 
     public init(store: MumbleStore, channel: ChannelInfo, userCount: Int) {
@@ -116,6 +118,8 @@ public struct ChannelRowView: View {
                     .foregroundStyle(.green)
             }
 
+            if store.isListening(to: channel.id) { Image(systemName: "ear.badge.waveform").help("Listening to this channel") }
+            if !channel.links.isEmpty { Image(systemName: "link").help("Linked channels: \(channel.links.compactMap { id in store.channels.first { $0.id == id }?.name }.joined(separator: ", "))") }
             if channel.isTemporary {
                 Image(systemName: "clock")
                     .font(.caption2)
@@ -139,7 +143,7 @@ public struct ChannelRowView: View {
 
             Spacer()
 
-            if userCount > 0 || SettingsState.shared.alwaysShowChannelUserCount {
+            if userCount > 0 && SettingsState.shared.alwaysShowChannelUserCount {
                 Text("\(userCount)")
                     .font(.caption2.bold())
                     .padding(.horizontal, 6)
@@ -160,7 +164,7 @@ public struct ChannelRowView: View {
             if hovering {
                 guard !channel.description.isEmpty else { return }
                 hoverTask = Task { @MainActor in
-                    try? await Task.sleep(for: .milliseconds(350))
+                    try? await Task.sleep(for: .milliseconds(1200))
                     if !Task.isCancelled && isHoveringRow {
                         showDescriptionPopover = true
                     }
@@ -209,6 +213,17 @@ public struct ChannelRowView: View {
                 }
             }
 
+            Button(store.isListening(to: channel.id) ? "Stop Listening to Channel" : "Listen to Channel") {
+                store.client.setChannelListening(channelId: channel.id, listening: !store.isListening(to: channel.id))
+            }.disabled(!store.hasPermission(0x800, in: channel.id))
+            if let ownChannel = store.myChannelId, ownChannel != channel.id {
+                let linked = store.myChannel?.links.contains(channel.id) == true
+                Button(linked ? "Unlink from My Channel" : "Link with My Channel") {
+                    store.client.setChannelLink(channelId: ownChannel, otherId: channel.id, linked: !linked)
+                }.disabled(!store.hasPermission(0x80, in: channel.id) || !store.hasPermission(0x80, in: ownChannel))
+            }
+            Button("Edit Channel…") { showingEditChannel = true }.disabled(!store.hasPermission(1, in: channel.id))
+
             Button("Whisper to Channel") {
                 let config = VoiceTargetConfig(
                     id: 2,
@@ -230,24 +245,29 @@ public struct ChannelRowView: View {
                 }
             }
 
+            Button("Channel Privileges…") { showingPrivileges = true }
+                .disabled(!store.canEditChannelPrivileges(in: channel.id))
+
             Button("Edit Description...") {
                 showingEditDescModal = true
-            }
+            }.disabled(!store.hasPermission(1, in: channel.id))
 
             Button("Add Sub-Channel...") {
                 subchannelName = ""
                 subchannelDesc = ""
                 subchannelTemporary = false
                 showingAddSubchannelAlert = true
-            }
+            }.disabled(!store.hasPermission(0x40, in: channel.id) && !store.hasPermission(0x400, in: channel.id))
 
             if channel.id != 0 {
                 Divider()
                 Button("Remove Channel", role: .destructive) {
                     showingRemoveAlert = true
-                }
+                }.disabled(!store.hasPermission(1, in: channel.id))
             }
         }
+        .sheet(isPresented: $showingEditChannel) { EditChannelModal(store: store, channel: channel) }
+        .sheet(isPresented: $showingPrivileges) { ChannelPrivilegesModal(store: store, channel: channel) }
         .sheet(isPresented: $showingEditDescModal) {
             EditChannelDescriptionModal(store: store, channel: channel)
         }
@@ -262,7 +282,7 @@ public struct ChannelRowView: View {
                     position: 0,
                     isTemporary: false
                 )
-            }
+            }.disabled(!store.hasPermission(0x40, in: channel.id))
             Button("Create (Temporary)") {
                 store.createChannel(
                     parentId: channel.id,
@@ -271,7 +291,7 @@ public struct ChannelRowView: View {
                     position: 0,
                     isTemporary: true
                 )
-            }
+            }.disabled(!store.hasPermission(0x400, in: channel.id))
             Button("Cancel", role: .cancel) {}
         }
         .alert("Remove Channel '\(channel.name)'?", isPresented: $showingRemoveAlert) {

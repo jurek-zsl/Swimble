@@ -104,7 +104,7 @@ public struct UserRowView: View {
                         .foregroundStyle(store.accentTint)
                 }
 
-                Text(user.name)
+                Text(store.displayName(user))
                     .font(.headline)
                     .lineLimit(1)
 
@@ -175,7 +175,7 @@ public struct UserRowView: View {
                 .help("Registered on server")
         }
 
-        if user.isSelfMuted || user.isMuted {
+        if user.isSelfMuted || user.isMuted || user.isSuppressed {
             Image(systemName: "mic.slash.fill")
                 .font(.caption2)
                 .foregroundStyle(.red)
@@ -202,10 +202,11 @@ public struct UserRowView: View {
                 avatarThumbnailView(avatar: avatar)
             }
 
-            Text(user.name)
+            Text(store.displayName(user))
                 .font(.system(size: 13, weight: isTalking ? .semibold : .medium))
                 .foregroundStyle(isTalking ? Color.primary : Color.secondary)
 
+            if ClientPreferences.shared.isFriend(user) { Image(systemName: "star.fill").font(.caption2).foregroundStyle(.yellow).help("Friend") }
             if isMe {
                 Text("(you)")
                     .font(.caption2)
@@ -288,7 +289,7 @@ public struct UserRowView: View {
         )
         .contextMenu {
             if !isMe {
-                Text(user.name)
+                Text(store.displayName(user))
                     .font(.headline)
                 Divider()
 
@@ -362,27 +363,27 @@ public struct UserRowView: View {
                 Menu("Admin Actions") {
                     Button(user.isPrioritySpeaker ? "Revoke Priority Speaker" : "Grant Priority Speaker") {
                         store.setUserPrioritySpeaker(sessionId: user.sessionId, priority: !user.isPrioritySpeaker)
-                    }
+                    }.disabled(!store.hasPermission(0x10, in: user.channelId))
 
                     Button(user.isMuted ? "Server Unmute" : "Server Mute") {
                         store.setUserServerMuteDeaf(sessionId: user.sessionId, mute: !user.isMuted, deaf: user.isDeafened)
-                    }
+                    }.disabled(!store.hasPermission(0x10, in: user.channelId))
 
                     Button(user.isDeafened ? "Server Undeafen" : "Server Deafen") {
                         store.setUserServerMuteDeaf(sessionId: user.sessionId, mute: user.isMuted, deaf: !user.isDeafened)
-                    }
+                    }.disabled(!store.hasPermission(0x10, in: user.channelId))
 
                     Divider()
 
                     Button("Kick User...", role: .destructive) {
                         kickReasonInput = ""
                         showingKickAlert = true
-                    }
+                    }.disabled(!store.hasPermission(0x10000, in: 0) && !store.hasPermission(0x20, in: user.channelId))
 
                     Button("Ban User...", role: .destructive) {
                         banReasonInput = ""
                         showingBanAlert = true
-                    }
+                    }.disabled(!store.hasPermission(0x20000, in: 0))
                 }
             } else {
                 Text("\(user.name) (You)")

@@ -330,9 +330,9 @@ public struct ChatAndActivityView: View {
             .onChange(of: filteredChatMessages.last?.htmlBody) { _, _ in
                 scrollToBottom(proxy: proxy, animated: true)
             }
-            .onAppear {
-                scrollToBottom(proxy: proxy, animated: false)
-            }
+            .onAppear { store.chatVisible = true; store.markChatRead(); scrollToBottom(proxy: proxy, animated: false) }
+            .onDisappear { store.chatVisible = false }
+            .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in store.markChatRead() }
         }
     }
 
@@ -1537,17 +1537,7 @@ func parseChatMessageBody(_ raw: String, isPreformatted: Bool? = nil) -> Attribu
         nsAttr.deleteCharacters(in: NSRange(location: nsAttr.length - 1, length: 1))
     }
 
-    var swiftUiAttr = AttributedString(nsAttr)
-    for run in swiftUiAttr.runs {
-        if let appKitFont = run.appKit.font {
-            swiftUiAttr[run.range].font = Font(appKitFont)
-        }
-        if let appKitColor = run.appKit.foregroundColor {
-            swiftUiAttr[run.range].foregroundColor = Color(nsColor: appKitColor)
-        }
-    }
-
-    return swiftUiAttr
+    return (try? AttributedString(nsAttr, including: \.swiftUI)) ?? AttributedString(nsAttr.string)
 }
 
 func extractDataUriImages(from text: String) -> [NSImage] {

@@ -58,7 +58,14 @@ public struct ServerInformationModal: View {
                     InfoSectionCard(title: "Audio & Security", systemImage: "lock.shield.fill") {
                         InfoRow(label: "Voice Codec", value: "Opus 48,000 Hz Mono")
                         InfoRow(label: "UDP Encryption", value: "OCB2-AES128")
-                        InfoRow(label: "TLS Cipher", value: info?.tlsCipher.isEmpty == false ? info!.tlsCipher : "TLS 1.3 / AES-GCM")
+                        InfoRow(label: "TLS Cipher", value: info?.tlsCipher.isEmpty == false ? info!.tlsCipher : "Not negotiated")
+                        if let bookmark = store.activeBookmark {
+                            Button("Forget Saved Certificate Approval") {
+                                if KeychainHelper.forgetServerFingerprint(host: bookmark.host, port: bookmark.port) {
+                                    store.logSystemMessage("Saved certificate approval removed. Private server identity will be reviewed on the next connection.")
+                                } else { store.logSystemMessage("Could not remove certificate approval from Keychain.") }
+                            }
+                        }
                         InfoRow(label: "Server Max Bandwidth", value: "\(info?.maxBandwidthKbps ?? 48) kbit/s")
                     }
 

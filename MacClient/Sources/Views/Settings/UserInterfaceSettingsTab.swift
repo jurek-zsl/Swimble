@@ -122,8 +122,14 @@ public struct UserInterfaceSettingsTab: View {
                     )
 
                     SettingsToggleRow(
-                        "Always Show Channel User Count",
-                        subtitle: "Displays the active participant count badge next to every channel.",
+                        "Trackpad Haptic Feedback",
+                        subtitle: "A light tap when joining a channel, muting, or deafening on a supported trackpad.",
+                        isOn: $state.hapticFeedbackEnabled
+                    )
+
+                    SettingsToggleRow(
+                        "Show Channel User Counts",
+                        subtitle: "Displays participant counts for occupied channels. Empty channels have no badge.",
                         isOn: $state.alwaysShowChannelUserCount
                     )
 

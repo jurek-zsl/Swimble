@@ -1,4 +1,4 @@
-use aes::cipher::{BlockDecrypt, BlockEncrypt, KeyInit, generic_array::GenericArray};
+use aes::cipher::{generic_array::GenericArray, BlockDecrypt, BlockEncrypt, KeyInit};
 use aes::Aes128;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -9,6 +9,7 @@ pub enum CryptError {
     ReplayOrDesync,
     ReplayDetected,
     TagMismatch,
+    UnsafeBlock,
 }
 
 impl std::fmt::Display for CryptError {
@@ -49,6 +50,19 @@ impl CryptStateOCB2 {
             decrypt_iv: div,
             decrypt_history: [0u8; 256],
             cipher,
+        }
+    }
+
+    pub fn encrypt_nonce(&self) -> [u8; 16] {
+        self.encrypt_iv
+    }
+    pub fn set_decrypt_nonce(&mut self, nonce: &[u8]) -> bool {
+        if let Ok(iv) = <[u8; 16]>::try_from(nonce) {
+            self.decrypt_iv = iv;
+            self.decrypt_history.fill(0);
+            true
+        } else {
+            false
         }
     }
 
@@ -159,7 +173,7 @@ impl CryptStateOCB2 {
         }
 
         let mut tag = [0u8; 16];
-        ocb_decrypt(
+        let safe = ocb_decrypt(
             &self.cipher,
             &src[4..],
             &mut dst[..plain_len],
@@ -167,6 +181,10 @@ impl CryptStateOCB2 {
             &mut tag,
         );
 
+        if !safe {
+            self.decrypt_iv = save_iv;
+            return Err(CryptError::UnsafeBlock);
+        }
         if tag[0..3] != src[1..4] {
             self.decrypt_iv = save_iv;
             return Err(CryptError::TagMismatch);
@@ -230,15 +248,25 @@ fn ocb_encrypt(
     let mut remaining = plain.len();
 
     while remaining > 16 {
+        // Mumble's countermeasure for the OCB2 XEX* attack (IACR 2019/311 §9).
+        // Digital silence can produce this block naturally: change its low bit
+        // rather than dropping an otherwise valid audio packet.
+        let flip = remaining <= 32 && plain[offset..offset + 15].iter().all(|&b| b == 0);
         s2(&mut delta);
         let mut tmp = [0u8; 16];
         for i in 0..16 {
             tmp[i] = delta[i] ^ plain[offset + i];
         }
+        if flip {
+            tmp[0] ^= 1;
+        }
         aes_encrypt_block(cipher, &mut tmp);
         for i in 0..16 {
             encrypted[offset + i] = delta[i] ^ tmp[i];
             checksum[i] ^= plain[offset + i];
+        }
+        if flip {
+            checksum[0] ^= 1;
         }
         remaining -= 16;
         offset += 16;
@@ -278,7 +306,7 @@ fn ocb_decrypt(
     plain: &mut [u8],
     nonce: &[u8; 16],
     tag: &mut [u8; 16],
-) {
+) -> bool {
     let mut delta = *nonce;
     aes_encrypt_block(cipher, &mut delta);
     let mut checksum = [0u8; 16];
@@ -318,6 +346,7 @@ fn ocb_decrypt(
         checksum[i] ^= tmp2[i];
     }
     plain[offset..offset + remaining].copy_from_slice(&tmp2[..remaining]);
+    let safe = tmp2[..15] != delta[..15];
 
     s3(&mut delta);
     for i in 0..16 {
@@ -325,6 +354,7 @@ fn ocb_decrypt(
     }
     aes_encrypt_block(cipher, &mut tmp);
     tag.copy_from_slice(&tmp);
+    safe
 }
 
 #[cfg(test)]
@@ -354,7 +384,9 @@ mod tests {
             assert_eq!(crypted_len, payload.len() + 4);
 
             let mut decrypted = vec![0u8; payload.len()];
-            let decrypted_len = server_crypt.decrypt(&crypted[..crypted_len], &mut decrypted).unwrap();
+            let decrypted_len = server_crypt
+                .decrypt(&crypted[..crypted_len], &mut decrypted)
+                .unwrap();
             assert_eq!(decrypted_len, payload.len());
             assert_eq!(decrypted, payload);
         }
@@ -397,5 +429,53 @@ mod tests {
         // Replaying the exact same packet must fail
         let replay_res = crypt2.decrypt(&crypted, &mut decrypted);
         assert_eq!(replay_res, Err(CryptError::ReplayOrDesync));
+    }
+}
+
+#[cfg(test)]
+mod regression_tests {
+    use super::*;
+    #[test]
+    fn upstream_xexstar_vector_is_modified_and_forgery_rejected() {
+        let cipher = Aes128::new(GenericArray::from_slice(&[0u8; 16]));
+        let nonce = [0x55; 16];
+        let mut src = [42u8; 32];
+        src[..16].fill(0);
+        src[15] = 128;
+        let mut encrypted = [0u8; 32];
+        let mut plain = [0u8; 32];
+        let mut tag = [0u8; 16];
+        let mut decoded_tag = [0u8; 16];
+        ocb_encrypt(&cipher, &src, &mut encrypted, &nonce, &mut tag);
+        assert!(ocb_decrypt(
+            &cipher,
+            &encrypted,
+            &mut plain,
+            &nonce,
+            &mut decoded_tag
+        ));
+        assert_eq!(tag, decoded_tag);
+        assert_eq!(plain[0], 1);
+        // Undo the mitigation to recreate upstream's vulnerable test ciphertext.
+        // Test the decrypt-side guard independently of the encrypt-side guard.
+        let mut delta = nonce;
+        aes_encrypt_block(&cipher, &mut delta);
+        s2(&mut delta);
+        let mut block = delta;
+        for i in 0..16 {
+            block[i] ^= src[i];
+        }
+        aes_encrypt_block(&cipher, &mut block);
+        for i in 0..16 {
+            encrypted[i] = block[i] ^ delta[i];
+        }
+        encrypted[15] ^= 128;
+        assert!(!ocb_decrypt(
+            &cipher,
+            &encrypted[..16],
+            &mut plain[..16],
+            &nonce,
+            &mut decoded_tag
+        ));
     }
 }

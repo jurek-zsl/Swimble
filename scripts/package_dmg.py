@@ -28,7 +28,7 @@ def dependencies(binary):
     return [line.strip().split(' (', 1)[0] for line in lines]
 
 
-def prepare_app(source, destination):
+def prepare_app(source, destination, signing_identity="-", notary_profile=None):
     run('ditto', source, destination)
     # Cloud-backed working copies may add these to build products. They are
     # invalid in a signed bundle; remove them only from our disposable copy.
@@ -51,13 +51,27 @@ def prepare_app(source, destination):
         notices = destination / 'Contents/Resources/Licenses'
         notices.mkdir(exist_ok=True)
         shutil.copy2(original.parent.parent / 'COPYING', notices / 'Opus-COPYING.txt')
-        run('codesign', '--force', '--sign', '-', bundled)
+        run('codesign', '--force', '--sign', signing_identity, *(['--timestamp', '--options', 'runtime'] if signing_identity != '-' else []), bundled)
     for candidate in [executable, *destination.glob('Contents/Frameworks/*.dylib')]:
         for dep in dependencies(candidate):
             if dep.startswith(('/opt/', '/usr/local/', '/Users/')):
                 raise RuntimeError(f'Nonportable dependency: {candidate}: {dep}')
-    run('codesign', '--force', '--sign', '-', destination)
+    rpc = ROOT / 'rust-core/target/release/swimble-rpc'
+    if not rpc.is_file():
+        raise RuntimeError('Missing release swimble-rpc executable; run build_bridge.sh first')
+    shutil.copy2(rpc, destination / 'Contents/MacOS/swimble-rpc')
+    run('codesign', '--force', '--sign', signing_identity, *(['--timestamp', '--options', 'runtime'] if signing_identity != '-' else []), destination / 'Contents/MacOS/swimble-rpc')
+    # User-selected native positional plugins can have another developer's
+    # signature. Other hardened-runtime protections remain enabled.
+    sign_options = ['--timestamp', '--options', 'runtime', '--entitlements', ROOT / 'MacClient/Swimble.entitlements'] if signing_identity != '-' else []
+    run('codesign', '--force', '--sign', signing_identity, *sign_options, destination)
     run('codesign', '--verify', '--deep', '--strict', destination)
+    if notary_profile:
+        archive = destination.parent / 'Swimble-notarization.zip'
+        run('ditto', '-c', '-k', '--keepParent', destination, archive)
+        run('xcrun', 'notarytool', 'submit', archive, '--keychain-profile', notary_profile, '--wait')
+        run('xcrun', 'stapler', 'staple', destination)
+        archive.unlink()
 
 
 def attach(image, mountpoint, readonly=False):
@@ -127,7 +141,11 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--app', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--signing-identity', default=os.environ.get('SWIMBLE_SIGNING_IDENTITY', '-'))
+    parser.add_argument('--notary-profile', default=os.environ.get('SWIMBLE_NOTARY_PROFILE'))
     args = parser.parse_args()
+    if args.notary_profile and args.signing_identity == '-':
+        parser.error('Notarization requires a Developer ID signing identity')
     source = args.app.resolve(strict=True)
     output = args.output.resolve()
     if output.exists():
@@ -141,7 +159,7 @@ def main():
         tmp = Path(tmp)
         stage, mount = tmp / 'source', tmp / 'mounted'
         stage.mkdir(); mount.mkdir()
-        prepare_app(source, stage / 'Swimble.app')
+        prepare_app(source, stage / 'Swimble.app', args.signing_identity, args.notary_profile)
         os.symlink('/Applications', stage / 'Applications')
         (stage / '.background').mkdir()
         shutil.copy2(LAYOUT.parent / background, stage / '.background' / background)
@@ -163,6 +181,12 @@ def main():
             verify(mount, layout, background)
         finally:
             run('hdiutil', 'detach', mount)
+    if args.signing_identity != '-':
+        run('codesign', '--force', '--sign', args.signing_identity, '--timestamp', output)
+    if args.notary_profile:
+        run('xcrun', 'notarytool', 'submit', output, '--keychain-profile', args.notary_profile, '--wait')
+        run('xcrun', 'stapler', 'staple', output)
+        run('xcrun', 'stapler', 'validate', output)
     checksum = hashlib.sha256(output.read_bytes()).hexdigest()
     output.with_suffix('.dmg.sha256').write_text(f'{checksum}  {output.name}\n')
     print(f'Created {output}', flush=True)

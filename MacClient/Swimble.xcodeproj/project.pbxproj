@@ -28,15 +28,21 @@
 		3C1D0E3F827064A7DA8B55BF /* ServerConnectSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE6E22E77DE84EE1F67ED920 /* ServerConnectSheet.swift */; };
 		3D31DE6D2BB3985B64EE178E /* AudioWizardModal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72D28EFA9EEE6D487F58B435 /* AudioWizardModal.swift */; };
 		3ED5CEBC64C0E2E769168BFE /* MumistPublicServersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54C1D152596BF8393C081D33 /* MumistPublicServersView.swift */; };
+		40EBC9274412CD7B0A2E05D5 /* ChannelPrivilegesModal.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3CFB46A82E1345922097FDC /* ChannelPrivilegesModal.swift */; };
 		48961B702CCAFE2B3667A995 /* AudioSettingsPopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = E79E8587A42576CCE43718FE /* AudioSettingsPopover.swift */; };
 		4A016511D57DA9DA2BE776AE /* UserInterfaceSettingsTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CE5F6B9E39F18B4350B0637 /* UserInterfaceSettingsTab.swift */; };
 		50F0164E212B5ED1A161AE04 /* AudioStatisticsModal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42526C1F80D3ADA0B4BB4411 /* AudioStatisticsModal.swift */; };
 		535098BD7FB6F4A1BD53D5CB /* SoundManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8180F638748EA13ADEFBBE87 /* SoundManager.swift */; };
 		5A0B4BC52096770C9DEDFCA9 /* App.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F416F2F98FB55738E749671 /* App.swift */; };
+		6191B2EA52992FA96969A2BB /* CredentialRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1CB80CEBEFCEA30BE97CB93 /* CredentialRepository.swift */; };
+		66B17EAAC879B4EE36E040C0 /* EditChannelModal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19CF7B8FDE01F15294AC4012 /* EditChannelModal.swift */; };
 		6D048E5EB6C1AC36074195FC /* ChannelTreeNode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C8E3D10662080C8C58BBB25 /* ChannelTreeNode.swift */; };
 		6ED7163362404FFBB09BAA1B /* EventNotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08B4FC6ED1628E58EC8F9621 /* EventNotificationManager.swift */; };
 		7459BEF006ECE1CDB5C4E4C3 /* RegisteredUsersModal.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD1ACB1CCCD91B54D8D3E60B /* RegisteredUsersModal.swift */; };
+		79F6F5CE43416D705D313002 /* ClientPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D36762DDDE8E4BFED7E9A79 /* ClientPreferences.swift */; };
+		7A84D23137ACEAA5F05B276F /* ServerIdentityReview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C56D16D2CF375A7D2DA7304 /* ServerIdentityReview.swift */; };
 		7CD50DF939B92B5302748E65 /* MacAudioEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51AE2862ABAC495191B6AA2F /* MacAudioEngine.swift */; };
+		831F4DD10858FF49739AEF13 /* ClientRegressionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5A35C8274E5B6431A3F3BFF /* ClientRegressionTests.swift */; };
 		842252055E22E2811DCEADB4 /* UserContextMenuView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F56940CF4B77E2577888893 /* UserContextMenuView.swift */; };
 		872EE86E1C64DACC265696FC /* CoreAudioDeviceManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = D44B6F056A925DEEA15EE380 /* CoreAudioDeviceManager.swift */; };
 		879D83BFB29D6D38688D32BD /* MumbleStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10389079B3AED4788E13A3CD /* MumbleStore.swift */; };
@@ -44,13 +50,18 @@
 		8A857310C9F80088302BF7C8 /* AudioToolbox.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 90281F12C63E300CFA61BE16 /* AudioToolbox.framework */; };
 		939FE2124252397C0EA22380 /* AudioInputSettingsTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25FEE7D6B6281DDE4BDD8660 /* AudioInputSettingsTab.swift */; };
 		94E3A43492A19643FE39FF8C /* GeneralSettingsTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DBA6C1381F4384703C77CBA /* GeneralSettingsTab.swift */; };
+		9620456FE24A0483F5DAC82E /* LocalControl.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA2230C7CC5D80F2F906989E /* LocalControl.swift */; };
 		99B13F9EC5DF3B69962E66F1 /* OverlaySettingsModal.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC56BA7EC71874FC4A157C2F /* OverlaySettingsModal.swift */; };
+		99E89D618675CD7F5495FA2C /* AdvancedShortcutsSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58A6C88200BB4AC8F728CC0B /* AdvancedShortcutsSettings.swift */; };
+		A453E54CF6782FFAC55FC1D9 /* UpdateChecker.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFDBC738ED957BD941144AF5 /* UpdateChecker.swift */; };
 		A759CCA92346E0310958C402 /* SystemConfiguration.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7C94C2C72102F10038ADCA8F /* SystemConfiguration.framework */; };
 		A7675A834373E97F10CC88C2 /* AudioRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = A486915DB41767B0D66C9F44 /* AudioRecorder.swift */; };
 		AA64A68DAFE6C49117EFDDD4 /* ChannelRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEA6C7D03FA5BEA5BB8BE052 /* ChannelRowView.swift */; };
 		ABEB616D0EB07E43AA80D58D /* ServerBookmark.swift in Sources */ = {isa = PBXBuildFile; fileRef = C13C038913297A3FE49E3863 /* ServerBookmark.swift */; };
+		AE1077FDC8694FB680A0621C /* AdvancedAudioSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4A7FB7648E39009DF4E107B /* AdvancedAudioSettings.swift */; };
 		B35F04A14DC296B02E3CE76C /* Swimble.icon in Resources */ = {isa = PBXBuildFile; fileRef = 221070C80C354D619C4ACB87 /* Swimble.icon */; };
 		B3B4C24BA2DA86DFB2414D28 /* MumbleURLParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5715ABDF1F49ADF03C58457 /* MumbleURLParser.swift */; };
+		B5935F2227E86A3957621AB8 /* AudioPreviewLifecycle.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3D81091536243AE4F3A104F /* AudioPreviewLifecycle.swift */; };
 		B7FEBD69DA5F9D581B6BA403 /* AirPodsAudioLock.swift in Sources */ = {isa = PBXBuildFile; fileRef = B57B5BE9226854864653B2EA /* AirPodsAudioLock.swift */; };
 		B9B1A69E2E28A622498DF550 /* FloatingVoiceHUD.swift in Sources */ = {isa = PBXBuildFile; fileRef = 056BE1AC86EFA30EC46854F4 /* FloatingVoiceHUD.swift */; };
 		B9C84063F0AFDCF38B8F1BE5 /* MessagesSettingsTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52D3F6861DBD75EF1515ADC1 /* MessagesSettingsTab.swift */; };
@@ -61,6 +72,8 @@
 		C919859158FAAA84E0B8795C /* UserRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E13181C0A3D7784E5BA1981 /* UserRowView.swift */; };
 		C98A16F88AAA7D77666FCF43 /* AudioOutputSettingsTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCAF35C51E4557AE6B9D0455 /* AudioOutputSettingsTab.swift */; };
 		CE362D4BA9D54A2088C352EB /* ServerSplitView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 617A686B998774A5BFA7D2B6 /* ServerSplitView.swift */; };
+		D17CBD0EB974B76E39154893 /* LICENSE.mumble in Resources */ = {isa = PBXBuildFile; fileRef = D6736DD1D36CB521E4208C8F /* LICENSE.mumble */; };
+		D341A1DD0C007AFFF3F03B55 /* SessionFocusObserver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 883AD235922AE26301C44907 /* SessionFocusObserver.swift */; };
 		D81DC419FA83E5762E0649A9 /* ServerInformationModal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E8170BD8B1AB9190553D093 /* ServerInformationModal.swift */; };
 		DCB46A3973CF796CCF1DCDA5 /* AudioSpectrumAnalyzer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66A754C8FD22CE1139E24E47 /* AudioSpectrumAnalyzer.swift */; };
 		DE181B7F1F566FC9A5015AF8 /* BanListModal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D33FD6E755DD4CACB3900E2 /* BanListModal.swift */; };
@@ -75,6 +88,16 @@
 		F7A6E0FC218251818AEFE8C4 /* ChannelTreeSidebar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D75388A3A0B276E8E23E2A3 /* ChannelTreeSidebar.swift */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		38D93831DE6BF17468525230 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 99942A4D79A546839C3D6135 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 4FA8BDE4A423D110F1674306;
+			remoteInfo = Swimble;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
 		00F18A7CAF3950C2B1905380 /* MumbleURLHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MumbleURLHandler.swift; sourceTree = "<group>"; };
 		056BE1AC86EFA30EC46854F4 /* FloatingVoiceHUD.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingVoiceHUD.swift; sourceTree = "<group>"; };
@@ -83,7 +106,9 @@
 		0E13181C0A3D7784E5BA1981 /* UserRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserRowView.swift; sourceTree = "<group>"; };
 		0E8170BD8B1AB9190553D093 /* ServerInformationModal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerInformationModal.swift; sourceTree = "<group>"; };
 		10389079B3AED4788E13A3CD /* MumbleStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MumbleStore.swift; sourceTree = "<group>"; };
+		19CF7B8FDE01F15294AC4012 /* EditChannelModal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditChannelModal.swift; sourceTree = "<group>"; };
 		1B79EB2F7D1D607D69BB4FAD /* Swimble.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = Swimble.icns; sourceTree = "<group>"; };
+		1C56D16D2CF375A7D2DA7304 /* ServerIdentityReview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerIdentityReview.swift; sourceTree = "<group>"; };
 		1CE5F6B9E39F18B4350B0637 /* UserInterfaceSettingsTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserInterfaceSettingsTab.swift; sourceTree = "<group>"; };
 		221070C80C354D619C4ACB87 /* Swimble.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = Swimble.icon; sourceTree = "<group>"; };
 		25FEE7D6B6281DDE4BDD8660 /* AudioInputSettingsTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioInputSettingsTab.swift; sourceTree = "<group>"; };
@@ -94,14 +119,17 @@
 		3F56940CF4B77E2577888893 /* UserContextMenuView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserContextMenuView.swift; sourceTree = "<group>"; };
 		42526C1F80D3ADA0B4BB4411 /* AudioStatisticsModal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioStatisticsModal.swift; sourceTree = "<group>"; };
 		4465EC52752E78B45234A582 /* ChatAndActivityView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatAndActivityView.swift; sourceTree = "<group>"; };
+		4A9CDFDF408A09FF43470C8C /* SwimbleTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SwimbleTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		4ABCAE82B83EF2D8086B07F2 /* GlobalPTT.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalPTT.swift; sourceTree = "<group>"; };
 		4D06299B7CE33F3BCF39062D /* AVFoundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AVFoundation.framework; path = System/Library/Frameworks/AVFoundation.framework; sourceTree = SDKROOT; };
+		4D36762DDDE8E4BFED7E9A79 /* ClientPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClientPreferences.swift; sourceTree = "<group>"; };
 		4F7E4BB298077680C9B6786F /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		51AE2862ABAC495191B6AA2F /* MacAudioEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacAudioEngine.swift; sourceTree = "<group>"; };
 		52D3F6861DBD75EF1515ADC1 /* MessagesSettingsTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessagesSettingsTab.swift; sourceTree = "<group>"; };
 		545CE9D26991175867CB02E7 /* TTSEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTSEngine.swift; sourceTree = "<group>"; };
 		54C1D152596BF8393C081D33 /* MumistPublicServersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MumistPublicServersView.swift; sourceTree = "<group>"; };
 		55568C3F69D99EF643DCC4DA /* CertificateWizardModal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CertificateWizardModal.swift; sourceTree = "<group>"; };
+		58A6C88200BB4AC8F728CC0B /* AdvancedShortcutsSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdvancedShortcutsSettings.swift; sourceTree = "<group>"; };
 		5F416F2F98FB55738E749671 /* App.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App.swift; sourceTree = "<group>"; };
 		617A686B998774A5BFA7D2B6 /* ServerSplitView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerSplitView.swift; sourceTree = "<group>"; };
 		66A754C8FD22CE1139E24E47 /* AudioSpectrumAnalyzer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioSpectrumAnalyzer.swift; sourceTree = "<group>"; };
@@ -117,9 +145,11 @@
 		800F4E30AAC0ECCA5750B0CA /* FloatingOverlayWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingOverlayWindow.swift; sourceTree = "<group>"; };
 		8180F638748EA13ADEFBBE87 /* SoundManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoundManager.swift; sourceTree = "<group>"; };
 		85CFE21850D8222E1FE29AD6 /* UserStatsModal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserStatsModal.swift; sourceTree = "<group>"; };
+		883AD235922AE26301C44907 /* SessionFocusObserver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionFocusObserver.swift; sourceTree = "<group>"; };
 		8C8E3D10662080C8C58BBB25 /* ChannelTreeNode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChannelTreeNode.swift; sourceTree = "<group>"; };
 		8D75388A3A0B276E8E23E2A3 /* ChannelTreeSidebar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChannelTreeSidebar.swift; sourceTree = "<group>"; };
 		90281F12C63E300CFA61BE16 /* AudioToolbox.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AudioToolbox.framework; path = System/Library/Frameworks/AudioToolbox.framework; sourceTree = SDKROOT; };
+		94799A9AE72F6B6C896EAAB8 /* NativeAudioBridge.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = NativeAudioBridge.h; sourceTree = "<group>"; };
 		95D67961E1365E062F455260 /* CoreAudio.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreAudio.framework; path = System/Library/Frameworks/CoreAudio.framework; sourceTree = SDKROOT; };
 		9C79B0192157D38E58756B39 /* OpenMumbleLinkModal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenMumbleLinkModal.swift; sourceTree = "<group>"; };
 		9E16BCEE35061B61400BAD4E /* ChangeCommentModal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChangeCommentModal.swift; sourceTree = "<group>"; };
@@ -127,20 +157,28 @@
 		A52CA21CD1DADE40D5D22B45 /* TTSModal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTSModal.swift; sourceTree = "<group>"; };
 		B57B5BE9226854864653B2EA /* AirPodsAudioLock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirPodsAudioLock.swift; sourceTree = "<group>"; };
 		B65D69B0D575EC2E37531211 /* SpeakingOrbView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeakingOrbView.swift; sourceTree = "<group>"; };
+		BFDBC738ED957BD941144AF5 /* UpdateChecker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateChecker.swift; sourceTree = "<group>"; };
 		C13C038913297A3FE49E3863 /* ServerBookmark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerBookmark.swift; sourceTree = "<group>"; };
+		C3CFB46A82E1345922097FDC /* ChannelPrivilegesModal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChannelPrivilegesModal.swift; sourceTree = "<group>"; };
 		CC4EBD274AC49EEF39C1F3A9 /* RichDescriptionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RichDescriptionView.swift; sourceTree = "<group>"; };
 		CC4FC784298C1A436B1DD7B1 /* SettingsModal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsModal.swift; sourceTree = "<group>"; };
 		CD1ACB1CCCD91B54D8D3E60B /* RegisteredUsersModal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RegisteredUsersModal.swift; sourceTree = "<group>"; };
 		CE6E22E77DE84EE1F67ED920 /* ServerConnectSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerConnectSheet.swift; sourceTree = "<group>"; };
 		D44B6F056A925DEEA15EE380 /* CoreAudioDeviceManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreAudioDeviceManager.swift; sourceTree = "<group>"; };
+		D6736DD1D36CB521E4208C8F /* LICENSE.mumble */ = {isa = PBXFileReference; path = LICENSE.mumble; sourceTree = "<group>"; };
 		D896DDF54AD8EDA605DD07E3 /* NetworkSettingsTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkSettingsTab.swift; sourceTree = "<group>"; };
 		D8F6FDC552592B89A0AFC0E3 /* libmumble_core.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libmumble_core.a; path = Generated/libmumble_core.a; sourceTree = "<group>"; };
+		DA2230C7CC5D80F2F906989E /* LocalControl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalControl.swift; sourceTree = "<group>"; };
 		DCAF35C51E4557AE6B9D0455 /* AudioOutputSettingsTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioOutputSettingsTab.swift; sourceTree = "<group>"; };
 		E2247A3AAF7A7AF0786A6535 /* KeychainHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainHelper.swift; sourceTree = "<group>"; };
+		E3D81091536243AE4F3A104F /* AudioPreviewLifecycle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioPreviewLifecycle.swift; sourceTree = "<group>"; };
 		E79E8587A42576CCE43718FE /* AudioSettingsPopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioSettingsPopover.swift; sourceTree = "<group>"; };
 		E997A0E907756CE5B5E4CE8C /* SettingsState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsState.swift; sourceTree = "<group>"; };
 		EABB288D78F88716DCE03174 /* EditChannelDescriptionModal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditChannelDescriptionModal.swift; sourceTree = "<group>"; };
+		F1CB80CEBEFCEA30BE97CB93 /* CredentialRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CredentialRepository.swift; sourceTree = "<group>"; };
+		F4A7FB7648E39009DF4E107B /* AdvancedAudioSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdvancedAudioSettings.swift; sourceTree = "<group>"; };
 		F5715ABDF1F49ADF03C58457 /* MumbleURLParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MumbleURLParser.swift; sourceTree = "<group>"; };
+		F5A35C8274E5B6431A3F3BFF /* ClientRegressionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClientRegressionTests.swift; sourceTree = "<group>"; };
 		FC56BA7EC71874FC4A157C2F /* OverlaySettingsModal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlaySettingsModal.swift; sourceTree = "<group>"; };
 		FEA6C7D03FA5BEA5BB8BE052 /* ChannelRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChannelRowView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -162,6 +200,15 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		32255261D0D7E9BFA5176CDE /* proto */ = {
+			isa = PBXGroup;
+			children = (
+				D6736DD1D36CB521E4208C8F /* LICENSE.mumble */,
+			);
+			name = proto;
+			path = "../rust-core/proto";
+			sourceTree = "<group>";
+		};
 		3C85A5120B7F6BE553E46A34 /* Views */ = {
 			isa = PBXGroup;
 			children = (
@@ -183,6 +230,7 @@
 			isa = PBXGroup;
 			children = (
 				26C509DE6A305D83F7496221 /* Swimble.app */,
+				4A9CDFDF408A09FF43470C8C /* SwimbleTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -193,6 +241,7 @@
 				E79E8587A42576CCE43718FE /* AudioSettingsPopover.swift */,
 				FEA6C7D03FA5BEA5BB8BE052 /* ChannelRowView.swift */,
 				CC4EBD274AC49EEF39C1F3A9 /* RichDescriptionView.swift */,
+				883AD235922AE26301C44907 /* SessionFocusObserver.swift */,
 				B65D69B0D575EC2E37531211 /* SpeakingOrbView.swift */,
 				3F56940CF4B77E2577888893 /* UserContextMenuView.swift */,
 				0E13181C0A3D7784E5BA1981 /* UserRowView.swift */,
@@ -220,20 +269,33 @@
 		95F113172C94CF1A9DE0B8A2 /* Utils */ = {
 			isa = PBXGroup;
 			children = (
+				F1CB80CEBEFCEA30BE97CB93 /* CredentialRepository.swift */,
 				08B4FC6ED1628E58EC8F9621 /* EventNotificationManager.swift */,
+				DA2230C7CC5D80F2F906989E /* LocalControl.swift */,
 				00F18A7CAF3950C2B1905380 /* MumbleURLHandler.swift */,
 				F5715ABDF1F49ADF03C58457 /* MumbleURLParser.swift */,
 				7F1174DCF0B8BD3291AC54DB /* MumistService.swift */,
+				BFDBC738ED957BD941144AF5 /* UpdateChecker.swift */,
 			);
 			path = Utils;
+			sourceTree = "<group>";
+		};
+		B812352C253C4AB4D8A90BE7 /* Tests */ = {
+			isa = PBXGroup;
+			children = (
+				F5A35C8274E5B6431A3F3BFF /* ClientRegressionTests.swift */,
+			);
+			path = Tests;
 			sourceTree = "<group>";
 		};
 		B816698A53FCA23FB8EAFFF7 = {
 			isa = PBXGroup;
 			children = (
 				E14C01F715C41F6BC7BB83FF /* Generated */,
+				32255261D0D7E9BFA5176CDE /* proto */,
 				853B8E10621AA9E82F4F5C69 /* Resources */,
 				F35A69535FD51E002354449D /* Sources */,
+				B812352C253C4AB4D8A90BE7 /* Tests */,
 				E06ADF77433F66BD42733E94 /* Frameworks */,
 				5725E53BA4AEE426B50AB089 /* Products */,
 			);
@@ -243,6 +305,7 @@
 			isa = PBXGroup;
 			children = (
 				8C8E3D10662080C8C58BBB25 /* ChannelTreeNode.swift */,
+				4D36762DDDE8E4BFED7E9A79 /* ClientPreferences.swift */,
 				75882538A16F9965C4A2FB93 /* MumistServer.swift */,
 				C13C038913297A3FE49E3863 /* ServerBookmark.swift */,
 			);
@@ -252,8 +315,11 @@
 		DF5E5BC8827473EB0C7AC232 /* Settings */ = {
 			isa = PBXGroup;
 			children = (
+				F4A7FB7648E39009DF4E107B /* AdvancedAudioSettings.swift */,
+				58A6C88200BB4AC8F728CC0B /* AdvancedShortcutsSettings.swift */,
 				25FEE7D6B6281DDE4BDD8660 /* AudioInputSettingsTab.swift */,
 				DCAF35C51E4557AE6B9D0455 /* AudioOutputSettingsTab.swift */,
+				E3D81091536243AE4F3A104F /* AudioPreviewLifecycle.swift */,
 				6DBA6C1381F4384703C77CBA /* GeneralSettingsTab.swift */,
 				52D3F6861DBD75EF1515ADC1 /* MessagesSettingsTab.swift */,
 				D896DDF54AD8EDA605DD07E3 /* NetworkSettingsTab.swift */,
@@ -307,10 +373,13 @@
 				7D33FD6E755DD4CACB3900E2 /* BanListModal.swift */,
 				55568C3F69D99EF643DCC4DA /* CertificateWizardModal.swift */,
 				9E16BCEE35061B61400BAD4E /* ChangeCommentModal.swift */,
+				C3CFB46A82E1345922097FDC /* ChannelPrivilegesModal.swift */,
 				EABB288D78F88716DCE03174 /* EditChannelDescriptionModal.swift */,
+				19CF7B8FDE01F15294AC4012 /* EditChannelModal.swift */,
 				9C79B0192157D38E58756B39 /* OpenMumbleLinkModal.swift */,
 				FC56BA7EC71874FC4A157C2F /* OverlaySettingsModal.swift */,
 				CD1ACB1CCCD91B54D8D3E60B /* RegisteredUsersModal.swift */,
+				1C56D16D2CF375A7D2DA7304 /* ServerIdentityReview.swift */,
 				0E8170BD8B1AB9190553D093 /* ServerInformationModal.swift */,
 				A52CA21CD1DADE40D5D22B45 /* TTSModal.swift */,
 				85CFE21850D8222E1FE29AD6 /* UserStatsModal.swift */,
@@ -341,6 +410,7 @@
 				D44B6F056A925DEEA15EE380 /* CoreAudioDeviceManager.swift */,
 				4ABCAE82B83EF2D8086B07F2 /* GlobalPTT.swift */,
 				51AE2862ABAC495191B6AA2F /* MacAudioEngine.swift */,
+				94799A9AE72F6B6C896EAAB8 /* NativeAudioBridge.h */,
 				8180F638748EA13ADEFBBE87 /* SoundManager.swift */,
 				545CE9D26991175867CB02E7 /* TTSEngine.swift */,
 			);
@@ -369,6 +439,24 @@
 			productReference = 26C509DE6A305D83F7496221 /* Swimble.app */;
 			productType = "com.apple.product-type.application";
 		};
+		BCB0548A50E0760F38FF6BBE /* SwimbleTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 3148CF02C6E68677109E9A3D /* Build configuration list for PBXNativeTarget "SwimbleTests" */;
+			buildPhases = (
+				8C584F7C65FC965918BF1280 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				ED3A030617F11F3E774D639E /* PBXTargetDependency */,
+			);
+			name = SwimbleTests;
+			packageProductDependencies = (
+			);
+			productName = SwimbleTests;
+			productReference = 4A9CDFDF408A09FF43470C8C /* SwimbleTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -395,6 +483,7 @@
 			projectRoot = "";
 			targets = (
 				4FA8BDE4A423D110F1674306 /* Swimble */,
+				BCB0548A50E0760F38FF6BBE /* SwimbleTests */,
 			);
 		};
 /* End PBXProject section */
@@ -404,6 +493,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D17CBD0EB974B76E39154893 /* LICENSE.mumble in Resources */,
 				33709A77ADA99645D26CB514 /* Swimble.icns in Resources */,
 				B35F04A14DC296B02E3CE76C /* Swimble.icon in Resources */,
 			);
@@ -412,15 +502,26 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		8C584F7C65FC965918BF1280 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				831F4DD10858FF49739AEF13 /* ClientRegressionTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		B1F479BB8CAE4843C13EF7BE /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 				0B99E1898DE3A3E9BF2A9881 /* AccessTokensModal.swift in Sources */,
+				AE1077FDC8694FB680A0621C /* AdvancedAudioSettings.swift in Sources */,
+				99E89D618675CD7F5495FA2C /* AdvancedShortcutsSettings.swift in Sources */,
 				B7FEBD69DA5F9D581B6BA403 /* AirPodsAudioLock.swift in Sources */,
 				5A0B4BC52096770C9DEDFCA9 /* App.swift in Sources */,
 				939FE2124252397C0EA22380 /* AudioInputSettingsTab.swift in Sources */,
 				C98A16F88AAA7D77666FCF43 /* AudioOutputSettingsTab.swift in Sources */,
+				B5935F2227E86A3957621AB8 /* AudioPreviewLifecycle.swift in Sources */,
 				A7675A834373E97F10CC88C2 /* AudioRecorder.swift in Sources */,
 				48961B702CCAFE2B3667A995 /* AudioSettingsPopover.swift in Sources */,
 				DCB46A3973CF796CCF1DCDA5 /* AudioSpectrumAnalyzer.swift in Sources */,
@@ -429,18 +530,23 @@
 				DE181B7F1F566FC9A5015AF8 /* BanListModal.swift in Sources */,
 				0313BBDAEB853EA4E29667A7 /* CertificateWizardModal.swift in Sources */,
 				15AD4297491797A7F7697575 /* ChangeCommentModal.swift in Sources */,
+				40EBC9274412CD7B0A2E05D5 /* ChannelPrivilegesModal.swift in Sources */,
 				AA64A68DAFE6C49117EFDDD4 /* ChannelRowView.swift in Sources */,
 				6D048E5EB6C1AC36074195FC /* ChannelTreeNode.swift in Sources */,
 				F7A6E0FC218251818AEFE8C4 /* ChannelTreeSidebar.swift in Sources */,
 				C3015566C62991871ED1327C /* ChatAndActivityView.swift in Sources */,
+				79F6F5CE43416D705D313002 /* ClientPreferences.swift in Sources */,
 				872EE86E1C64DACC265696FC /* CoreAudioDeviceManager.swift in Sources */,
+				6191B2EA52992FA96969A2BB /* CredentialRepository.swift in Sources */,
 				12A043290A4A10D145A23829 /* EditChannelDescriptionModal.swift in Sources */,
+				66B17EAAC879B4EE36E040C0 /* EditChannelModal.swift in Sources */,
 				6ED7163362404FFBB09BAA1B /* EventNotificationManager.swift in Sources */,
 				2506CF39704029479B9198A7 /* FloatingOverlayWindow.swift in Sources */,
 				B9B1A69E2E28A622498DF550 /* FloatingVoiceHUD.swift in Sources */,
 				94E3A43492A19643FE39FF8C /* GeneralSettingsTab.swift in Sources */,
 				F1FAA6A66EB6740A4591CFA8 /* GlobalPTT.swift in Sources */,
 				04648DD4AE07E5650EB24609 /* KeychainHelper.swift in Sources */,
+				9620456FE24A0483F5DAC82E /* LocalControl.swift in Sources */,
 				7CD50DF939B92B5302748E65 /* MacAudioEngine.swift in Sources */,
 				B9C84063F0AFDCF38B8F1BE5 /* MessagesSettingsTab.swift in Sources */,
 				879D83BFB29D6D38688D32BD /* MumbleStore.swift in Sources */,
@@ -457,8 +563,10 @@
 				EC373E80CC6AB3A65B889942 /* RichDescriptionView.swift in Sources */,
 				ABEB616D0EB07E43AA80D58D /* ServerBookmark.swift in Sources */,
 				3C1D0E3F827064A7DA8B55BF /* ServerConnectSheet.swift in Sources */,
+				7A84D23137ACEAA5F05B276F /* ServerIdentityReview.swift in Sources */,
 				D81DC419FA83E5762E0649A9 /* ServerInformationModal.swift in Sources */,
 				CE362D4BA9D54A2088C352EB /* ServerSplitView.swift in Sources */,
+				D341A1DD0C007AFFF3F03B55 /* SessionFocusObserver.swift in Sources */,
 				1A634F47E1F3DEEBBD79A91A /* SettingsCard.swift in Sources */,
 				04D350B6519C2273AF27F31A /* SettingsFooterView.swift in Sources */,
 				0C345CAE35DA5EF8C6D399B8 /* SettingsModal.swift in Sources */,
@@ -469,6 +577,7 @@
 				0BE3913C5C1E27A70CDFDBB3 /* SpeakingOrbView.swift in Sources */,
 				F435778F5EBE9A363AC4E6E1 /* TTSEngine.swift in Sources */,
 				0AAB0AD58BE247A14355ACBD /* TTSModal.swift in Sources */,
+				A453E54CF6782FFAC55FC1D9 /* UpdateChecker.swift in Sources */,
 				842252055E22E2811DCEADB4 /* UserContextMenuView.swift in Sources */,
 				4A016511D57DA9DA2BE776AE /* UserInterfaceSettingsTab.swift in Sources */,
 				C919859158FAAA84E0B8795C /* UserRowView.swift in Sources */,
@@ -478,6 +587,14 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		ED3A030617F11F3E774D639E /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 4FA8BDE4A423D110F1674306 /* Swimble */;
+			targetProxy = 38D93831DE6BF17468525230 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		0B500C4C3ADE3E41E906275E /* Release */ = {
@@ -536,6 +653,36 @@
 			};
 			name = Release;
 		};
+		12BE3FC5804C713C63B7142B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_IDENTITY = "-";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(PROJECT_DIR)/Generated",
+				);
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				OTHER_SWIFT_FLAGS = (
+					"-Xcc",
+					"-fmodule-map-file=$(PROJECT_DIR)/Generated/mumble_coreFFI.modulemap",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.swimble.SwimbleTests;
+				SDKROOT = macosx;
+				SWIFT_INCLUDE_PATHS = (
+					"$(PROJECT_DIR)/Generated",
+				);
+				SWIFT_VERSION = 6.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Swimble.app/Contents/MacOS/Swimble";
+			};
+			name = Debug;
+		};
 		8853D884CA0752B9EDF3FC58 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -565,6 +712,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				OTHER_LDFLAGS = (
 					"-lopus",
+					"-lc++",
 					"-lresolv",
 				);
 				OTHER_SWIFT_FLAGS = (
@@ -577,6 +725,7 @@
 				SWIFT_INCLUDE_PATHS = (
 					"$(PROJECT_DIR)/Generated",
 				);
+				SWIFT_OBJC_BRIDGING_HEADER = Sources/Audio/NativeAudioBridge.h;
 				SWIFT_VERSION = 6.0;
 			};
 			name = Debug;
@@ -610,6 +759,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				OTHER_LDFLAGS = (
 					"-lopus",
+					"-lc++",
 					"-lresolv",
 				);
 				OTHER_SWIFT_FLAGS = (
@@ -622,6 +772,7 @@
 				SWIFT_INCLUDE_PATHS = (
 					"$(PROJECT_DIR)/Generated",
 				);
+				SWIFT_OBJC_BRIDGING_HEADER = Sources/Audio/NativeAudioBridge.h;
 				SWIFT_VERSION = 6.0;
 			};
 			name = Release;
@@ -689,9 +840,48 @@
 			};
 			name = Debug;
 		};
+		DAAC41B60617A92317BB0198 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_IDENTITY = "-";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(PROJECT_DIR)/Generated",
+				);
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				OTHER_SWIFT_FLAGS = (
+					"-Xcc",
+					"-fmodule-map-file=$(PROJECT_DIR)/Generated/mumble_coreFFI.modulemap",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.swimble.SwimbleTests;
+				SDKROOT = macosx;
+				SWIFT_INCLUDE_PATHS = (
+					"$(PROJECT_DIR)/Generated",
+				);
+				SWIFT_VERSION = 6.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Swimble.app/Contents/MacOS/Swimble";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		3148CF02C6E68677109E9A3D /* Build configuration list for PBXNativeTarget "SwimbleTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				12BE3FC5804C713C63B7142B /* Debug */,
+				DAAC41B60617A92317BB0198 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
 		AE8AC48C4871C718C169B6DE /* Build configuration list for PBXNativeTarget "Swimble" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

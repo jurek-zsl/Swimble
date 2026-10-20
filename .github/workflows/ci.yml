@@ -1,0 +1,42 @@
+name: Build and test
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  protocol:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust-core
+      - run: sudo apt-get update && sudo apt-get install -y libopus-dev protobuf-compiler libssl-dev g++
+      - name: Start local Murmur fixture
+        run: |
+          docker pull mumblevoip/mumble-server:latest
+          docker run --detach --name murmur-test --publish 127.0.0.1:64738:64738/tcp --publish 127.0.0.1:64738:64738/udp mumblevoip/mumble-server:latest
+          for attempt in $(seq 1 100); do
+            if docker logs murmur-test 2>&1 | grep -q 'Not registering server as public'; then exit 0; fi
+            sleep 0.2
+          done
+          exit 1
+      - run: cargo test --manifest-path rust-core/Cargo.toml --locked
+      - run: ./scripts/test_acl.sh
+      - if: failure()
+        run: docker logs murmur-test
+  macos:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust-core
+      - run: brew install opus protobuf xcodegen
+      - run: ./scripts/check_versions.py
+      - run: ./scripts/build_bridge.sh
+      - run: xcodebuild -project MacClient/Swimble.xcodeproj -scheme Swimble -destination 'platform=macOS' -parallel-testing-enabled NO "LIBRARY_SEARCH_PATHS=$PWD/MacClient/Generated $(brew --prefix opus)/lib" test

@@ -3,6 +3,30 @@ import CryptoKit
 import Observation
 import SwiftUI
 
+private final class WeakStore: @unchecked Sendable {
+    weak var value: MumbleStore?
+    init(_ value: MumbleStore) { self.value = value }
+}
+
+/// Rust retains its callback object. Keep the reference back to the window
+/// weak so closing a window releases its engine, decoder state, and timers.
+private final class StoreEventHandler: MumbleEventHandler, @unchecked Sendable {
+    weak var store: MumbleStore?
+    init(_ store: MumbleStore) { self.store = store }
+    func onConnectionStatusChanged(status: ConnectionStatus) { store?.onConnectionStatusChanged(status: status) }
+    func onServerIdentityChallenge(challenge: ServerIdentityChallenge) { store?.onServerIdentityChallenge(challenge: challenge) }
+    func onChannelAclReceived(acl: ChannelAcl) { store?.onChannelAclReceived(acl: acl) }
+    func onChannelsUpdated(channels: [ChannelInfo]) { store?.onChannelsUpdated(channels: channels) }
+    func onUsersUpdated(users: [UserInfo]) { store?.onUsersUpdated(users: users) }
+    func onUserTalkingChanged(sessionId: UInt32, isTalking: Bool, talkingState: TalkingState) { store?.onUserTalkingChanged(sessionId: sessionId, isTalking: isTalking, talkingState: talkingState) }
+    func onChatMessage(message: ChatMessage) { store?.onChatMessage(message: message) }
+    func onPingUpdated(tcpMs: Float, udpMs: Float, usingUdpTunnel: Bool) { store?.onPingUpdated(tcpMs: tcpMs, udpMs: udpMs, usingUdpTunnel: usingUdpTunnel) }
+    func onServerConnectionInfoUpdated(info: ServerConnectionInfo) { store?.onServerConnectionInfoUpdated(info: info) }
+    func onRegisteredUsersUpdated(users: [RegisteredUser]) { store?.onRegisteredUsersUpdated(users: users) }
+    func onBanListUpdated(bans: [BanEntryInfo]) { store?.onBanListUpdated(bans: bans) }
+    func onUserStatsReceived(stats: UserStatsInfo) { store?.onUserStatsReceived(stats: stats) }
+}
+
 /// Active modal sheet displayed in the application
 public enum ActiveModal: String, Identifiable {
     case serverConnect
@@ -29,20 +53,21 @@ public enum ActiveModal: String, Identifiable {
 @MainActor
 public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
     nonisolated private static let storeLock = NSLock()
-    nonisolated(unsafe) private static var _activeStores: [MumbleStore] = []
+    nonisolated(unsafe) private static var _activeStores: [WeakStore] = []
     nonisolated public static var activeStores: [MumbleStore] {
         storeLock.lock()
         defer { storeLock.unlock() }
-        return _activeStores
+        return _activeStores.compactMap(\.value)
     }
     nonisolated public static var shared: MumbleStore? {
         storeLock.lock()
         defer { storeLock.unlock() }
-        return _activeStores.last
+        return _activeStores.compactMap(\.value).last
     }
 
     public private(set) var client: MumbleClient!
     public private(set) var audioEngine: MacAudioEngine!
+    public let recorder = AudioRecorder()
     public let globalPTT = GlobalPTT.shared
 
     // Connection & Networking State
@@ -52,10 +77,17 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
     public var usingUdpTunnel: Bool = false
     public var isUserInitiatedDisconnect: Bool = false
     public var currentUserStats: UserStatsInfo? = nil
+    public var serverIdentityChallenge: ServerIdentityChallenge?
+    public var channelAcl: ChannelAcl?
+    public var aclChannelId: UInt32?
+    private var requestedPermissions: Set<UInt32> = []
 
+    public func isListening(to id: UInt32) -> Bool { users.first { $0.sessionId == mySessionId }?.listeningChannels.contains(id) == true }
+    public func displayName(_ user: UserInfo) -> String { ClientPreferences.shared.displayName(user) }
     // Channel & User Tree
     public var channels: [ChannelInfo] = []
     public var channelTree: [ChannelTreeNode] = []
+    private var channelUserCounts: [UInt32: Int] = [:]
     public var previouslyLockedChannelIds: Set<UInt32> = []
     public var users: [UserInfo] = []
     public var selectedChannelId: UInt32? = nil
@@ -63,7 +95,20 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
     public var pendingTargetChannelPath: [String]? = nil
 
     // Chat Activity Stream
-    public var chatMessages: [ChatMessage] = []
+    public var chatMessages: [ChatMessage] = [] {
+        didSet {
+            let requested = SettingsState.shared.maxChatBlockCount
+            let limit = requested > 0 ? min(requested, 10000) : 10000
+            if chatMessages.count > limit { chatMessages.removeFirst(chatMessages.count - limit) }
+        }
+    }
+    public var unreadMessageCount = 0
+    public var chatVisible = false
+    public func markChatRead() {
+        guard chatVisible, NSApp.isActive, GlobalPTT.shared.activeStore === self else { return }
+        unreadMessageCount = 0; updateDockBadge()
+    }
+    private var reconnectAttempt = 0
 
     // Local Mute & Deafen
     public var isSelfMuted: Bool = false
@@ -76,20 +121,19 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
     // Bookmarks & Identity
     public var bookmarks: [ServerBookmark] = []
     public var activeBookmark: ServerBookmark? = nil
+    public var serverPreferenceKey: String { activeBookmark.map { "[\($0.host.lowercased())]:\($0.port)" } ?? "" }
     public var lastUsedBookmark: ServerBookmark? {
-        if let idStr = UserDefaults.standard.string(forKey: "Swimble_LastUsedBookmarkId"),
+        if let idStr = UserDefaults.standard.string(forKey: "Swimble_LastConnectedBookmarkId"),
            let uuid = UUID(uuidString: idStr),
            let bm = bookmarks.first(where: { $0.id == uuid }) {
             return bm
         }
-        if let fav = bookmarks.first(where: { $0.isFavorite }) {
-            return fav
-        }
-        if let onlineBm = bookmarks.first(where: { serverPingResults[pingKey(for: $0)] != nil }) {
-            return onlineBm
-        }
-        return bookmarks.first
+        return nil
     }
+    public private(set) var isIdentityReady = false
+    private var identityTask: Task<Void, Never>?
+    private var pendingIdentityConnection: UUID?
+    public var identityError: String?
     public var clientIdentity: ClientIdentity!
     public var certFingerprint: String = ""
 
@@ -129,10 +173,9 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
     }
     public var accentTint: Color = .cyan
 
-    public var autoReconnectOnLaunch: Bool = UserDefaults.standard.bool(forKey: "Swimble_AutoReconnect") {
-        didSet {
-            UserDefaults.standard.set(autoReconnectOnLaunch, forKey: "Swimble_AutoReconnect")
-        }
+    public var autoReconnectOnLaunch: Bool {
+        get { SettingsState.shared.autoConnectLastUsedServer }
+        set { SettingsState.shared.autoConnectLastUsedServer = newValue; SettingsState.shared.saveToUserDefaults() }
     }
 
     public var myChannelId: UInt32? {
@@ -162,19 +205,7 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
 
     /// Returns the total number of users currently in this channel plus all recursive child subchannels.
     public func totalUsers(in channelId: UInt32) -> Int {
-        var allIds: Set<UInt32> = [channelId]
-        var queue = [channelId]
-        while !queue.isEmpty {
-            let current = queue.removeFirst()
-            let childIds = channels.filter { $0.parentId == current && $0.id != current }.map { $0.id }
-            for cid in childIds {
-                if !allIds.contains(cid) {
-                    allIds.insert(cid)
-                    queue.append(cid)
-                }
-            }
-        }
-        return users.filter { allIds.contains($0.channelId) }.count
+        channelUserCounts[channelId, default: 0]
     }
 
     public func logSystemMessage(_ text: String, icon: String = "info.circle.fill") {
@@ -231,20 +262,11 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
     }
 
     public init() {
-        // 1. Initialize or load persistent client identity from Keychain
-        let identity: ClientIdentity
-        if let saved = KeychainHelper.loadClientIdentity() {
-            identity = saved
-        } else {
-            let generated = generateClientIdentity(commonName: "Swimble User")
-            _ = KeychainHelper.saveClientIdentity(generated)
-            identity = generated
-        }
-        self.clientIdentity = identity
-        self.certFingerprint = Self.computeFingerprint(pem: identity.certPem)
+        self.clientIdentity = ClientIdentity(certPem: "", keyPem: "")
+        self.certFingerprint = "Loading identity…"
 
         // 2. Initialize Rust MumbleClient with self as event handler
-        let client = MumbleClient(handler: self)
+        let client = MumbleClient(handler: StoreEventHandler(self))
         self.client = client
 
         // 3. Initialize Audio Engine & Global PTT
@@ -256,25 +278,10 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
                 if let myId = self.mySessionId, let idx = self.users.firstIndex(where: { $0.sessionId == myId }) {
                     self.users[idx].isTalking = transmitting
                     self.users[idx].talkingState = transmitting ? (self.isWhispering ? .whisper : .talking) : .passive
-                    self.rebuildTree()
+                    self.updateTreeUser(self.users[idx])
                 }
             }
         }
-        self.globalPTT.configure(audioEngine: audioEngine)
-        self.globalPTT.onToggleMute = { [weak self] in
-            self?.toggleSelfMute()
-        }
-        self.globalPTT.onToggleDeafen = { [weak self] in
-            self?.toggleSelfDeaf()
-        }
-        self.globalPTT.onWhisperChanged = { [weak self] isWhispering in
-            self?.setWhispering(isWhispering, targetId: 1)
-        }
-        self.globalPTT.onToggleOverlay = { [weak self] in
-            guard let self = self else { return }
-            FloatingOverlayManager.shared.toggle(store: self)
-        }
-
         // 4. Load saved bookmarks & access tokens
         loadBookmarks()
         loadAccessTokens()
@@ -290,33 +297,57 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
             SettingsState.shared.apply(to: self)
         }
 
-        if (self.autoReconnectOnLaunch || SettingsState.shared.autoConnectLastUsedServer),
-           let fav = self.lastUsedBookmark ?? self.bookmarks.first {
-            Task { @MainActor [weak self] in
-                self?.connect(bookmark: fav)
+        identityTask = Task { [weak self] in
+            do {
+                let identity = try await CredentialRepository.shared.loadIdentity()
+                guard let self else { return }
+                self.clientIdentity = identity; self.certFingerprint = Self.computeFingerprint(pem: identity.certPem)
+                self.isIdentityReady = true
+                if self.pendingIdentityConnection == nil && !self.isUserInitiatedDisconnect && SettingsState.shared.autoConnectLastUsedServer, let last = self.lastUsedBookmark { self.connect(bookmark: last) }
+            } catch {
+                self?.identityError = error.localizedDescription
+                self?.logSystemMessage("Client identity could not be loaded from Keychain: \(error.localizedDescription). Unlock Keychain and reopen Swimble.")
             }
         }
 
         Self.storeLock.lock()
-        Self._activeStores.append(self)
+        Self._activeStores.removeAll { $0.value == nil }
+        Self._activeStores.append(WeakStore(self))
         Self.storeLock.unlock()
     }
 
     deinit {
         Self.storeLock.lock()
-        Self._activeStores.removeAll(where: { $0 === self })
+        Self._activeStores.removeAll(where: { $0.value == nil || $0.value === self })
         Self.storeLock.unlock()
+    }
+
+    public func performHaptic() {
+        guard SettingsState.shared.hapticFeedbackEnabled else { return }
+        NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
     }
 
     // MARK: - Server Connection Actions
 
-    public func connect(bookmark: ServerBookmark) {
+    public func connect(bookmark: ServerBookmark, trustedFingerprint: String? = nil, isRetry: Bool = false) {
+        guard isIdentityReady else {
+            let request = UUID(); pendingIdentityConnection = request
+            Task { [weak self] in
+                await self?.identityTask?.value
+                guard let self, self.isIdentityReady, self.pendingIdentityConnection == request else { return }
+                self.pendingIdentityConnection = nil
+                self.connect(bookmark: bookmark, trustedFingerprint: trustedFingerprint, isRetry: isRetry)
+            }
+            return
+        }
+        if !isRetry { reconnectAttempt = 0 }
+        serverIdentityChallenge = nil
+        requestedPermissions.removeAll()
         self.isUserInitiatedDisconnect = false
         self.reconnectTimer?.invalidate()
         self.reconnectTimer = nil
         self.activeBookmark = bookmark
         self.connectionStatus = .connecting
-        UserDefaults.standard.set(bookmark.id.uuidString, forKey: "Swimble_LastUsedBookmarkId")
 
         // Trigger immediate reachability ping for fresh latency/status info
         Task { [weak self] in
@@ -335,23 +366,31 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
             username: bookmark.username,
             password: password,
             clientCertPem: clientIdentity.certPem,
-            clientKeyPem: clientIdentity.keyPem
+            clientKeyPem: clientIdentity.keyPem,
+            trustedFingerprint: trustedFingerprint ?? KeychainHelper.loadServerFingerprint(host: bookmark.host, port: bookmark.port)
         )
 
-        // Start local audio engine
-        do {
-            try audioEngine.start()
-        } catch {
-            print("[MumbleStore] Error starting audio engine: \(error)")
+
+    }
+
+    public func shutdown() {
+        backgroundPingTimer?.invalidate(); backgroundPingTimer = nil
+        idleTimer?.invalidate(); idleTimer = nil
+        disconnect()
+        if GlobalPTT.shared.activeStore === self {
+            GlobalPTT.shared.focus(store: MumbleStore.activeStores.first { $0 !== self && $0.connectionStatus == .connected })
         }
     }
 
     public func disconnect() {
+        pendingIdentityConnection = nil
         self.isUserInitiatedDisconnect = true
         self.reconnectTimer?.invalidate()
         self.reconnectTimer = nil
+        if recorder.isRecording { recorder.stopRecording(); client.setRecordingState(recording: false) }
+        let clearComment = SettingsState.shared.clearUserCommentsOnExit && connectionStatus == .connected
         audioEngine.stop()
-        client.disconnect()
+        if clearComment { client.clearCommentAndDisconnect() } else { client.disconnect() }
         self.connectionStatus = .disconnected
         self.activeBookmark = nil
         self.channels = []
@@ -372,6 +411,7 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
     }
 
     public func joinChannel(channelId: UInt32) {
+        performHaptic()
         client.joinChannel(channelId: channelId)
         self.selectedChannelId = channelId
     }
@@ -491,8 +531,10 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
     }
 
     public func setSelfMute(_ muted: Bool) {
+        if muted != isSelfMuted { performHaptic() }
         self.isSelfMuted = muted
-        audioEngine.isMuted = muted
+        let me = users.first { $0.sessionId == mySessionId }
+        audioEngine.isMuted = muted || isSelfDeafened || me?.isMuted == true || me?.isSuppressed == true || me?.isDeafened == true || !canSpeak(in: me?.channelId ?? 0)
         client.setSelfMute(muted: muted)
         EventNotificationManager.shared.dispatch(
             eventName: "You muted/deafened yourself",
@@ -502,7 +544,9 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
     }
 
     public func setSelfDeaf(_ deafened: Bool) {
+        if deafened != isSelfDeafened { performHaptic() }
         self.isSelfDeafened = deafened
+        if deafened { self.isSelfMuted = true; audioEngine.isMuted = true }
         client.setSelfDeaf(deafened: deafened)
         EventNotificationManager.shared.dispatch(
             eventName: "You muted/deafened yourself",
@@ -628,16 +672,16 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
 
     // Audio Recording
     public var isRecordingAudio: Bool {
-        AudioRecorder.shared.isRecording
+        recorder.isRecording
     }
 
     public var recordingDuration: TimeInterval {
-        AudioRecorder.shared.durationSeconds
+        recorder.durationSeconds
     }
 
     public func toggleAudioRecording() {
-        if AudioRecorder.shared.isRecording {
-            if let savedUrl = AudioRecorder.shared.stopRecording() {
+        if recorder.isRecording {
+            if let savedUrl = recorder.stopRecording() {
                 client.setRecordingState(recording: false)
                 EventNotificationManager.shared.dispatch(
                     eventName: "Recording state changed",
@@ -646,7 +690,7 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
                 )
             }
         } else {
-            if AudioRecorder.shared.startRecording() {
+            if recorder.startRecording(client: client) {
                 client.setRecordingState(recording: true)
                 EventNotificationManager.shared.dispatch(
                     eventName: "Recording state changed",
@@ -697,39 +741,47 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
         self.client.setActiveVoiceTargetId(targetId: active ? targetId : 0)
     }
 
-    public func updateClientIdentity(_ newIdentity: ClientIdentity) {
+    public func updateClientIdentity(_ newIdentity: ClientIdentity) async throws {
+        try await CredentialRepository.shared.replaceIdentity(newIdentity)
         self.clientIdentity = newIdentity
         self.certFingerprint = Self.computeFingerprint(pem: newIdentity.certPem)
-        _ = KeychainHelper.saveClientIdentity(newIdentity)
+        self.isIdentityReady = true; self.identityError = nil
     }
 
     // MARK: - Bookmarks Management
 
     public func addBookmark(_ bookmark: ServerBookmark) {
-        bookmarks.append(bookmark)
-        saveBookmarks()
-        if let pwd = bookmark.password, !pwd.isEmpty {
-            _ = KeychainHelper.saveServerPassword(bookmarkId: bookmark.id, password: pwd)
+        guard migrateBookmarkPasswords() else { return }
+        if let pwd = bookmark.password, !pwd.isEmpty,
+           !KeychainHelper.saveServerPassword(bookmarkId: bookmark.id, password: pwd) {
+            logSystemMessage("Could not save the server password to Keychain. Bookmark was not saved."); return
         }
+        var saved = bookmark; saved.password = nil
+        bookmarks.append(saved); saveBookmarks()
     }
 
     public func saveBookmark(_ bookmark: ServerBookmark) {
+        guard migrateBookmarkPasswords() else { return }
         if let idx = bookmarks.firstIndex(where: { $0.id == bookmark.id }) {
-            bookmarks[idx] = bookmark
-            saveBookmarks()
             if let pwd = bookmark.password, !pwd.isEmpty {
-                _ = KeychainHelper.saveServerPassword(bookmarkId: bookmark.id, password: pwd)
-            }
+                guard KeychainHelper.saveServerPassword(bookmarkId: bookmark.id, password: pwd) else {
+                    logSystemMessage("Could not save the server password to Keychain."); return
+                }
+            } else { _ = KeychainHelper.deleteServerPassword(bookmarkId: bookmark.id) }
+            var saved = bookmark; saved.password = nil
+            bookmarks[idx] = saved; saveBookmarks()
         }
     }
 
     public func deleteBookmark(_ bookmark: ServerBookmark) {
+        guard migrateBookmarkPasswords() else { return }
         bookmarks.removeAll { $0.id == bookmark.id }
         _ = KeychainHelper.deleteServerPassword(bookmarkId: bookmark.id)
         saveBookmarks()
     }
 
     public func toggleFavoriteBookmark(_ bookmark: ServerBookmark) {
+        guard migrateBookmarkPasswords() else { return }
         if let idx = bookmarks.firstIndex(where: { $0.id == bookmark.id }) {
             bookmarks[idx].isFavorite.toggle()
             saveBookmarks()
@@ -738,16 +790,38 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
 
     private func loadBookmarks() {
         if let data = UserDefaults.standard.data(forKey: "Swimble_Bookmarks") ?? UserDefaults.standard.data(forKey: "MumbleGlass_Bookmarks"),
-           let saved = try? JSONDecoder().decode([ServerBookmark].self, from: data),
-           !saved.isEmpty {
+           let saved = try? JSONDecoder().decode([ServerBookmark].self, from: data) {
             self.bookmarks = saved
+            var migrated = true
+            for bookmark in saved {
+                if let password = bookmark.password, !password.isEmpty,
+                   !KeychainHelper.saveServerPassword(bookmarkId: bookmark.id, password: password) { migrated = false }
+            }
+            if migrated {
+                self.bookmarks = saved.map { var item = $0; item.password = nil; return item }
+                saveBookmarks()
+                UserDefaults.standard.removeObject(forKey: "MumbleGlass_Bookmarks")
+            }
         } else {
-            self.bookmarks = [ServerBookmark.localDefault]
+            self.bookmarks = []
             saveBookmarks()
         }
     }
 
+    private func migrateBookmarkPasswords() -> Bool {
+        for bookmark in bookmarks {
+            if let password = bookmark.password, !password.isEmpty,
+               !KeychainHelper.saveServerPassword(bookmarkId: bookmark.id, password: password) {
+                logSystemMessage("Unlock Keychain before editing saved servers. Existing credentials have been preserved.")
+                return false
+            }
+        }
+        bookmarks = bookmarks.map { var value = $0; value.password = nil; return value }
+        return true
+    }
+
     private func saveBookmarks() {
+        guard migrateBookmarkPasswords() else { return }
         if let data = try? JSONEncoder().encode(bookmarks) {
             UserDefaults.standard.set(data, forKey: "Swimble_Bookmarks")
         }
@@ -756,12 +830,12 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
     // MARK: - Server Ping Operations
 
     public static func cleanServerHost(_ host: String) -> String {
-        let clean = host.trimmingCharacters(in: .whitespacesAndNewlines)
-            .replacingOccurrences(of: "mumble://", with: "")
-            .replacingOccurrences(of: "https://", with: "")
-            .replacingOccurrences(of: "http://", with: "")
-        let cleanHost = clean.components(separatedBy: ":").first ?? clean
-        return cleanHost.trimmingCharacters(in: .whitespacesAndNewlines)
+        let value = host.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let components = URLComponents(string: value.contains("://") ? value : "mumble://\(value)"),
+           let hostname = components.host, !hostname.isEmpty {
+            return hostname.trimmingCharacters(in: CharacterSet(charactersIn: "[]"))
+        }
+        return value.trimmingCharacters(in: CharacterSet(charactersIn: "[]"))
     }
 
     public static func pingKey(host: String, port: UInt16) -> String {
@@ -928,6 +1002,82 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
         return hash.map { String(format: "%02X", $0) }.joined(separator: ":")
     }
 
+    private func updateTreeUser(_ user: UserInfo) {
+        func update(_ nodes: inout [ChannelTreeNode]) -> Bool {
+            for i in nodes.indices {
+                if nodes[i].id == user.channelId,
+                   let j = nodes[i].users.firstIndex(where: { $0.sessionId == user.sessionId }) {
+                    nodes[i].users[j] = user
+                    return true
+                }
+                if update(&nodes[i].children) { return true }
+            }
+            return false
+        }
+        _ = update(&channelTree)
+    }
+
+    private func refreshChannelPermissions() {
+        guard connectionStatus == .connected else { return }
+        for channel in channels where channel.permissions == nil {
+            if requestedPermissions.insert(channel.id).inserted {
+                client.requestChannelPermissions(channelId: channel.id)
+            }
+        }
+    }
+
+    private func canSpeak(in channelId: UInt32) -> Bool {
+        guard let permissions = channels.first(where: { $0.id == channelId })?.permissions else { return true }
+        return permissions & 0x8 != 0
+    }
+
+    public func canEditChannelPrivileges(in channelId: UInt32) -> Bool {
+        hasPermission(1, in: channelId) || hasPermission(1, in: 0)
+    }
+
+    public func hasPermission(_ permission: UInt32, in channelId: UInt32) -> Bool {
+        guard let permissions = channels.first(where: { $0.id == channelId })?.permissions else { return false }
+        return permissions & permission != 0
+    }
+
+    public func requestChannelAcl(channelId: UInt32) {
+        channelAcl = nil
+        aclChannelId = channelId
+        client.requestChannelAcl(channelId: channelId)
+        client.requestRegisteredUsers()
+    }
+
+    nonisolated public func onChannelAclReceived(acl: ChannelAcl) {
+        Task { @MainActor [weak self] in
+            guard let self, self.aclChannelId == acl.channelId else { return }
+            self.channelAcl = acl
+        }
+    }
+
+    nonisolated public func onServerIdentityChallenge(challenge: ServerIdentityChallenge) {
+        Task { @MainActor [weak self] in
+            guard let self, let bookmark = self.activeBookmark,
+                  bookmark.host == challenge.host, bookmark.port == challenge.port else { return }
+            self.reconnectTimer?.invalidate()
+            self.serverIdentityChallenge = challenge
+        }
+    }
+
+    public func acceptServerIdentity(remember: Bool) {
+        guard let challenge = serverIdentityChallenge, let bookmark = activeBookmark,
+              challenge.host == bookmark.host, challenge.port == bookmark.port else { return }
+        if remember && !KeychainHelper.saveServerFingerprint(host: challenge.host, port: challenge.port, fingerprint: challenge.fingerprint) {
+            logSystemMessage("The server certificate could not be saved to Keychain. Connection remains blocked.")
+            return
+        }
+        connect(bookmark: bookmark, trustedFingerprint: challenge.fingerprint)
+    }
+
+    public func rejectServerIdentity() {
+        serverIdentityChallenge = nil
+        disconnect()
+    }
+
     public func rebuildTree() {
         self.channelTree = ChannelTreeNode.buildTree(
             channels: self.channels,
@@ -935,6 +1085,14 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
             userSort: SettingsState.shared.userSort,
             filterHidesEmpty: SettingsState.shared.filterHidesEmptyChannels
         )
+        var counts: [UInt32: Int] = [:]
+        func count(_ node: ChannelTreeNode) -> Int {
+            let total = node.users.count + node.children.reduce(0) { $0 + count($1) }
+            counts[node.id] = total
+            return total
+        }
+        for node in channelTree { _ = count(node) }
+        channelUserCounts = counts
     }
 
     public func rebuildChannelTree() {
@@ -1002,18 +1160,21 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
     public func scheduleAutoReconnect() {
         guard !isUserInitiatedDisconnect, let bm = activeBookmark else { return }
         reconnectTimer?.invalidate()
-        logSystemMessage("Connection lost. Automatically reconnecting in 5 seconds...", icon: "arrow.clockwise")
-        reconnectTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: false) { [weak self] _ in
+        guard client.reconnectAllowed() else { return }
+        reconnectAttempt += 1
+        let delay = min(60.0, pow(2.0, Double(min(reconnectAttempt, 6)))) + Double.random(in: 0...1)
+        logSystemMessage("Connection lost. Reconnecting in \(Int(delay)) seconds (attempt \(reconnectAttempt))…", icon: "arrow.clockwise")
+        reconnectTimer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in
             Task { @MainActor in
-                guard let self = self, !self.isUserInitiatedDisconnect, self.connectionStatus == .disconnected else { return }
-                self.connect(bookmark: bm)
+                guard let self = self, !self.isUserInitiatedDisconnect, (self.connectionStatus == .disconnected || self.connectionStatus == .failed) else { return }
+                self.connect(bookmark: bm, isRetry: true)
             }
         }
     }
 
     public func updateDockBadge() {
         if SettingsState.shared.includeUnreadCountInTaskbar {
-            let count = self.chatMessages.filter { $0.senderSession != self.mySessionId && $0.senderSession != 0 }.count
+            let count = MumbleStore.activeStores.reduce(0) { $0 + $1.unreadMessageCount }
             NSApp.dockTile.badgeLabel = count > 0 ? "\(count)" : nil
         } else {
             NSApp.dockTile.badgeLabel = nil
@@ -1025,9 +1186,22 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
     nonisolated public func onConnectionStatusChanged(status: ConnectionStatus) {
         Task { @MainActor [weak self] in
             guard let self = self else { return }
+            guard self.client.getConnectionStatus() == status else { return }
+            let wasConnected = self.connectionStatus == .connected
             self.connectionStatus = status
             if status == .connected {
+                self.reconnectAttempt = 0
+                if let bookmark = self.activeBookmark {
+                    UserDefaults.standard.set(bookmark.id.uuidString, forKey: "Swimble_LastConnectedBookmarkId")
+                }
+                do { try self.audioEngine.start() } catch {
+                    self.logSystemMessage("Audio could not start: \(error.localizedDescription)")
+                }
                 self.mySessionId = self.client.getMySession()
+                self.refreshChannelPermissions()
+                if let me = self.users.first(where: { $0.sessionId == self.mySessionId }) {
+                    self.audioEngine.isMuted = me.isSelfMuted || me.isMuted || me.isSuppressed || me.isDeafened || me.isSelfDeafened || !self.canSpeak(in: me.channelId)
+                }
                 self.client.setTokens(tokens: self.accessTokens)
                 EventNotificationManager.shared.dispatch(
                     eventName: "Connected",
@@ -1035,6 +1209,8 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
                     store: self
                 )
             } else if status == .disconnected || status == .failed {
+                self.recorder.stopRecording()
+                self.audioEngine.stop()
                 self.registeredUsers = []
                 self.banList = []
                 self.previouslyLockedChannelIds.removeAll()
@@ -1046,7 +1222,9 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
                 if SettingsState.shared.clearChatWindowOnExit {
                     self.chatMessages.removeAll()
                 }
-                if !self.isUserInitiatedDisconnect && SettingsState.shared.reconnectAutomatically && self.activeBookmark != nil {
+                let reason = self.client.disconnectReason()
+                if !reason.isEmpty { self.logSystemMessage(reason) }
+                if (wasConnected || self.reconnectAttempt > 0) && self.client.reconnectAllowed() && self.serverIdentityChallenge == nil && !self.isUserInitiatedDisconnect && SettingsState.shared.reconnectAutomatically && self.activeBookmark != nil {
                     self.scheduleAutoReconnect()
                 }
             }
@@ -1062,6 +1240,10 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
                 }
             }
             self.channels = channels
+            self.refreshChannelPermissions()
+            if let me = self.users.first(where: { $0.sessionId == self.mySessionId }) {
+                self.audioEngine.isMuted = me.isSelfMuted || me.isMuted || me.isSuppressed || me.isDeafened || me.isSelfDeafened || !self.canSpeak(in: me.channelId)
+            }
             if self.selectedChannelId == nil, let first = channels.first {
                 self.selectedChannelId = first.id
             }
@@ -1219,7 +1401,8 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
             if let me = users.first(where: { $0.sessionId == myId }) {
                 self.isSelfMuted = me.isSelfMuted
                 self.isSelfDeafened = me.isSelfDeafened
-                self.audioEngine.isMuted = me.isSelfMuted
+                self.audioEngine.isMuted = me.isSelfMuted || me.isMuted || me.isSuppressed || me.isDeafened || me.isSelfDeafened
+                    || !self.canSpeak(in: me.channelId)
             }
             self.rebuildTree()
         }
@@ -1232,7 +1415,7 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
                 let wasWhispering = self.users[idx].talkingState == .whisper
                 self.users[idx].isTalking = isTalking
                 self.users[idx].talkingState = talkingState
-                self.rebuildTree()
+                self.updateTreeUser(self.users[idx])
 
                 if isTalking && talkingState == .whisper && !wasWhispering && sessionId != self.mySessionId {
                     SoundManager.shared.playWhisper()
@@ -1252,6 +1435,10 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
                 }
             }
             self.chatMessages.append(message)
+            if message.senderSession != 0 && message.senderSession != self.mySessionId {
+                if self.chatVisible && NSApp.isActive && GlobalPTT.shared.activeStore === self { self.unreadMessageCount = 0 }
+                else { self.unreadMessageCount += 1 }
+            }
 
             let isPermissionDenied = message.senderSession == 0 && message.htmlBody.contains("Permission denied")
             let isPrivate = message.channelId == nil && message.senderSession != 0

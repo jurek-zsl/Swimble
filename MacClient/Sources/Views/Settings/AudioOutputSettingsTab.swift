@@ -11,13 +11,10 @@ public struct AudioOutputSettingsTab: View {
         self.store = store
     }
 
-    private var isLoopbackActive: Bool {
-        store.audioEngine?.isLoopbackTestEnabled == true
-    }
-
     public var body: some View {
         ScrollView {
             VStack(spacing: 20) {
+                PositionalAudioSettings(store: store)
                 // 1. Output Hardware
                 SettingsCard {
                     SettingsSectionHeader(
@@ -32,7 +29,7 @@ public struct AudioOutputSettingsTab: View {
                         Picker("Device", selection: $state.audioOutputDevice) {
                             Text("Default Device").tag("")
                             ForEach(deviceManager.outputDevices) { dev in
-                                Text(dev.name).tag(dev.name)
+                                Text(dev.name).tag(dev.uid)
                             }
                         }
                         .labelsHidden()
@@ -79,6 +76,17 @@ public struct AudioOutputSettingsTab: View {
                     }
                 }
 
+                SettingsCard {
+                    SettingsSectionHeader("Spatial Audio", systemImage: "spatialaudio",
+                                          subtitle: "Stereo headphones or speakers are required.")
+                    SettingsToggleRow("Spatial Placement of Channel Speakers",
+                                      subtitle: "Assigns each speaker a stable position across the stereo field.",
+                                      isOn: $state.spatialAudioEnabled)
+                    SettingsToggleRow("Mumble Link Game Positioning",
+                                      subtitle: "Shares your avatar position and game identity with the server. Compatible native games use /MumbleLink.<uid>; matching game contexts receive 3D direction and distance audio. No head tracking.",
+                                      isOn: $state.mumbleLinkEnabled)
+                }
+
                 // 3. Audio Ducking
                 SettingsCard {
                     SettingsSectionHeader(
@@ -88,48 +96,20 @@ public struct AudioOutputSettingsTab: View {
                     )
 
                     SettingsToggleRow(
-                        "Duck Background Audio During Calls",
-                        subtitle: "Uses macOS VoiceProcessingIO to automatically quiet background music, videos, and games while voice is being spoken.",
+                        "Duck Background Audio When Someone Speaks",
+                        subtitle: "Uses macOS voice processing to lower other audio during local or remote speech, then restore it during silence. This enables voice processing.",
                         isOn: $state.audioDuckingEnabled
                     )
                 }
 
-                // 4. Local Loopback Microphone Test
                 SettingsCard {
-                    SettingsSectionHeader(
-                        "Local Loopback Test",
-                        systemImage: "arrow.triangle.2.circlepath",
-                        subtitle: "Listen to your own voice to calibrate microphone clarity and volume."
-                    )
-
-                    HStack(alignment: .center) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(isLoopbackActive ? "Loopback Test Active" : "Loopback Test Inactive")
-                                .font(.subheadline.bold())
-                                .foregroundStyle(isLoopbackActive ? .green : .primary)
-                            Text("Directly routes your microphone audio back to your headphones with zero server latency.")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-
-                        Spacer()
-
-                        Button(action: toggleLoopback) {
-                            HStack(spacing: 6) {
-                                if isLoopbackActive {
-                                    Image(systemName: "waveform")
-                                        .symbolEffect(.variableColor.iterative)
-                                    Text("Stop Test")
-                                } else {
-                                    Image(systemName: "play.fill")
-                                    Text("Start Test")
-                                }
-                            }
-                            .frame(minWidth: 100)
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .tint(isLoopbackActive ? .red : store.accentTint)
+                    Picker("Microphone test", selection: $state.loopbackMode) {
+                        ForEach(LoopbackMode.allCases) { Text($0.rawValue).tag($0) }
                     }
+                    .onChange(of: state.loopbackMode) { _, mode in
+                        store.client.setLoopbackMode(mode: mode == .server ? 2 : mode == .local ? 1 : 0)
+                    }
+                    Text("Server test requires a connection and uses Mumble's loopback voice target. Local test also works offline.").font(.caption).foregroundStyle(.secondary)
                 }
             }
             .padding(.horizontal, 24)
@@ -137,13 +117,4 @@ public struct AudioOutputSettingsTab: View {
         }
     }
 
-    private func toggleLoopback() {
-        if isLoopbackActive {
-            state.loopbackMode = .none
-            store.audioEngine?.isLoopbackTestEnabled = false
-        } else {
-            state.loopbackMode = .local
-            store.audioEngine?.isLoopbackTestEnabled = true
-        }
-    }
 }

@@ -125,7 +125,7 @@ public struct FloatingOverlayPillView: View {
 
     private var currentFpsText: String {
         let maxFps = NSScreen.main?.maximumFramesPerSecond ?? 60
-        return "\(maxFps) FPS"
+        return "\(maxFps) Hz"
     }
 
     private var fpsBadgeView: some View {

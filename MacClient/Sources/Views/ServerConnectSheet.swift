@@ -84,8 +84,6 @@ public struct ServerConnectSheet: View {
             if selectedBookmarkId == nil {
                 if let lastUsed = store.lastUsedBookmark {
                     selectBookmark(lastUsed)
-                } else if let first = store.bookmarks.first {
-                    selectBookmark(first)
                 }
             }
             store.pingAllBookmarks()

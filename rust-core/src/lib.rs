@@ -4,6 +4,11 @@ pub mod proto {
     include!(concat!(env!("OUT_DIR"), "/mumble_proto.rs"));
 }
 
+pub mod udp_proto {
+    include!(concat!(env!("OUT_DIR"), "/mumble_udp.rs"));
+}
+
+pub mod audio_io;
 pub mod audio_mixer;
 pub mod cert;
 pub mod client;
@@ -12,6 +17,9 @@ pub mod crypt_ocb2;
 pub mod dns;
 pub mod framing;
 pub mod ping;
+pub mod plugins;
+pub mod positional;
+pub mod rpc;
 pub mod state;
 pub mod voice_packet;
 
@@ -51,6 +59,45 @@ pub enum TalkingState {
 }
 
 #[derive(uniffi::Record, Clone, Debug, PartialEq)]
+pub struct ServerIdentityChallenge {
+    pub host: String,
+    pub port: u16,
+    pub fingerprint: String,
+    pub previous_fingerprint: Option<String>,
+    pub reason: String,
+}
+
+#[derive(uniffi::Record, Clone, Debug, PartialEq)]
+pub struct ChannelAclEntry {
+    pub apply_here: bool,
+    pub apply_subs: bool,
+    pub inherited: bool,
+    pub user_id: Option<u32>,
+    pub group: Option<String>,
+    pub grant: u32,
+    pub deny: u32,
+}
+
+#[derive(uniffi::Record, Clone, Debug, PartialEq)]
+pub struct ChannelAclGroup {
+    pub name: String,
+    pub inherited: bool,
+    pub inherit: bool,
+    pub inheritable: bool,
+    pub add: Vec<u32>,
+    pub remove: Vec<u32>,
+    pub inherited_members: Vec<u32>,
+}
+
+#[derive(uniffi::Record, Clone, Debug, PartialEq)]
+pub struct ChannelAcl {
+    pub channel_id: u32,
+    pub inherit_acls: bool,
+    pub groups: Vec<ChannelAclGroup>,
+    pub entries: Vec<ChannelAclEntry>,
+}
+
+#[derive(uniffi::Record, Clone, Debug, PartialEq)]
 pub struct ChannelInfo {
     pub id: u32,
     pub parent_id: Option<u32>,
@@ -60,6 +107,9 @@ pub struct ChannelInfo {
     pub is_temporary: bool,
     pub is_enter_restricted: bool,
     pub can_enter: bool,
+    pub permissions: Option<u32>,
+    pub links: Vec<u32>,
+    pub max_users: u32,
 }
 
 #[derive(uniffi::Record, Clone, Debug, PartialEq)]
@@ -68,6 +118,7 @@ pub struct UserInfo {
     pub channel_id: u32,
     pub name: String,
     pub is_muted: bool,
+    pub is_suppressed: bool,
     pub is_deafened: bool,
     pub is_self_muted: bool,
     pub is_self_deafened: bool,
@@ -79,6 +130,7 @@ pub struct UserInfo {
     pub talking_state: TalkingState,
     pub cert_hash: Option<String>,
     pub texture: Option<Vec<u8>>,
+    pub listening_channels: Vec<u32>,
 }
 
 #[derive(uniffi::Record, Clone, Debug, PartialEq)]
@@ -194,10 +246,17 @@ pub struct UserStatsInfo {
 
 #[uniffi::export(callback_interface)]
 pub trait MumbleEventHandler: Send + Sync {
+    fn on_server_identity_challenge(&self, challenge: ServerIdentityChallenge);
+    fn on_channel_acl_received(&self, acl: ChannelAcl);
     fn on_connection_status_changed(&self, status: ConnectionStatus);
     fn on_channels_updated(&self, channels: Vec<ChannelInfo>);
     fn on_users_updated(&self, users: Vec<UserInfo>);
-    fn on_user_talking_changed(&self, session_id: u32, is_talking: bool, talking_state: TalkingState);
+    fn on_user_talking_changed(
+        &self,
+        session_id: u32,
+        is_talking: bool,
+        talking_state: TalkingState,
+    );
     fn on_chat_message(&self, message: ChatMessage);
     fn on_ping_updated(&self, tcp_ms: f32, udp_ms: f32, using_udp_tunnel: bool);
     fn on_server_connection_info_updated(&self, info: ServerConnectionInfo);
@@ -206,3 +265,13 @@ pub trait MumbleEventHandler: Send + Sync {
     fn on_user_stats_received(&self, stats: UserStatsInfo);
 }
 
+#[derive(uniffi::Record, Clone, Debug, Default)]
+pub struct AudioMetrics {
+    pub mic_db: f32,
+    pub mic_frames_processed: u64,
+    pub transmitting: bool,
+    pub mic_samples: Vec<f32>,
+    pub speaker_samples: Vec<f32>,
+    pub capture_overruns: u64,
+    pub playback_underruns: u64,
+}

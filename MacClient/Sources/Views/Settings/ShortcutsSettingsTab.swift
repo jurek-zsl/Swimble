@@ -89,6 +89,7 @@ public struct ShortcutsSettingsTab: View {
     public var body: some View {
         ScrollView {
             VStack(spacing: 20) {
+                AdvancedShortcutsSettings(store: store)
                 // 1. Global Controls & Accessibility
                 SettingsCard {
                     SettingsSectionHeader(

@@ -1,9 +1,9 @@
-use std::collections::HashMap;
+use crate::proto;
 use crate::{
     BanEntryInfo, ChannelInfo, ConnectionStatus, RegisteredUser, ServerConnectionInfo,
     TalkingState, UserInfo, UserStatsInfo,
 };
-use crate::proto;
+use std::collections::HashMap;
 
 #[derive(Clone, Debug)]
 pub struct ClientState {
@@ -17,6 +17,8 @@ pub struct ClientState {
     pub ban_list: Vec<BanEntryInfo>,
     pub user_stats: HashMap<u32, UserStatsInfo>,
     pub is_synced: bool,
+    pub disconnect_reason: String,
+    pub reconnect_allowed: bool,
 }
 
 impl Default for ClientState {
@@ -55,6 +57,8 @@ impl ClientState {
             ban_list: Vec::new(),
             user_stats: HashMap::new(),
             is_synced: false,
+            disconnect_reason: String::new(),
+            reconnect_allowed: true,
         }
     }
 
@@ -68,6 +72,8 @@ impl ClientState {
         self.connection_status = ConnectionStatus::Disconnected;
         self.server_info = Self::new().server_info;
         self.is_synced = false;
+        self.disconnect_reason.clear();
+        self.reconnect_allowed = true;
     }
 
     pub fn update_channel(&mut self, state: proto::ChannelState) -> Option<ChannelInfo> {
@@ -81,8 +87,23 @@ impl ClientState {
             is_temporary: false,
             is_enter_restricted: false,
             can_enter: true,
+            permissions: None,
+            links: Vec::new(),
+            max_users: 0,
         });
 
+        if let Some(max_users) = state.max_users {
+            entry.max_users = max_users;
+        }
+        if !state.links.is_empty() {
+            entry.links = state.links.clone();
+        }
+        for id in &state.links_add {
+            if !entry.links.contains(id) {
+                entry.links.push(*id);
+            }
+        }
+        entry.links.retain(|id| !state.links_remove.contains(id));
         if let Some(parent) = state.parent {
             entry.parent_id = Some(parent);
         }
@@ -108,10 +129,26 @@ impl ClientState {
             }
         }
 
-        Some(entry.clone())
+        let updated = entry.clone();
+        for linked in &state.links_add {
+            if let Some(other) = self.channels.get_mut(linked) {
+                if !other.links.contains(&id) {
+                    other.links.push(id);
+                }
+            }
+        }
+        for linked in &state.links_remove {
+            if let Some(other) = self.channels.get_mut(linked) {
+                other.links.retain(|&channel| channel != id);
+            }
+        }
+        Some(updated)
     }
 
     pub fn remove_channel(&mut self, channel_id: u32) -> Option<ChannelInfo> {
+        for channel in self.channels.values_mut() {
+            channel.links.retain(|&id| id != channel_id);
+        }
         self.channels.remove(&channel_id)
     }
 
@@ -122,6 +159,7 @@ impl ClientState {
             channel_id: 0,
             name: String::new(),
             is_muted: false,
+            is_suppressed: false,
             is_deafened: false,
             is_self_muted: false,
             is_self_deafened: false,
@@ -133,6 +171,7 @@ impl ClientState {
             talking_state: TalkingState::Passive,
             cert_hash: None,
             texture: None,
+            listening_channels: Vec::new(),
         });
 
         if let Some(cid) = state.channel_id {
@@ -143,6 +182,9 @@ impl ClientState {
         }
         if let Some(mute) = state.mute {
             entry.is_muted = mute;
+        }
+        if let Some(suppress) = state.suppress {
+            entry.is_suppressed = suppress;
         }
         if let Some(deaf) = state.deaf {
             entry.is_deafened = deaf;
@@ -166,6 +208,14 @@ impl ClientState {
                 entry.comment = Some(comment);
             }
         }
+        for id in &state.listening_channel_add {
+            if !entry.listening_channels.contains(id) {
+                entry.listening_channels.push(*id);
+            }
+        }
+        entry
+            .listening_channels
+            .retain(|id| !state.listening_channel_remove.contains(id));
         if let Some(uid) = state.user_id {
             entry.user_id = Some(uid);
         }

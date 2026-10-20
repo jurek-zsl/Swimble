@@ -179,6 +179,7 @@ public struct CertificateWizardModal: View {
             .padding(20)
         }
         .frame(width: 520, height: 420)
+        .onChange(of: store.identityError) { _, error in if let error { statusMessage = error; isErrorMessage = true } }
         .confirmationDialog(
             "Generate New Certificate?",
             isPresented: $showGenerateConfirm,
@@ -186,9 +187,7 @@ public struct CertificateWizardModal: View {
         ) {
             Button("Generate New Certificate", role: .destructive) {
                 let newIdent = generateClientIdentity(commonName: "Swimble User")
-                store.updateClientIdentity(newIdent)
-                statusMessage = "New client certificate generated successfully!"
-                isErrorMessage = false
+                installIdentity(newIdent, message: "New client certificate generated successfully!")
             }
             Button("Cancel", role: .cancel) {}
         } message: {
@@ -226,9 +225,7 @@ public struct CertificateWizardModal: View {
                 if let data = pendingImportData {
                     do {
                         let imported = try importIdentityFromPkcs12(p12Bytes: data, password: importPassword)
-                        store.updateClientIdentity(imported)
-                        statusMessage = "Certificate imported successfully!"
-                        isErrorMessage = false
+                        installIdentity(imported, message: "Certificate imported successfully!")
                     } catch {
                         statusMessage = "Failed to import certificate: \(error.localizedDescription)"
                         isErrorMessage = true
@@ -241,6 +238,14 @@ public struct CertificateWizardModal: View {
             }
         } message: {
             Text("This PKCS#12 certificate bundle from \(pendingImportFilename) is protected with a password. Please enter the password to unlock it.")
+        }
+    }
+
+    private func installIdentity(_ identity: ClientIdentity, message: String) {
+        statusMessage = "Saving identity to Keychain…"
+        Task { @MainActor in
+            do { try await store.updateClientIdentity(identity); statusMessage = message; isErrorMessage = false }
+            catch { statusMessage = "Identity was not changed: \(error.localizedDescription)"; isErrorMessage = true }
         }
     }
 
@@ -269,9 +274,7 @@ public struct CertificateWizardModal: View {
                 // First attempt import without password (for unencrypted or blank password archives)
                 do {
                     let imported = try importIdentityFromPkcs12(p12Bytes: data, password: "")
-                    store.updateClientIdentity(imported)
-                    statusMessage = "Certificate imported from \(url.lastPathComponent) successfully!"
-                    isErrorMessage = false
+                    installIdentity(imported, message: "Certificate imported from \(url.lastPathComponent) successfully!")
                 } catch {
                     // Requires password or failed with blank password: prompt user
                     pendingImportData = data

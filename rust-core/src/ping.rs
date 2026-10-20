@@ -1,10 +1,10 @@
+use crate::{MumbleError, ServerPingInfo};
 use std::net::SocketAddr;
 use std::sync::OnceLock;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::net::{TcpStream, UdpSocket};
 use tokio::runtime::Runtime;
 use tokio::time::timeout;
-use crate::{MumbleError, ServerPingInfo};
 
 pub fn get_tokio_runtime() -> &'static Runtime {
     static RUNTIME: OnceLock<Runtime> = OnceLock::new();
@@ -19,18 +19,27 @@ pub fn get_tokio_runtime() -> &'static Runtime {
 }
 
 #[uniffi::export]
-pub async fn ping_mumble_server(host: String, port: u16, timeout_ms: u64) -> Result<ServerPingInfo, MumbleError> {
+pub async fn ping_mumble_server(
+    host: String,
+    port: u16,
+    timeout_ms: u64,
+) -> Result<ServerPingInfo, MumbleError> {
     let rt = get_tokio_runtime();
-    let handle = rt.spawn(async move {
-        ping_mumble_server_impl(host, port, timeout_ms).await
-    });
+    let handle = rt.spawn(async move { ping_mumble_server_impl(host, port, timeout_ms).await });
     match handle.await {
         Ok(res) => res,
-        Err(e) => Err(MumbleError::NetworkError(format!("Ping task failed: {}", e))),
+        Err(e) => Err(MumbleError::NetworkError(format!(
+            "Ping task failed: {}",
+            e
+        ))),
     }
 }
 
-async fn ping_mumble_server_impl(host: String, port: u16, timeout_ms: u64) -> Result<ServerPingInfo, MumbleError> {
+async fn ping_mumble_server_impl(
+    host: String,
+    port: u16,
+    timeout_ms: u64,
+) -> Result<ServerPingInfo, MumbleError> {
     let trimmed = host.trim();
     let no_prefix = trimmed
         .strip_prefix("mumble://")
@@ -79,9 +88,7 @@ async fn ping_mumble_server_impl(host: String, port: u16, timeout_ms: u64) -> Re
 
     let mut set = tokio::task::JoinSet::new();
     for &addr in &addrs {
-        set.spawn(async move {
-            probe_address(addr, probe_timeout).await
-        });
+        set.spawn(async move { probe_address(addr, probe_timeout).await });
     }
 
     let mut last_err = MumbleError::NetworkError(format!(
@@ -139,15 +146,22 @@ async fn probe_address(addr: SocketAddr, timeout_ms: u64) -> Result<ServerPingIn
     }
 }
 
-async fn ping_udp_target(addr: SocketAddr, timeout_dur: Duration) -> Result<ServerPingInfo, MumbleError> {
-    let bind_addr = if addr.is_ipv6() { "[::]:0" } else { "0.0.0.0:0" };
+async fn ping_udp_target(
+    addr: SocketAddr,
+    timeout_dur: Duration,
+) -> Result<ServerPingInfo, MumbleError> {
+    let bind_addr = if addr.is_ipv6() {
+        "[::]:0"
+    } else {
+        "0.0.0.0:0"
+    };
     let socket = UdpSocket::bind(bind_addr)
         .await
         .map_err(|e| MumbleError::NetworkError(format!("Failed to bind UDP socket: {}", e)))?;
 
-    socket.connect(addr)
-        .await
-        .map_err(|e| MumbleError::NetworkError(format!("Failed to connect UDP socket to {}: {}", addr, e)))?;
+    socket.connect(addr).await.map_err(|e| {
+        MumbleError::NetworkError(format!("Failed to connect UDP socket to {}: {}", addr, e))
+    })?;
 
     // 12-byte Mumble ping probe: 0u32 + 8-byte timestamp
     let sent_ts = SystemTime::now()
@@ -160,7 +174,8 @@ async fn ping_udp_target(addr: SocketAddr, timeout_dur: Duration) -> Result<Serv
     probe[4..12].copy_from_slice(&sent_ts.to_be_bytes());
 
     let start_instant = Instant::now();
-    socket.send(&probe)
+    socket
+        .send(&probe)
         .await
         .map_err(|e| MumbleError::NetworkError(format!("Failed to send UDP ping: {}", e)))?;
 
@@ -171,7 +186,10 @@ async fn ping_udp_target(addr: SocketAddr, timeout_dur: Duration) -> Result<Serv
         .map_err(|e| MumbleError::NetworkError(format!("Failed to recv UDP ping reply: {}", e)))?;
 
     if n < 24 {
-        return Err(MumbleError::ProtocolError(format!("UDP ping reply too short: {} bytes (expected 24)", n)));
+        return Err(MumbleError::ProtocolError(format!(
+            "UDP ping reply too short: {} bytes (expected 24)",
+            n
+        )));
     }
 
     let latency_ms = start_instant.elapsed().as_secs_f32() * 1000.0;
@@ -195,12 +213,17 @@ async fn ping_udp_target(addr: SocketAddr, timeout_dur: Duration) -> Result<Serv
     })
 }
 
-async fn ping_tcp_target(addr: SocketAddr, timeout_dur: Duration) -> Result<ServerPingInfo, MumbleError> {
+async fn ping_tcp_target(
+    addr: SocketAddr,
+    timeout_dur: Duration,
+) -> Result<ServerPingInfo, MumbleError> {
     let start_instant = Instant::now();
     let stream = timeout(timeout_dur, TcpStream::connect(addr))
         .await
         .map_err(|_| MumbleError::NetworkError(format!("TCP connection to {} timed out", addr)))?
-        .map_err(|e| MumbleError::NetworkError(format!("Failed to connect TCP to {}: {}", addr, e)))?;
+        .map_err(|e| {
+            MumbleError::NetworkError(format!("Failed to connect TCP to {}: {}", addr, e))
+        })?;
 
     let latency_ms = start_instant.elapsed().as_secs_f32() * 1000.0;
     drop(stream);
@@ -222,13 +245,18 @@ mod tests {
         let handle = std::thread::spawn(|| {
             // OS thread without any ambient Tokio reactor
             let fut = ping_mumble_server("mumble.gameone.dev".into(), 64738, 3000);
-            let rt = tokio::runtime::Builder::new_current_thread().build().unwrap();
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .build()
+                .unwrap();
             rt.block_on(fut)
         });
         let res = handle.join().expect("Thread panicked!");
-        assert!(res.is_ok(), "Ping outside tokio context failed: {:?}", res.err());
+        assert!(
+            res.is_ok(),
+            "Ping outside tokio context failed: {:?}",
+            res.err()
+        );
         let info = res.unwrap();
         assert!(info.latency_ms > 0.0);
     }
 }
-

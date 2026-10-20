@@ -91,6 +91,12 @@ final class UserContextMenuNSView: NSView {
             header.isEnabled = false
             menu.addItem(header)
 
+            if user.certHash != nil {
+                let friend = NSMenuItem(title: ClientPreferences.shared.isFriend(user) ? "Remove Friend" : "Add Friend", action: #selector(handleFriend), keyEquivalent: "")
+                friend.target = self; friend.image = NSImage(systemSymbolName: "star", accessibilityDescription: nil); menu.addItem(friend)
+                let nickname = NSMenuItem(title: "Set Local Nickname…", action: #selector(handleNickname), keyEquivalent: "")
+                nickname.target = self; menu.addItem(nickname)
+            }
             // Information (User Stats)
             let infoItem = NSMenuItem(title: "Information", action: #selector(handleInformation), keyEquivalent: "")
             infoItem.target = self
@@ -225,6 +231,19 @@ final class UserContextMenuNSView: NSView {
         return menu
     }
 
+    @objc private func handleFriend() {
+        guard let user, let hash = user.certHash else { return }
+        if ClientPreferences.shared.friends.contains(hash) { ClientPreferences.shared.friends.remove(hash) }
+        else { ClientPreferences.shared.friends.insert(hash) }
+    }
+    @objc private func handleNickname() {
+        guard let user, let hash = user.certHash else { return }
+        let alert = NSAlert(); alert.messageText = "Local nickname for \(user.name)"
+        alert.informativeText = "Leave empty to use the server name. This applies to the same certificate on other servers."
+        let field = NSTextField(string: ClientPreferences.shared.nicknames[hash] ?? ""); field.frame = NSRect(x: 0, y: 0, width: 280, height: 24)
+        alert.accessoryView = field; alert.addButton(withTitle: "Save"); alert.addButton(withTitle: "Cancel")
+        if alert.runModal() == .alertFirstButtonReturn { ClientPreferences.shared.nicknames[hash] = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines) }
+    }
     @objc private func handleInformation() {
         guard let user = user else { return }
         store?.requestUserStats(sessionId: user.sessionId)

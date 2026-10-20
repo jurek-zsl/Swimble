@@ -56,7 +56,7 @@ public final class EventNotificationManager {
 
         // 4. Soundfile
         if item.soundfile {
-            playSound(eventName: eventName, soundOverride: soundNameOverride, state: state)
+            playSound(eventName: eventName, soundOverride: soundNameOverride, state: state, detail: detail)
         }
     }
 
@@ -97,7 +97,13 @@ public final class EventNotificationManager {
         TTSEngine.shared.speak(textToSpeak)
     }
 
-    private func playSound(eventName: String, soundOverride: String?, state: SettingsState) {
+    private func playSound(eventName: String, soundOverride: String?, state: SettingsState, detail: String) {
+        if eventName == "You muted/deafened yourself" {
+            guard state.muteMicrophoneCue else { return }
+            if !state.muteCuePath.isEmpty { SoundManager.shared.playSound(filePath: state.muteCuePath) }
+            else { SoundManager.shared.playMute(isMuted: !detail.contains("unmuted") && !detail.contains("undeafened")) }
+            return
+        }
         if state.soundfileMode == .customSound && !state.customSoundFilePath.isEmpty {
             SoundManager.shared.playSound(filePath: state.customSoundFilePath)
             return
@@ -115,7 +121,7 @@ public final class EventNotificationManager {
             NSSound(named: "Basso")?.play()
         case "You were kicked", "User kicked (you or by you)":
             NSSound(named: "Sosumi")?.play()
-        case "You were muted/deafened (by admin)", "You muted/deafened yourself":
+        case "You were muted/deafened (by admin)":
             SoundManager.shared.playMute(isMuted: true)
         case "Text message received", "Private text message received":
             SoundManager.shared.playMessageReceived()

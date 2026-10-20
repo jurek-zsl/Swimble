@@ -97,19 +97,14 @@ public struct PTTKeybind: Codable, Equatable, Hashable, Sendable {
     }
 
     public static func isModifierDown(keyCode: UInt16, modifierFlags: UInt) -> Bool {
-        let flags = NSEvent.ModifierFlags(rawValue: modifierFlags)
-        switch keyCode {
-        case 56, 60: return flags.contains(.shift)
-        case 58, 61: return flags.contains(.option)
-        case 59, 62: return flags.contains(.control)
-        case 54, 55: return flags.contains(.command)
-        case 57: return flags.contains(.capsLock)
-        case 63: return flags.contains(.function)
-        default: return false
-        }
+        // Aggregate flags cannot distinguish left/right modifier releases.
+        if keyCode == 57 { return NSEvent.ModifierFlags(rawValue: modifierFlags).contains(.capsLock) }
+        if keyCode == 63 { return NSEvent.ModifierFlags(rawValue: modifierFlags).contains(.function) }
+        return CGEventSource.keyState(.combinedSessionState, key: CGKeyCode(keyCode))
     }
 
     public static func nameForKeyCode(_ keyCode: UInt16) -> String {
+        if keyCode >= 1000 { return "Mouse \(Int(keyCode) - 999)" }
         switch keyCode {
         // Letters (ANSI)
         case 0: return "A"
@@ -280,6 +275,7 @@ public enum KeybindAction: String, Sendable, CaseIterable {
     case mute = "Toggle Mute"
     case deafen = "Toggle Deafen"
     case overlay = "Toggle Overlay"
+    case custom = "Custom Action"
 }
 
 /// Global background Push-to-Talk and Hotkey manager leveraging CGEvent tap with fallback monitors.
@@ -345,6 +341,22 @@ public final class GlobalPTT: @unchecked Sendable {
     private var localMonitor: Any?
     private var globalMonitor: Any?
     private weak var audioEngine: MacAudioEngine?
+    public private(set) weak var activeStore: MumbleStore?
+    public var customRecorder: ((PTTKeybind?) -> Void)?
+    private var pressedKeys = Set<UInt16>()
+    private var latchedTransmission = false
+    public func focus(store: MumbleStore?) {
+        guard activeStore !== store else { return }
+        audioEngine?.setPushToTalkActive(false); audioEngine?.setTemporaryMute(false)
+        activeStore?.setWhispering(false); pressedKeys.removeAll(); latchedTransmission = false
+        activeStore = store; audioEngine = store?.audioEngine
+        onToggleMute = { [weak store] in store?.toggleSelfMute() }
+        onToggleDeafen = { [weak store] in store?.toggleSelfDeaf() }
+        onWhisperChanged = { [weak store] active in store?.setWhispering(active) }
+        onToggleOverlay = { [weak store] in if let store { FloatingOverlayManager.shared.toggle(store: store) } }
+        if localMonitor == nil { startMonitoring() }
+        syncWithSettings(state: SettingsState.shared)
+    }
     private var lastToggleTimes: [KeybindAction: Date] = [:]
 
     private init() {
@@ -437,9 +449,9 @@ public final class GlobalPTT: @unchecked Sendable {
                 CGEvent.tapEnable(tap: tap, enable: true)
             }
         } else {
-            if let tap = eventTap {
-                CGEvent.tapEnable(tap: tap, enable: false)
-            }
+            if let tap = eventTap { CGEvent.tapEnable(tap: tap, enable: false) }
+            audioEngine?.setPushToTalkActive(false); audioEngine?.setTemporaryMute(false)
+            activeStore?.setWhispering(false); pressedKeys.removeAll()
         }
     }
 
@@ -450,18 +462,18 @@ public final class GlobalPTT: @unchecked Sendable {
         self.isAccessibilityTrusted = Self.checkAccessibility(prompt: false)
 
         // 1. In-app local event monitor for immediate foreground responsiveness & key recording
-        localMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .keyUp, .flagsChanged]) { [weak self] event in
+        localMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .keyUp, .flagsChanged, .otherMouseDown, .otherMouseUp]) { [weak self] event in
             guard let self = self else { return event }
             if self.isRecordingKeybind {
                 self.recordEvent(event)
                 return nil // Prevent key combinations from triggering menu shortcuts or typing during recording
             }
-            self.handleNSEvent(event)
+            if self.eventTap == nil { self.handleNSEvent(event) }
             return event
         }
 
         // 2. Global background event monitor (fallback when CGEventTap is not yet initialized)
-        globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.keyDown, .keyUp, .flagsChanged]) { [weak self] event in
+        globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.keyDown, .keyUp, .flagsChanged, .otherMouseDown, .otherMouseUp]) { [weak self] event in
             guard let self = self else { return }
             // If the event tap is active, avoid duplicate processing from the global monitor
             if self.eventTap != nil { return }
@@ -496,7 +508,9 @@ public final class GlobalPTT: @unchecked Sendable {
     private func setupEventTap() {
         let mask: CGEventMask = (1 << CGEventType.keyDown.rawValue) |
                                 (1 << CGEventType.keyUp.rawValue) |
-                                (1 << CGEventType.flagsChanged.rawValue)
+                                (1 << CGEventType.flagsChanged.rawValue) |
+                                (1 << CGEventType.otherMouseDown.rawValue) |
+                                (1 << CGEventType.otherMouseUp.rawValue)
 
         let selfPtr = Unmanaged.passUnretained(self).toOpaque()
 
@@ -506,24 +520,25 @@ public final class GlobalPTT: @unchecked Sendable {
             options: .listenOnly,
             eventsOfInterest: mask,
             callback: { proxy, type, event, refcon -> Unmanaged<CGEvent>? in
-                guard let refcon = refcon else { return Unmanaged.passRetained(event) }
+                guard let refcon = refcon else { return Unmanaged.passUnretained(event) }
                 let ptt = Unmanaged<GlobalPTT>.fromOpaque(refcon).takeUnretainedValue()
 
                 if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-                    if let tapPort = ptt.eventTap {
+                    if let tapPort = ptt.eventTap, SettingsState.shared.enableGlobalShortcuts {
                         CGEvent.tapEnable(tap: tapPort, enable: true)
                     }
-                    return Unmanaged.passRetained(event)
+                    return Unmanaged.passUnretained(event)
                 }
 
-                let keyCode = UInt16(event.getIntegerValueField(.keyboardEventKeycode))
+                let mouse = type == .otherMouseDown || type == .otherMouseUp
+                let keyCode = mouse ? UInt16(1000 + event.getIntegerValueField(.mouseEventButtonNumber)) : UInt16(event.getIntegerValueField(.keyboardEventKeycode))
                 let flags = UInt(event.flags.rawValue)
                 let isModifier = (type == .flagsChanged)
                 let isDown: Bool
                 if isModifier {
                     isDown = PTTKeybind.isModifierDown(keyCode: keyCode, modifierFlags: flags)
                 } else {
-                    isDown = (type == .keyDown)
+                    isDown = (type == .keyDown || type == .otherMouseDown)
                 }
 
                 DispatchQueue.main.async {
@@ -534,7 +549,7 @@ public final class GlobalPTT: @unchecked Sendable {
                         isModifierEvent: isModifier
                     )
                 }
-                return Unmanaged.passRetained(event)
+                return Unmanaged.passUnretained(event)
             },
             userInfo: selfPtr
         )
@@ -553,16 +568,17 @@ public final class GlobalPTT: @unchecked Sendable {
 
     private func handleNSEvent(_ event: NSEvent) {
         let isModifier = (event.type == .flagsChanged)
+        let mouse = event.type == .otherMouseDown || event.type == .otherMouseUp
         let flags = UInt(event.modifierFlags.rawValue)
         let isDown: Bool
         if isModifier {
             isDown = PTTKeybind.isModifierDown(keyCode: event.keyCode, modifierFlags: flags)
         } else {
-            isDown = (event.type == .keyDown)
+            isDown = (event.type == .keyDown || event.type == .otherMouseDown)
         }
 
         handleKeyEvent(
-            keyCode: event.keyCode,
+            keyCode: mouse ? UInt16(1000 + event.buttonNumber) : event.keyCode,
             modifierFlags: flags,
             isDown: isDown,
             isModifierEvent: isModifier
@@ -580,7 +596,11 @@ public final class GlobalPTT: @unchecked Sendable {
 
     private func handleKeyEvent(keyCode: UInt16, modifierFlags: UInt, isDown: Bool, isModifierEvent: Bool) {
         // Do not process global shortcuts while actively recording a new keybind
-        if isRecordingKeybind { return }
+        if isRecordingKeybind || !SettingsState.shared.enableGlobalShortcuts { return }
+        if keyCode >= 1000 && !SettingsState.shared.handleSideMouseButtons { return }
+        let firstPress = isDown ? pressedKeys.insert(keyCode).inserted : false
+        if !isDown { pressedKeys.remove(keyCode) }
+        handleAdvancedShortcuts(keyCode: keyCode, flags: modifierFlags, down: isDown, firstPress: firstPress)
 
         // 1. Push-to-Talk Handling
         if let engine = audioEngine, engine.isPushToTalk {
@@ -634,7 +654,7 @@ public final class GlobalPTT: @unchecked Sendable {
         // 3. Global Toggles (on key down or standalone modifier press)
         if isModifierEvent {
             let active = PTTKeybind.isModifierDown(keyCode: keyCode, modifierFlags: modifierFlags)
-            if active {
+            if active && firstPress {
                 if let muteKey = muteToggleKeybind, muteKey.isModifierKey && muteKey.keyCode == keyCode {
                     if !shouldDebounce(action: .mute) {
                         onToggleMute?()
@@ -649,7 +669,7 @@ public final class GlobalPTT: @unchecked Sendable {
                     }
                 }
             }
-        } else if isDown {
+        } else if firstPress {
             if let muteKey = muteToggleKeybind, muteKey.matches(keyCode: keyCode, modifierFlags: modifierFlags) {
                 if !shouldDebounce(action: .mute) {
                     onToggleMute?()
@@ -666,7 +686,42 @@ public final class GlobalPTT: @unchecked Sendable {
         }
     }
 
+    private func handleAdvancedShortcuts(keyCode: UInt16, flags: UInt, down: Bool, firstPress: Bool) {
+        guard let store = activeStore else { return }
+        let preferences = ClientPreferences.shared
+        for item in preferences.shortcuts {
+            if (item.command == .joinChannel || item.command == .toggleListening) && item.serverKey != store.serverPreferenceKey { continue }
+            guard let key = item.shortcut, key.keyCode == keyCode,
+                  !down || key.matches(keyCode: keyCode, modifierFlags: flags) else { continue }
+            switch item.command {
+            case .pushToMute: store.audioEngine.setTemporaryMute(down)
+            case .toggleTransmission:
+                if firstPress { latchedTransmission.toggle(); store.audioEngine.setPushToTalkActive(latchedTransmission) }
+            case .joinChannel: if firstPress { store.joinChannel(channelId: item.channelId) }
+            case .toggleListening: if firstPress { store.client.setChannelListening(channelId: item.channelId, listening: !store.isListening(to: item.channelId)) }
+            }
+        }
+        for (index, preset) in preferences.whisperPresets.prefix(28).enumerated() {
+            if down && !firstPress { continue }
+            guard preset.serverKey == store.serverPreferenceKey else { continue }
+            guard let key = preset.shortcut, key.keyCode == keyCode,
+                  !down || key.matches(keyCode: keyCode, modifierFlags: flags) else { continue }
+            let id = UInt32(index + 3)
+            if down {
+                let sessions = store.users.filter { $0.certHash.map(preset.userHashes.contains) == true }.map(\.sessionId)
+                store.client.setVoiceTarget(config: VoiceTargetConfig(id: id, sessions: sessions, channelId: preset.channelId,
+                    group: preset.group.isEmpty ? nil : preset.group, links: preset.links, children: preset.children))
+            }
+            store.setWhispering(down, targetId: UInt8(id)); store.audioEngine.setPushToTalkActive(down)
+        }
+    }
+
     private func recordEvent(_ event: NSEvent) {
+        if event.type == .otherMouseDown && SettingsState.shared.handleSideMouseButtons {
+            let code = UInt16(1000 + event.buttonNumber)
+            if let action = activeRecordingAction { applyRecordedKeybind(PTTKeybind(keyCode: code, displayString: "Mouse \(event.buttonNumber + 1)"), for: action) }
+            activeRecordingAction = nil; return
+        }
         guard let action = activeRecordingAction else { return }
 
         let currentModifiers = UInt(event.modifierFlags.rawValue) & PTTKeybind.relevantModifierMask
@@ -696,6 +751,7 @@ public final class GlobalPTT: @unchecked Sendable {
         if event.type == .keyDown {
             // 1. Escape with no modifiers cancels recording
             if event.keyCode == 53 && currentModifiers == 0 {
+                if action == .custom { customRecorder = nil }
                 self.activeRecordingAction = nil
                 self.recordedModifiers = 0
                 self.lastModifierKeyCode = nil
@@ -722,6 +778,7 @@ public final class GlobalPTT: @unchecked Sendable {
 
     private func applyRecordedKeybind(_ keybind: PTTKeybind?, for action: KeybindAction) {
         switch action {
+        case .custom: customRecorder?(keybind); customRecorder = nil
         case .ptt:
             self.currentKeybind = keybind ?? .defaultGrave
         case .whisper:

@@ -1,6 +1,6 @@
+use hickory_resolver::TokioResolver;
 use std::net::IpAddr;
 use std::sync::OnceLock;
-use hickory_resolver::TokioResolver;
 
 #[derive(uniffi::Record, Debug, Clone, PartialEq, Eq)]
 pub struct ResolvedEndpoint {
@@ -15,7 +15,10 @@ fn get_resolver() -> &'static TokioResolver {
         TokioResolver::builder_tokio()
             .and_then(|b| b.build())
             .unwrap_or_else(|e| {
-                eprintln!("[Swimble DNS] Failed to load system DNS config: {}, using default", e);
+                eprintln!(
+                    "[Swimble DNS] Failed to load system DNS config: {}, using default",
+                    e
+                );
                 TokioResolver::builder_with_config(
                     hickory_resolver::config::ResolverConfig::default(),
                     hickory_resolver::net::runtime::TokioRuntimeProvider::default(),
@@ -136,9 +139,25 @@ fn sort_srv_records(mut entries: Vec<SrvEntry>) -> Vec<SrvEntry> {
             i += 1;
         }
 
-        // Within the same priority group, sort by weight descending
-        group.sort_by(|a, b| b.weight.cmp(&a.weight));
-        result.extend(group);
+        // RFC 2782 selects by weight without replacement; a deterministic
+        // descending sort would send every client to the same endpoint.
+        while !group.is_empty() {
+            let sum: u32 = group.iter().map(|entry| entry.weight as u32).sum();
+            let selected = if sum == 0 {
+                rand::random_range(0..group.len())
+            } else {
+                let draw = rand::random_range(1..=sum);
+                let mut cumulative = 0;
+                group
+                    .iter()
+                    .position(|entry| {
+                        cumulative += entry.weight as u32;
+                        cumulative >= draw
+                    })
+                    .unwrap_or(0)
+            };
+            result.push(group.remove(selected));
+        }
     }
 
     result
@@ -159,7 +178,11 @@ pub async fn resolve_mumble_srv(host: String, port: u16) -> ResolvedEndpoint {
     });
     match handle.await {
         Ok(res) => res,
-        Err(_) => ResolvedEndpoint { host, port, is_srv: false },
+        Err(_) => ResolvedEndpoint {
+            host,
+            port,
+            is_srv: false,
+        },
     }
 }
 
@@ -170,15 +193,31 @@ mod tests {
     #[test]
     fn test_sort_srv_records_rfc2782() {
         let entries = vec![
-            SrvEntry { priority: 20, weight: 10, port: 64740, target: "backup.example.com".into() },
-            SrvEntry { priority: 10, weight: 5, port: 64738, target: "primary-low.example.com".into() },
-            SrvEntry { priority: 10, weight: 20, port: 64739, target: "primary-high.example.com".into() },
+            SrvEntry {
+                priority: 20,
+                weight: 10,
+                port: 64740,
+                target: "backup.example.com".into(),
+            },
+            SrvEntry {
+                priority: 10,
+                weight: 5,
+                port: 64738,
+                target: "primary-low.example.com".into(),
+            },
+            SrvEntry {
+                priority: 10,
+                weight: 20,
+                port: 64739,
+                target: "primary-high.example.com".into(),
+            },
         ];
 
         let sorted = sort_srv_records(entries);
         assert_eq!(sorted.len(), 3);
-        assert_eq!(sorted[0].target, "primary-high.example.com");
-        assert_eq!(sorted[1].target, "primary-low.example.com");
+        assert_eq!(sorted[0].priority, 10);
+        assert_eq!(sorted[1].priority, 10);
+        assert_ne!(sorted[0].target, sorted[1].target);
         assert_eq!(sorted[2].target, "backup.example.com");
     }
 

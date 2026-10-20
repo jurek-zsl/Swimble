@@ -68,3 +68,6 @@ xcuserdata/
 *.log
 *.crash
 *.dmp
+
+# Python packaging helpers
+__pycache__/

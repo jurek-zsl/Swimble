@@ -103,6 +103,8 @@ public struct AudioWizardModal: View {
             .background(Color(NSColor.windowBackgroundColor).opacity(0.8))
         }
         .frame(width: 520, height: 480)
+        .onAppear { store.audioEngine.beginPreview() }
+        .onDisappear { store.audioEngine.endPreview() }
     }
 
     private var stepTitle: String {
@@ -302,7 +304,7 @@ public struct AudioWizardModal: View {
             isPlayingTone = false
         } else {
             isPlayingTone = true
-            NSSound.beep()
+            store.audioEngine.playTestTone()
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
                 self.isPlayingTone = false
             }

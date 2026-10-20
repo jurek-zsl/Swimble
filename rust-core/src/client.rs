@@ -1,27 +1,26 @@
-use std::collections::HashSet;
+use prost::Message;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::io::AsyncWriteExt;
 use tokio::net::UdpSocket;
 use tokio::sync::{mpsc, watch};
-use prost::Message;
 
 use crate::audio_mixer::AudioMixer;
 use crate::connection::connect_tls;
 use crate::crypt_ocb2::CryptStateOCB2;
 use crate::framing::{
-    read_packet, write_raw_packet,
-    TYPE_AUTHENTICATE, TYPE_BAN_LIST, TYPE_CHANNEL_REMOVE, TYPE_CHANNEL_STATE, TYPE_CRYPT_SETUP,
-    TYPE_PERMISSION_DENIED, TYPE_PERMISSION_QUERY, TYPE_PING, TYPE_REJECT, TYPE_REQUEST_BLOB,
-    TYPE_SERVER_CONFIG, TYPE_SERVER_SYNC,
-    TYPE_TEXT_MESSAGE, TYPE_UDP_TUNNEL, TYPE_USER_LIST, TYPE_USER_REMOVE, TYPE_USER_STATE,
-    TYPE_USER_STATS, TYPE_VERSION, TYPE_VOICE_TARGET,
+    read_packet, write_raw_packet, TYPE_ACL, TYPE_AUTHENTICATE, TYPE_BAN_LIST, TYPE_CHANNEL_REMOVE,
+    TYPE_CHANNEL_STATE, TYPE_CRYPT_SETUP, TYPE_PERMISSION_DENIED, TYPE_PERMISSION_QUERY, TYPE_PING,
+    TYPE_REJECT, TYPE_REQUEST_BLOB, TYPE_SERVER_CONFIG, TYPE_SERVER_SYNC, TYPE_TEXT_MESSAGE,
+    TYPE_UDP_TUNNEL, TYPE_USER_LIST, TYPE_USER_REMOVE, TYPE_USER_STATE, TYPE_USER_STATS,
+    TYPE_VERSION, TYPE_VOICE_TARGET,
 };
 use crate::proto;
 use crate::state::ClientState;
 use crate::voice_packet::{
-    decode_server_voice, decode_udp_ping_reply, encode_client_voice, encode_udp_ping,
+    decode_server_voice, decode_udp_ping_reply, encode_client_voice_versioned,
+    encode_udp_ping_versioned,
 };
 use crate::{
     BanEntryInfo, ChannelInfo, ChatMessage, ConnectionStatus, MumbleEventHandler, PacketStats,
@@ -83,14 +82,9 @@ impl TokioRunner {
                 _runtime: None,
             }
         } else {
-            let rt = tokio::runtime::Builder::new_multi_thread()
-                .enable_all()
-                .build()
-                .expect("Failed to build Tokio runtime");
-            let handle = rt.handle().clone();
             Self {
-                handle,
-                _runtime: Some(rt),
+                handle: crate::ping::get_tokio_runtime().handle().clone(),
+                _runtime: None,
             }
         }
     }
@@ -107,6 +101,7 @@ impl TokioRunner {
 pub enum OutgoingCommand {
     Proto(u16, Vec<u8>),
     Disconnect,
+    Flush(tokio::sync::oneshot::Sender<()>),
 }
 
 #[derive(uniffi::Object)]
@@ -116,9 +111,9 @@ pub struct MumbleClient {
     command_tx: Arc<RwLock<Option<mpsc::Sender<OutgoingCommand>>>>,
     voice_tx: Arc<RwLock<Option<mpsc::Sender<Vec<u8>>>>>,
     shutdown_tx: Arc<RwLock<Option<watch::Sender<bool>>>>,
-    runner: Arc<TokioRunner>,
-    audio_mixer: Arc<Mutex<AudioMixer>>,
-    speaker_consumer: Arc<Mutex<rtrb::Consumer<f32>>>,
+    pub(crate) runner: Arc<TokioRunner>,
+    pub(crate) audio_mixer: Arc<Mutex<AudioMixer>>,
+    pub(crate) speaker_consumer: Arc<Mutex<rtrb::Consumer<f32>>>,
     last_udp_ping_received: Arc<RwLock<Instant>>,
     crypt_state: Arc<Mutex<Option<CryptStateOCB2>>>,
     tokens: Arc<RwLock<Vec<String>>>,
@@ -126,14 +121,21 @@ pub struct MumbleClient {
     tcp_packets_sent: Arc<AtomicU32>,
     udp_packets_sent: Arc<AtomicU32>,
     self_priority_transmitting: Arc<AtomicBool>,
+    modern_voice: Arc<AtomicBool>,
+    force_tcp: Arc<AtomicBool>,
+    hide_os: AtomicBool,
+    os_version: RwLock<String>,
+    pub(crate) audio_port: Arc<crate::audio_io::AudioPort>,
+    audio_worker_started: AtomicBool,
 }
 
 #[uniffi::export]
 impl MumbleClient {
     #[uniffi::constructor]
     pub fn new(handler: Box<dyn MumbleEventHandler>) -> Arc<Self> {
-        let (speaker_producer, speaker_consumer) = rtrb::RingBuffer::<f32>::new(48000 * 2);
-        let audio_mixer = AudioMixer::new(speaker_producer).expect("Failed to initialize AudioMixer");
+        let (speaker_producer, speaker_consumer) = rtrb::RingBuffer::<f32>::new(48000 / 5 * 2);
+        let audio_mixer =
+            AudioMixer::new(speaker_producer).expect("Failed to initialize AudioMixer");
 
         Arc::new(Self {
             handler: handler.into(),
@@ -145,7 +147,9 @@ impl MumbleClient {
             audio_mixer: Arc::new(Mutex::new(audio_mixer)),
             speaker_consumer: Arc::new(Mutex::new(speaker_consumer)),
             last_udp_ping_received: Arc::new(RwLock::new(
-                Instant::now().checked_sub(Duration::from_secs(60)).unwrap_or_else(Instant::now),
+                Instant::now()
+                    .checked_sub(Duration::from_secs(60))
+                    .unwrap_or_else(Instant::now),
             )),
             crypt_state: Arc::new(Mutex::new(None)),
             tokens: Arc::new(RwLock::new(Vec::new())),
@@ -153,6 +157,12 @@ impl MumbleClient {
             tcp_packets_sent: Arc::new(AtomicU32::new(0)),
             udp_packets_sent: Arc::new(AtomicU32::new(0)),
             self_priority_transmitting: Arc::new(AtomicBool::new(false)),
+            modern_voice: Arc::new(AtomicBool::new(true)),
+            force_tcp: Arc::new(AtomicBool::new(false)),
+            hide_os: AtomicBool::new(false),
+            os_version: RwLock::new(String::new()),
+            audio_port: crate::audio_io::AudioPort::new(),
+            audio_worker_started: AtomicBool::new(false),
         })
     }
 
@@ -164,6 +174,7 @@ impl MumbleClient {
         password: Option<String>,
         client_cert_pem: Option<String>,
         client_key_pem: Option<String>,
+        trusted_fingerprint: Option<String>,
     ) {
         self.disconnect();
 
@@ -181,13 +192,16 @@ impl MumbleClient {
 
         *self.command_tx.write().unwrap() = Some(cmd_tx.clone());
         *self.voice_tx.write().unwrap() = Some(voice_tx);
-        *self.shutdown_tx.write().unwrap() = Some(shutdown_tx);
+        *self.shutdown_tx.write().unwrap() = Some(shutdown_tx.clone());
+        let connection_shutdown = shutdown_tx;
         *self.crypt_state.lock().unwrap() = None;
-        *self.last_udp_ping_received.write().unwrap() =
-            Instant::now().checked_sub(Duration::from_secs(60)).unwrap_or_else(Instant::now);
+        *self.last_udp_ping_received.write().unwrap() = Instant::now()
+            .checked_sub(Duration::from_secs(60))
+            .unwrap_or_else(Instant::now);
         self.tcp_packets_sent.store(0, Ordering::Relaxed);
         self.udp_packets_sent.store(0, Ordering::Relaxed);
-        self.self_priority_transmitting.store(false, Ordering::Relaxed);
+        self.self_priority_transmitting
+            .store(false, Ordering::Relaxed);
 
         let state_arc = Arc::clone(&self.state);
         let handler_arc = Arc::clone(&self.handler);
@@ -200,25 +214,41 @@ impl MumbleClient {
         let self_priority_for_udp = Arc::clone(&self.self_priority_transmitting);
         let self_priority_for_tcp = Arc::clone(&self.self_priority_transmitting);
 
+        let modern_voice = Arc::clone(&self.modern_voice);
+        modern_voice.store(true, Ordering::Relaxed);
+
         let initial_tokens = self.tokens.read().unwrap().clone();
+        let force_tcp = Arc::clone(&self.force_tcp);
+        let hide_os = self.hide_os.load(Ordering::Relaxed);
+        let os_version = self.os_version.read().unwrap().clone();
 
         self.runner.spawn(async move {
-            let endpoints = crate::dns::resolve_mumble_endpoints(&host, port).await;
+            let endpoints = tokio::select! {
+                _ = shutdown_rx.changed() => return,
+                endpoints = crate::dns::resolve_mumble_endpoints(&host, port) => endpoints,
+            };
             let mut last_tls_error = None;
             let mut connected_stream = None;
             let mut connected_host = host.clone();
             let mut connected_port = port;
 
+            let identity_failure = Arc::new(Mutex::new(None));
             for ep in endpoints {
                 if ep.is_srv {
                     println!("[Swimble] Connecting via DNS SRV target: {}:{}", ep.host, ep.port);
                 }
-                match connect_tls(
+                let attempt = tokio::select! {
+                    _ = shutdown_rx.changed() => return,
+                    result = tokio::time::timeout(Duration::from_secs(12), connect_tls(
                     &ep.host,
                     ep.port,
                     client_cert_pem.as_deref(),
                     client_key_pem.as_deref(),
-                ).await {
+                    &host, port, trusted_fingerprint.clone(), Arc::clone(&identity_failure),
+                )) => result.unwrap_or_else(|_| Err(std::io::Error::new(std::io::ErrorKind::TimedOut, "TLS connection timed out"))),
+                };
+                if *shutdown_rx.borrow() { return; }
+                match attempt {
                     Ok(s) => {
                         connected_host = ep.host;
                         connected_port = ep.port;
@@ -226,6 +256,13 @@ impl MumbleClient {
                         break;
                     }
                     Err(e) => {
+                        let challenge = identity_failure.lock().unwrap().take();
+                        if let Some(challenge) = challenge {
+                            handler_arc.on_server_identity_challenge(challenge);
+                            state_arc.write().unwrap().connection_status = ConnectionStatus::Failed;
+                            handler_arc.on_connection_status_changed(ConnectionStatus::Failed);
+                            return;
+                        }
                         last_tls_error = Some(e);
                     }
                 }
@@ -258,9 +295,9 @@ impl MumbleClient {
             let version = proto::Version {
                 version_v1: Some((1 << 16) | (5 << 8) | 0), // 1.5.0
                 version_v2: Some((1 << 48) | (5 << 32) | 0),
-                release: Some("Swimble 1.0.0".to_string()),
-                os: Some("macOS".to_string()),
-                os_version: Some("26.0".to_string()),
+                release: Some(format!("Swimble {}", env!("CARGO_PKG_VERSION"))),
+                os: (!hide_os).then(|| "macOS".to_string()),
+                os_version: (!hide_os).then_some(os_version),
             };
             if let Err(e) =
                 write_raw_packet(&mut writer, TYPE_VERSION, &version.encode_to_vec()).await
@@ -318,14 +355,23 @@ impl MumbleClient {
 
             // Talking timeout checker: runs every 100ms
             let mixer_timeout = Arc::clone(&mixer_arc);
+            let cmd_tx_link = cmd_tx.clone();
             let handler_timeout = Arc::clone(&handler_arc);
             let state_timeout = Arc::clone(&state_arc);
             let mut timeout_shutdown_rx = shutdown_rx.clone();
             runner_arc.spawn(async move {
                 let mut interval = tokio::time::interval(Duration::from_millis(100));
+                let mut last_context = (Vec::new(), String::new());
                 loop {
                     tokio::select! {
                         _ = interval.tick() => {
+                            let link_data = mixer_timeout.lock().unwrap().poll_link().unwrap_or_default();
+                            if link_data != last_context {
+                                let update = proto::UserState { plugin_context: Some(link_data.0.clone()),
+                                    plugin_identity: Some(link_data.1.clone()), ..Default::default() };
+                                let _ = cmd_tx_link.send(OutgoingCommand::Proto(TYPE_USER_STATE, update.encode_to_vec())).await;
+                                last_context = link_data;
+                            }
                             let events = {
                                 if let Ok(mut mixer) = mixer_timeout.lock() {
                                     mixer.check_talking_timeouts()
@@ -360,6 +406,9 @@ impl MumbleClient {
                                         break;
                                     }
                                 }
+                                Some(OutgoingCommand::Flush(reply)) => {
+                                    let _ = writer.flush().await; let _ = reply.send(());
+                                }
                                 Some(OutgoingCommand::Disconnect) | None => {
                                     let _ = writer.shutdown().await;
                                     break;
@@ -388,6 +437,7 @@ impl MumbleClient {
             let crypt_voice = Arc::clone(&crypt_arc);
             let udp_sent_voice = Arc::clone(&udp_sent_arc);
             let mut voice_shutdown_rx = shutdown_rx.clone();
+            let force_tcp_voice = Arc::clone(&force_tcp);
 
             runner_arc.spawn(async move {
                 loop {
@@ -402,7 +452,7 @@ impl MumbleClient {
                             let maybe_udp = udp_holder_clone.read().unwrap().clone();
 
                             let mut sent_via_udp = false;
-                            if is_udp_active {
+                            if is_udp_active && !force_tcp_voice.load(Ordering::Relaxed) {
                                 if let Some(ref udp) = maybe_udp {
                                     let crypted_opt = {
                                         if let Some(ref mut crypt) = *crypt_voice.lock().unwrap() {
@@ -444,6 +494,7 @@ impl MumbleClient {
                         let packet = match packet_res {
                             Ok(p) => p,
                             Err(e) => {
+                                { let mut state = state_arc.write().unwrap(); if state.reconnect_allowed { state.disconnect_reason = format!("Connection closed: {e}"); } }
                                 eprintln!("Mumble read error or disconnect: {:?}", e);
                                 break;
                             }
@@ -459,6 +510,7 @@ impl MumbleClient {
                                         state.is_synced = true;
                                         if let Some(max_band) = sync.max_bandwidth {
                                             state.server_info.max_bandwidth_kbps = max_band / 1000;
+                                            mixer_arc.lock().unwrap().set_server_bandwidth(max_band);
                                         }
                                         if let Some(ref welcome) = sync.welcome_text {
                                             if !welcome.is_empty() {
@@ -758,6 +810,12 @@ impl MumbleClient {
                             }
                             TYPE_USER_REMOVE => {
                                 if let Ok(uremove) = proto::UserRemove::decode(&packet.payload[..]) {
+                                    { let mut state = state_arc.write().unwrap();
+                                      if state.my_session == Some(uremove.session) {
+                                        state.reconnect_allowed = false;
+                                        state.disconnect_reason = format!("{}: {}", if uremove.ban.unwrap_or(false) { "Banned" } else { "Kicked" }, uremove.reason.clone().unwrap_or_default());
+                                      }
+                                    }
                                     let (removed_user_name, is_self, is_actor_self) = {
                                         let state = state_arc.read().unwrap();
                                         let name = state.users.get(&uremove.session).map(|u| u.name.clone()).unwrap_or_else(|| "User".to_string());
@@ -870,6 +928,9 @@ impl MumbleClient {
                             }
                             TYPE_VERSION => {
                                 if let Ok(ver) = proto::Version::decode(&packet.payload[..]) {
+                                    let supports_modern = ver.version_v2.map(|v| v >= (1u64<<48 | 5u64<<32))
+                                        .unwrap_or_else(|| ver.version_v1.is_some_and(|v| v >= 0x10500));
+                                    modern_voice.store(supports_modern, Ordering::Relaxed);
                                     let info = {
                                         let mut state = state_arc.write().unwrap();
                                         if let Some(rel) = ver.release {
@@ -894,6 +955,7 @@ impl MumbleClient {
                                         let mut state = state_arc.write().unwrap();
                                         if let Some(max_band) = cfg.max_bandwidth {
                                             state.server_info.max_bandwidth_kbps = max_band / 1000;
+                                            mixer_arc.lock().unwrap().set_server_bandwidth(max_band);
                                         }
                                         let new_welcome = if let Some(ref welcome) = cfg.welcome_text {
                                             let trimmed = welcome.trim();
@@ -946,7 +1008,7 @@ impl MumbleClient {
                                         ping.tcp_ping_avg.unwrap_or(0.0)
                                     };
                                     let udp_ms = ping.udp_ping_avg.unwrap_or(0.0);
-                                    let using_udp = last_udp_ping_arc.read().unwrap().elapsed() < Duration::from_secs(15);
+                                    let using_udp = !force_tcp.load(Ordering::Relaxed) && last_udp_ping_arc.read().unwrap().elapsed() < Duration::from_secs(15);
                                     handler_arc.on_ping_updated(tcp_ms, udp_ms, !using_udp);
 
                                     let info = {
@@ -967,6 +1029,17 @@ impl MumbleClient {
                             }
                             TYPE_CRYPT_SETUP => {
                                 if let Ok(setup) = proto::CryptSetup::decode(&packet.payload[..]) {
+                                    if setup.key.is_none() {
+                                        let reply = {
+                                            let mut guard = crypt_arc.lock().unwrap();
+                                            guard.as_mut().and_then(|crypt| {
+                                                if let Some(nonce) = setup.server_nonce.as_ref() {
+                                                    crypt.set_decrypt_nonce(nonce); None
+                                                } else { Some(proto::CryptSetup { client_nonce: Some(crypt.encrypt_nonce().to_vec()), ..Default::default() }) }
+                                            })
+                                        };
+                                        if let Some(reply) = reply { let _ = cmd_tx.send(OutgoingCommand::Proto(TYPE_CRYPT_SETUP, reply.encode_to_vec())).await; }
+                                    }
                                     if let (Some(key), Some(client_nonce), Some(server_nonce)) =
                                         (setup.key, setup.client_nonce, setup.server_nonce)
                                     {
@@ -975,9 +1048,9 @@ impl MumbleClient {
                                             *crypt_arc.lock().unwrap() = Some(crypt);
 
                                             // Setup non-blocking UDP socket connected to Murmur server
-                                            if let Ok(udp) = UdpSocket::bind("0.0.0.0:0").await {
-                                                let target_addr = format!("{}:{}", host_for_udp, port_for_udp);
-                                                if udp.connect(&target_addr).await.is_ok() {
+                                            if let Ok(peer) = tokio::net::lookup_host((host_for_udp.as_str(), port_for_udp)).await.and_then(|mut addresses| addresses.next().ok_or_else(|| std::io::Error::other("No UDP endpoint"))) {
+                                              if let Ok(udp) = UdpSocket::bind(if peer.is_ipv6() { "[::]:0" } else { "0.0.0.0:0" }).await {
+                                                if udp.connect(peer).await.is_ok() {
                                                     let udp_shared = Arc::new(udp);
                                                     *udp_socket_holder.write().unwrap() = Some(Arc::clone(&udp_shared));
 
@@ -986,17 +1059,20 @@ impl MumbleClient {
                                                     let crypt_ping = Arc::clone(&crypt_arc);
                                                     let udp_sent_ping = Arc::clone(&udp_sent_arc);
                                                     let mut udp_shutdown_rx = shutdown_rx.clone();
+                                                    let modern_ping = modern_voice.load(Ordering::Relaxed);
+                                                    let force_tcp_ping = Arc::clone(&force_tcp);
 
                                                     runner_arc.spawn(async move {
                                                         let mut interval = tokio::time::interval(Duration::from_secs(5));
                                                         loop {
                                                             tokio::select! {
                                                                 _ = interval.tick() => {
+                                                                    if force_tcp_ping.load(Ordering::Relaxed) { continue; }
                                                                     let ts = SystemTime::now()
                                                                         .duration_since(UNIX_EPOCH)
                                                                         .unwrap_or_default()
                                                                         .as_micros() as u64;
-                                                                    let ping_bytes = encode_udp_ping(ts);
+                                                                    let ping_bytes = encode_udp_ping_versioned(ts, modern_ping);
                                                                     let mut encrypted = vec![0u8; ping_bytes.len() + 4];
                                                                     let crypted = {
                                                                         if let Some(ref mut c) = *crypt_ping.lock().unwrap() {
@@ -1027,10 +1103,13 @@ impl MumbleClient {
                                                     let handler_recv = Arc::clone(&handler_arc);
                                                     let self_priority_recv = Arc::clone(&self_priority_for_udp);
                                                     let mut udp_recv_shutdown_rx = shutdown_rx.clone();
+                                                    let cmd_tx_resync = cmd_tx.clone();
 
                                                     runner_arc.spawn(async move {
                                                         let mut buf = [0u8; 2048];
                                                         let mut plain = [0u8; 2048];
+                                                        let mut last_resync = Instant::now();
+                                                        let mut last_good = Instant::now();
                                                         loop {
                                                             tokio::select! {
                                                                 recv_res = udp_recv_sock.recv(&mut buf) => {
@@ -1045,13 +1124,18 @@ impl MumbleClient {
                                                                             None
                                                                         }
                                                                     };
+                                                                    if decrypted.is_none() && last_good.elapsed() > Duration::from_secs(5) && last_resync.elapsed() > Duration::from_secs(5) {
+                                                                        let _ = cmd_tx_resync.send(OutgoingCommand::Proto(TYPE_CRYPT_SETUP, proto::CryptSetup::default().encode_to_vec())).await;
+                                                                        last_resync = Instant::now();
+                                                                    }
                                                                     if let Some(plain_len) = decrypted {
+                                                                        last_good = Instant::now();
                                                                         let packet_data = &plain[..plain_len];
                                                                         if packet_data.is_empty() {
                                                                             continue;
                                                                         }
                                                                         let packet_type = (packet_data[0] >> 5) & 0x07;
-                                                                        if packet_type == 1 {
+                                                                        if packet_data[0] == 1 || packet_type == 1 {
                                                                             // UDP Ping reply
                                                                             if let Ok(reply) = decode_udp_ping_reply(packet_data) {
                                                                                 *last_ping_recv.write().unwrap() = Instant::now();
@@ -1066,23 +1150,14 @@ impl MumbleClient {
                                                                                 };
                                                                                 handler_recv.on_ping_updated(0.0, udp_ms, false);
                                                                             }
-                                                                        } else if packet_type == 4 {
+                                                                        } else if packet_data[0] == 0 || packet_type == 4 {
                                                                             // Opus Voice packet over UDP
                                                                             if let Ok(voice_pkt) = decode_server_voice(packet_data) {
-                                                                                let (volumes, priority_speakers) = {
-                                                                                    let state = state_recv.read().unwrap();
-                                                                                    let prio = state
-                                                                                        .users
-                                                                                        .values()
-                                                                                        .filter(|u| u.is_priority_speaker)
-                                                                                        .map(|u| u.session_id)
-                                                                                        .collect::<HashSet<u32>>();
-                                                                                    (state.user_volumes.clone(), prio)
-                                                                                };
+                                                                                let (volume, priority) = { let state = state_recv.read().unwrap(); (state.user_volumes.get(&voice_pkt.session_id).copied().unwrap_or(1.0), state.users.get(&voice_pkt.session_id).is_some_and(|u| u.is_priority_speaker)) };
                                                                                 let self_priority_talking = self_priority_recv.load(Ordering::Relaxed);
                                                                                 let talking_change = {
                                                                                     if let Ok(mut mixer) = mixer_recv.lock() {
-                                                                                        mixer.process_incoming_voice(voice_pkt, &volumes, &priority_speakers, self_priority_talking)
+                                                                                        mixer.process_incoming_voice(voice_pkt, volume, priority, self_priority_talking)
                                                                                     } else {
                                                                                         None
                                                                                     }
@@ -1107,23 +1182,15 @@ impl MumbleClient {
                                     }
                                 }
                             }
+                            }
                             TYPE_UDP_TUNNEL => {
                                 // Raw voice packet tunneled through TCP
                                 if let Ok(voice_pkt) = decode_server_voice(&packet.payload) {
-                                    let (volumes, priority_speakers) = {
-                                        let state = state_arc.read().unwrap();
-                                        let prio = state
-                                            .users
-                                            .values()
-                                            .filter(|u| u.is_priority_speaker)
-                                            .map(|u| u.session_id)
-                                            .collect::<HashSet<u32>>();
-                                        (state.user_volumes.clone(), prio)
-                                    };
+                                    let (volume, priority) = { let state = state_arc.read().unwrap(); (state.user_volumes.get(&voice_pkt.session_id).copied().unwrap_or(1.0), state.users.get(&voice_pkt.session_id).is_some_and(|u| u.is_priority_speaker)) };
                                     let self_priority_talking = self_priority_for_tcp.load(Ordering::Relaxed);
                                     let talking_change = {
                                         if let Ok(mut mixer) = mixer_arc.lock() {
-                                            mixer.process_incoming_voice(voice_pkt, &volumes, &priority_speakers, self_priority_talking)
+                                            mixer.process_incoming_voice(voice_pkt, volume, priority, self_priority_talking)
                                         } else {
                                             None
                                         }
@@ -1238,8 +1305,8 @@ impl MumbleClient {
                                     let users = state_arc.read().unwrap().users_list();
                                     handler_arc.on_users_updated(users);
 
-                                    // If permission denied was for a specific channel, mark it as locked
-                                    if let Some(cid) = denied.channel_id {
+                                    // Only denied Enter permission means that the channel is locked.
+                                    if let Some(cid) = denied.channel_id.filter(|_| is_enter_perm) {
                                         let mut updated = false;
                                         {
                                             let mut state = state_arc.write().unwrap();
@@ -1256,26 +1323,45 @@ impl MumbleClient {
                                     }
                                 }
                             }
+                            TYPE_ACL => {
+                                if let Ok(acl) = proto::Acl::decode(&packet.payload[..]) {
+                                    handler_arc.on_channel_acl_received(crate::ChannelAcl {
+                                        channel_id: acl.channel_id, inherit_acls: acl.inherit_acls.unwrap_or(true),
+                                        groups: acl.groups.into_iter().map(|g| crate::ChannelAclGroup {
+                                            name: g.name, inherited: g.inherited.unwrap_or(true),
+                                            inherit: g.inherit.unwrap_or(true), inheritable: g.inheritable.unwrap_or(true),
+                                            add: g.add, remove: g.remove, inherited_members: g.inherited_members,
+                                        }).collect(),
+                                        entries: acl.acls.into_iter().map(|a| crate::ChannelAclEntry {
+                                            apply_here: a.apply_here.unwrap_or(true), apply_subs: a.apply_subs.unwrap_or(true),
+                                            inherited: a.inherited.unwrap_or(true), user_id: a.user_id, group: a.group,
+                                            grant: a.grant.unwrap_or(0), deny: a.deny.unwrap_or(0),
+                                        }).collect(),
+                                    });
+                                }
+                            }
                             TYPE_PERMISSION_QUERY => {
                                 if let Ok(pq) = proto::PermissionQuery::decode(&packet.payload[..]) {
-                                    let mut trigger_channel_update = false;
-                                    if let (Some(cid), Some(perms)) = (pq.channel_id, pq.permissions) {
-                                        let can_enter = (perms & 0x4) != 0 || (perms & 0x1) != 0;
+                                    {
                                         let mut state = state_arc.write().unwrap();
-                                        if let Some(ch) = state.channels.get_mut(&cid) {
-                                            if !can_enter {
-                                                ch.is_enter_restricted = true;
-                                            }
-                                            if ch.can_enter != can_enter {
-                                                ch.can_enter = can_enter;
-                                                trigger_channel_update = true;
+                                        if pq.flush.unwrap_or(false) {
+                                            for ch in state.channels.values_mut() { ch.permissions = None; }
+                                        }
+                                        if let (Some(cid), Some(perms)) = (pq.channel_id, pq.permissions) {
+                                            if let Some(ch) = state.channels.get_mut(&cid) {
+                                                ch.permissions = Some(perms);
+                                                ch.can_enter = perms & (0x4 | 0x1) != 0;
                                             }
                                         }
                                     }
-                                    if trigger_channel_update {
-                                        let channels = state_arc.read().unwrap().channels_list();
-                                        handler_arc.on_channels_updated(channels);
+                                    let channels = state_arc.read().unwrap().channels_list();
+                                    if pq.flush.unwrap_or(false) {
+                                        for channel in &channels {
+                                            let query = proto::PermissionQuery { channel_id: Some(channel.id), ..Default::default() };
+                                            let _ = cmd_tx.try_send(OutgoingCommand::Proto(TYPE_PERMISSION_QUERY, query.encode_to_vec()));
+                                        }
                                     }
+                                    handler_arc.on_channels_updated(channels);
                                 }
                             }
                             TYPE_REJECT => {
@@ -1301,6 +1387,7 @@ impl MumbleClient {
                                     } else {
                                         reason_str
                                     };
+                                    { let mut state = state_arc.write().unwrap(); state.disconnect_reason = full_reason.clone(); state.reconnect_allowed = matches!(reject.r#type, Some(6) | Some(9)); }
                                     eprintln!("Mumble connection rejected: {}", full_reason);
                                     let timestamp = SystemTime::now()
                                         .duration_since(UNIX_EPOCH)
@@ -1486,7 +1573,11 @@ impl MumbleClient {
                 }
             }
 
+            let was_cancelled = *shutdown_rx.borrow();
+            let _ = connection_shutdown.send(true);
+            writer_handle.abort();
             let _ = writer_handle.await;
+            if was_cancelled { return; }
             let was_synced = {
                 let mut state = state_arc.write().unwrap();
                 let synced = state.is_synced;
@@ -1513,8 +1604,40 @@ impl MumbleClient {
         });
     }
 
+    pub fn clear_comment_and_disconnect(&self) {
+        let command = self.command_tx.read().unwrap().clone();
+        let shutdown = self.shutdown_tx.read().unwrap().clone();
+        if let Some(command) = command {
+            self.runner.spawn(async move {
+                let packet = proto::UserState {
+                    comment: Some(String::new()),
+                    ..Default::default()
+                };
+                let (tx, rx) = tokio::sync::oneshot::channel();
+                let flush = async {
+                    command
+                        .send(OutgoingCommand::Proto(
+                            TYPE_USER_STATE,
+                            packet.encode_to_vec(),
+                        ))
+                        .await
+                        .ok();
+                    command.send(OutgoingCommand::Flush(tx)).await.ok();
+                    let _ = rx.await;
+                };
+                let _ = tokio::time::timeout(Duration::from_secs(2), flush).await;
+                if let Some(shutdown) = shutdown {
+                    let _ = shutdown.send(true);
+                }
+            });
+        }
+    }
+
     pub fn disconnect(&self) {
-        self.self_priority_transmitting.store(false, Ordering::Relaxed);
+        self.self_priority_transmitting
+            .store(false, Ordering::Relaxed);
+        self.audio_mixer.lock().unwrap().reset();
+        while self.speaker_consumer.lock().unwrap().pop().is_ok() {}
         if let Some(tx) = self.shutdown_tx.write().unwrap().take() {
             let _ = tx.send(true);
         }
@@ -1529,6 +1652,167 @@ impl MumbleClient {
         }
         self.handler
             .on_connection_status_changed(ConnectionStatus::Disconnected);
+    }
+
+    pub fn configure_network(&self, force_tcp: bool, hide_os: bool, os_version: String) {
+        self.force_tcp.store(force_tcp, Ordering::Relaxed);
+        self.hide_os.store(hide_os, Ordering::Relaxed);
+        *self.os_version.write().unwrap() = os_version;
+    }
+    pub fn disconnect_reason(&self) -> String {
+        self.state.read().unwrap().disconnect_reason.clone()
+    }
+    pub fn reconnect_allowed(&self) -> bool {
+        self.state.read().unwrap().reconnect_allowed
+    }
+    pub fn configure_positioning(
+        &self,
+        minimum_distance: f32,
+        maximum_distance: f32,
+        far_volume: f32,
+        bloom: f32,
+        manual: bool,
+        x: f32,
+        y: f32,
+        z: f32,
+        heading: f32,
+        context: String,
+    ) {
+        if ![
+            minimum_distance,
+            maximum_distance,
+            far_volume,
+            bloom,
+            x,
+            y,
+            z,
+            heading,
+        ]
+        .iter()
+        .all(|x| x.is_finite())
+        {
+            return;
+        }
+        let mut mixer = self.audio_mixer.lock().unwrap();
+        mixer.distance_settings = [
+            minimum_distance.clamp(0.01, 10000.0),
+            maximum_distance.clamp(minimum_distance.max(0.01) + 0.01, 100000.0),
+            far_volume.clamp(0.0, 1.0),
+            bloom.clamp(0.0, 1.0),
+        ];
+        mixer.manual_listener = manual.then(|| crate::positional::LinkFrame {
+            avatar: [x, y, z],
+            camera: [x, y, z],
+            front: [heading.to_radians().sin(), 0.0, heading.to_radians().cos()],
+            top: [0.0, 1.0, 0.0],
+            context: format!("Manual placement\0{}", context).into_bytes(),
+            identity: String::new(),
+        });
+    }
+    pub fn load_positional_plugin(&self, path: String) -> String {
+        match crate::plugins::PositionalPlugin::load(path.clone()) {
+            Ok(plugin) => {
+                self.audio_mixer.lock().unwrap().plugin = Some(plugin);
+                format!("Loaded {}", path)
+            }
+            Err(error) => error,
+        }
+    }
+    pub fn unload_positional_plugin(&self) {
+        self.audio_mixer.lock().unwrap().plugin = None;
+    }
+    pub fn positioning_diagnostics(&self) -> String {
+        self.audio_mixer.lock().unwrap().positioning_diagnostics()
+    }
+    pub fn configure_audio_quality(&self, bitrate: u32, packet_ms: u32, fec: bool) {
+        self.audio_mixer
+            .lock()
+            .unwrap()
+            .configure_quality(bitrate, packet_ms, fec);
+    }
+    pub fn audio_metrics(&self) -> crate::AudioMetrics {
+        let mut metrics = self.audio_port.metrics.lock().unwrap().clone();
+        metrics.capture_overruns = self.audio_port.overruns.load(Ordering::Relaxed);
+        metrics.playback_underruns = self.audio_port.underruns.load(Ordering::Relaxed);
+        metrics
+    }
+    pub fn set_audio_diagnostics(&self, enabled: bool) {
+        self.audio_port
+            .diagnostics
+            .store(enabled, Ordering::Relaxed);
+    }
+    pub fn set_loopback_mode(&self, mode: u32) {
+        self.audio_port
+            .loopback
+            .store(mode.min(2), Ordering::Relaxed);
+    }
+    pub fn audio_bitrate(&self) -> u32 {
+        self.audio_mixer.lock().unwrap().bitrate()
+    }
+    pub fn set_channel_listening(&self, channel_id: u32, listening: bool) {
+        self.send_proto(
+            TYPE_USER_STATE,
+            &proto::UserState {
+                listening_channel_add: if listening { vec![channel_id] } else { vec![] },
+                listening_channel_remove: if listening { vec![] } else { vec![channel_id] },
+                ..Default::default()
+            },
+        );
+    }
+    pub fn set_channel_link(&self, channel_id: u32, other_id: u32, linked: bool) {
+        self.send_proto(
+            TYPE_CHANNEL_STATE,
+            &proto::ChannelState {
+                channel_id: Some(channel_id),
+                links_add: if linked { vec![other_id] } else { vec![] },
+                links_remove: if linked { vec![] } else { vec![other_id] },
+                ..Default::default()
+            },
+        );
+    }
+    pub fn edit_channel(
+        &self,
+        channel_id: u32,
+        name: String,
+        parent: Option<u32>,
+        position: i32,
+        max_users: u32,
+    ) {
+        let (name, parent) = {
+            let state = self.state.read().unwrap();
+            let old = state.channels.get(&channel_id);
+            (
+                if channel_id == 0 || old.is_some_and(|c| c.name == name) {
+                    None
+                } else {
+                    Some(name)
+                },
+                parent.filter(|id| old.is_none_or(|c| c.parent_id != Some(*id))),
+            )
+        };
+        self.send_proto(
+            TYPE_CHANNEL_STATE,
+            &proto::ChannelState {
+                channel_id: Some(channel_id),
+                name,
+                parent,
+                position: Some(position),
+                max_users: Some(max_users),
+                ..Default::default()
+            },
+        );
+    }
+    pub fn audio_port_handle(self: Arc<Self>) -> u64 {
+        if !self.audio_worker_started.swap(true, Ordering::AcqRel) {
+            crate::audio_io::start_worker(Arc::downgrade(&self));
+        }
+        Arc::into_raw(Arc::clone(&self.audio_port)) as u64
+    }
+    pub fn start_recording(&self, path: String) -> bool {
+        self.audio_port.start_recording(path).is_ok()
+    }
+    pub fn stop_recording(&self) {
+        self.audio_port.stop_recording();
     }
 
     pub fn join_channel(&self, channel_id: u32) {
@@ -1588,6 +1872,25 @@ impl MumbleClient {
     }
 
     pub fn push_mic_pcm(&self, samples: Vec<f32>, target: Option<u8>) {
+        {
+            let state = self.state.read().unwrap();
+            if state.connection_status != ConnectionStatus::Connected {
+                return;
+            }
+            if state
+                .my_session
+                .and_then(|id| state.users.get(&id))
+                .is_some_and(|u| {
+                    u.is_muted
+                        || u.is_suppressed
+                        || u.is_deafened
+                        || u.is_self_muted
+                        || u.is_self_deafened
+                })
+            {
+                return;
+            }
+        }
         let is_priority = {
             let state = self.state.read().unwrap();
             state
@@ -1596,9 +1899,11 @@ impl MumbleClient {
                 .map(|u| u.is_priority_speaker)
                 .unwrap_or(false)
         };
-        self.self_priority_transmitting.store(is_priority, Ordering::Relaxed);
+        self.self_priority_transmitting
+            .store(is_priority, Ordering::Relaxed);
 
-        let effective_target = target.unwrap_or_else(|| *self.active_voice_target_id.read().unwrap());
+        let effective_target =
+            target.unwrap_or_else(|| *self.active_voice_target_id.read().unwrap());
         let packets = {
             if let Ok(mut mixer) = self.audio_mixer.lock() {
                 mixer.push_mic_pcm(&samples, effective_target)
@@ -1608,7 +1913,8 @@ impl MumbleClient {
         };
 
         for pkt in packets {
-            let encoded = encode_client_voice(&pkt);
+            let encoded =
+                encode_client_voice_versioned(&pkt, self.modern_voice.load(Ordering::Relaxed));
             if let Ok(guard) = self.voice_tx.read() {
                 if let Some(ref tx) = *guard {
                     let _ = tx.try_send(encoded);
@@ -1618,9 +1924,11 @@ impl MumbleClient {
     }
 
     pub fn finish_mic_stream(&self, target: Option<u8>) {
-        self.self_priority_transmitting.store(false, Ordering::Relaxed);
+        self.self_priority_transmitting
+            .store(false, Ordering::Relaxed);
 
-        let effective_target = target.unwrap_or_else(|| *self.active_voice_target_id.read().unwrap());
+        let effective_target =
+            target.unwrap_or_else(|| *self.active_voice_target_id.read().unwrap());
         let maybe_pkt = {
             if let Ok(mut mixer) = self.audio_mixer.lock() {
                 mixer.finish_mic_stream(effective_target)
@@ -1630,7 +1938,8 @@ impl MumbleClient {
         };
 
         if let Some(pkt) = maybe_pkt {
-            let encoded = encode_client_voice(&pkt);
+            let encoded =
+                encode_client_voice_versioned(&pkt, self.modern_voice.load(Ordering::Relaxed));
             if let Ok(guard) = self.voice_tx.read() {
                 if let Some(ref tx) = *guard {
                     let _ = tx.try_send(encoded);
@@ -1829,16 +2138,88 @@ impl MumbleClient {
         self.send_proto(TYPE_USER_REMOVE, &uremove);
     }
 
+    pub fn request_channel_permissions(&self, channel_id: u32) {
+        self.send_proto(
+            TYPE_PERMISSION_QUERY,
+            &proto::PermissionQuery {
+                channel_id: Some(channel_id),
+                ..Default::default()
+            },
+        );
+    }
+
+    pub fn request_channel_acl(&self, channel_id: u32) {
+        self.send_proto(
+            TYPE_ACL,
+            &proto::Acl {
+                channel_id,
+                query: Some(true),
+                ..Default::default()
+            },
+        );
+    }
+
+    pub fn set_channel_acl(&self, acl: crate::ChannelAcl) {
+        let message = proto::Acl {
+            channel_id: acl.channel_id,
+            inherit_acls: Some(acl.inherit_acls),
+            query: Some(false),
+            groups: acl
+                .groups
+                .into_iter()
+                .map(|g| proto::acl::ChanGroup {
+                    name: g.name,
+                    inherited: None,
+                    inherit: Some(g.inherit),
+                    inheritable: Some(g.inheritable),
+                    add: g.add,
+                    remove: g.remove,
+                    inherited_members: vec![],
+                })
+                .collect(),
+            acls: acl
+                .entries
+                .into_iter()
+                .filter(|a| !a.inherited)
+                .map(|a| proto::acl::ChanAcl {
+                    apply_here: Some(a.apply_here),
+                    apply_subs: Some(a.apply_subs),
+                    inherited: None,
+                    user_id: a.user_id,
+                    group: a.group,
+                    grant: Some(a.grant),
+                    deny: Some(a.deny),
+                })
+                .collect(),
+        };
+        self.send_proto(TYPE_ACL, &message);
+        self.request_channel_permissions(acl.channel_id);
+        self.request_channel_acl(acl.channel_id);
+    }
+
+    pub fn configure_spatial_audio(&self, spatial: bool, mumble_link: bool, jitter_ms: u32) {
+        self.audio_mixer
+            .lock()
+            .unwrap()
+            .configure_spatial(spatial, mumble_link, jitter_ms);
+    }
+
+    /// Returns frame_count stereo frames as L,R interleaved samples.
     pub fn pull_speaker_pcm(&self, frame_count: u32) -> Vec<f32> {
-        let mut out = vec![0.0f32; frame_count as usize];
-        if let Ok(mut consumer) = self.speaker_consumer.lock() {
-            for sample in out.iter_mut() {
-                if let Ok(s) = consumer.pop() {
-                    *sample = s;
-                } else {
-                    break;
-                }
-            }
+        let frames = (frame_count as usize).min(8192);
+        let deafened = {
+            let state = self.state.read().unwrap();
+            state
+                .my_session
+                .and_then(|id| state.users.get(&id))
+                .is_some_and(|u| u.is_deafened || u.is_self_deafened)
+        };
+        let mut mixer = self.audio_mixer.lock().unwrap();
+        let mut consumer = self.speaker_consumer.lock().unwrap();
+        mixer.render(frames, deafened);
+        let mut out = vec![0.0; frames * 2];
+        for sample in &mut out {
+            *sample = consumer.pop().unwrap_or(0.0);
         }
         out
     }
@@ -1873,9 +2254,7 @@ impl MumbleClient {
     }
 
     pub fn request_registered_users(&self) {
-        let ul = proto::UserList {
-            users: vec![],
-        };
+        let ul = proto::UserList { users: vec![] };
         self.send_proto(TYPE_USER_LIST, &ul);
     }
 
@@ -1921,10 +2300,26 @@ impl MumbleClient {
                 proto::ban_list::BanEntry {
                     address: addr_bytes,
                     mask: proto_mask,
-                    name: if b.name.is_empty() { None } else { Some(b.name.clone()) },
-                    hash: if b.hash.is_empty() { None } else { Some(b.hash.clone()) },
-                    reason: if b.reason.is_empty() { None } else { Some(b.reason.clone()) },
-                    start: if b.start.is_empty() { None } else { Some(b.start.clone()) },
+                    name: if b.name.is_empty() {
+                        None
+                    } else {
+                        Some(b.name.clone())
+                    },
+                    hash: if b.hash.is_empty() {
+                        None
+                    } else {
+                        Some(b.hash.clone())
+                    },
+                    reason: if b.reason.is_empty() {
+                        None
+                    } else {
+                        Some(b.reason.clone())
+                    },
+                    start: if b.start.is_empty() {
+                        None
+                    } else {
+                        Some(b.start.clone())
+                    },
                     duration: Some(b.duration),
                 }
             })

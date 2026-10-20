@@ -245,70 +245,84 @@ typedef void (*UniffiForeignFutureCompleteVoid)(uint64_t, UniffiForeignFutureRes
 #endif
 #ifndef UNIFFI_FFIDEF_CALLBACK_INTERFACE_MUMBLE_EVENT_HANDLER_METHOD0
 #define UNIFFI_FFIDEF_CALLBACK_INTERFACE_MUMBLE_EVENT_HANDLER_METHOD0
-typedef void (*UniffiCallbackInterfaceMumbleEventHandlerMethod0)(uint64_t, RustBuffer, void* _Nonnull, 
+typedef void (*UniffiCallbackInterfaceMumbleEventHandlerMethod0)(uint64_t, RustBuffer, void* _Nonnull,
         RustCallStatus *_Nonnull uniffiCallStatus
     );
 
 #endif
 #ifndef UNIFFI_FFIDEF_CALLBACK_INTERFACE_MUMBLE_EVENT_HANDLER_METHOD1
 #define UNIFFI_FFIDEF_CALLBACK_INTERFACE_MUMBLE_EVENT_HANDLER_METHOD1
-typedef void (*UniffiCallbackInterfaceMumbleEventHandlerMethod1)(uint64_t, RustBuffer, void* _Nonnull, 
+typedef void (*UniffiCallbackInterfaceMumbleEventHandlerMethod1)(uint64_t, RustBuffer, void* _Nonnull,
         RustCallStatus *_Nonnull uniffiCallStatus
     );
 
 #endif
 #ifndef UNIFFI_FFIDEF_CALLBACK_INTERFACE_MUMBLE_EVENT_HANDLER_METHOD2
 #define UNIFFI_FFIDEF_CALLBACK_INTERFACE_MUMBLE_EVENT_HANDLER_METHOD2
-typedef void (*UniffiCallbackInterfaceMumbleEventHandlerMethod2)(uint64_t, RustBuffer, void* _Nonnull, 
+typedef void (*UniffiCallbackInterfaceMumbleEventHandlerMethod2)(uint64_t, RustBuffer, void* _Nonnull,
         RustCallStatus *_Nonnull uniffiCallStatus
     );
 
 #endif
 #ifndef UNIFFI_FFIDEF_CALLBACK_INTERFACE_MUMBLE_EVENT_HANDLER_METHOD3
 #define UNIFFI_FFIDEF_CALLBACK_INTERFACE_MUMBLE_EVENT_HANDLER_METHOD3
-typedef void (*UniffiCallbackInterfaceMumbleEventHandlerMethod3)(uint64_t, uint32_t, int8_t, RustBuffer, void* _Nonnull, 
+typedef void (*UniffiCallbackInterfaceMumbleEventHandlerMethod3)(uint64_t, RustBuffer, void* _Nonnull,
         RustCallStatus *_Nonnull uniffiCallStatus
     );
 
 #endif
 #ifndef UNIFFI_FFIDEF_CALLBACK_INTERFACE_MUMBLE_EVENT_HANDLER_METHOD4
 #define UNIFFI_FFIDEF_CALLBACK_INTERFACE_MUMBLE_EVENT_HANDLER_METHOD4
-typedef void (*UniffiCallbackInterfaceMumbleEventHandlerMethod4)(uint64_t, RustBuffer, void* _Nonnull, 
+typedef void (*UniffiCallbackInterfaceMumbleEventHandlerMethod4)(uint64_t, RustBuffer, void* _Nonnull,
         RustCallStatus *_Nonnull uniffiCallStatus
     );
 
 #endif
 #ifndef UNIFFI_FFIDEF_CALLBACK_INTERFACE_MUMBLE_EVENT_HANDLER_METHOD5
 #define UNIFFI_FFIDEF_CALLBACK_INTERFACE_MUMBLE_EVENT_HANDLER_METHOD5
-typedef void (*UniffiCallbackInterfaceMumbleEventHandlerMethod5)(uint64_t, float, float, int8_t, void* _Nonnull, 
+typedef void (*UniffiCallbackInterfaceMumbleEventHandlerMethod5)(uint64_t, uint32_t, int8_t, RustBuffer, void* _Nonnull,
         RustCallStatus *_Nonnull uniffiCallStatus
     );
 
 #endif
 #ifndef UNIFFI_FFIDEF_CALLBACK_INTERFACE_MUMBLE_EVENT_HANDLER_METHOD6
 #define UNIFFI_FFIDEF_CALLBACK_INTERFACE_MUMBLE_EVENT_HANDLER_METHOD6
-typedef void (*UniffiCallbackInterfaceMumbleEventHandlerMethod6)(uint64_t, RustBuffer, void* _Nonnull, 
+typedef void (*UniffiCallbackInterfaceMumbleEventHandlerMethod6)(uint64_t, RustBuffer, void* _Nonnull,
         RustCallStatus *_Nonnull uniffiCallStatus
     );
 
 #endif
 #ifndef UNIFFI_FFIDEF_CALLBACK_INTERFACE_MUMBLE_EVENT_HANDLER_METHOD7
 #define UNIFFI_FFIDEF_CALLBACK_INTERFACE_MUMBLE_EVENT_HANDLER_METHOD7
-typedef void (*UniffiCallbackInterfaceMumbleEventHandlerMethod7)(uint64_t, RustBuffer, void* _Nonnull, 
+typedef void (*UniffiCallbackInterfaceMumbleEventHandlerMethod7)(uint64_t, float, float, int8_t, void* _Nonnull,
         RustCallStatus *_Nonnull uniffiCallStatus
     );
 
 #endif
 #ifndef UNIFFI_FFIDEF_CALLBACK_INTERFACE_MUMBLE_EVENT_HANDLER_METHOD8
 #define UNIFFI_FFIDEF_CALLBACK_INTERFACE_MUMBLE_EVENT_HANDLER_METHOD8
-typedef void (*UniffiCallbackInterfaceMumbleEventHandlerMethod8)(uint64_t, RustBuffer, void* _Nonnull, 
+typedef void (*UniffiCallbackInterfaceMumbleEventHandlerMethod8)(uint64_t, RustBuffer, void* _Nonnull,
         RustCallStatus *_Nonnull uniffiCallStatus
     );
 
 #endif
 #ifndef UNIFFI_FFIDEF_CALLBACK_INTERFACE_MUMBLE_EVENT_HANDLER_METHOD9
 #define UNIFFI_FFIDEF_CALLBACK_INTERFACE_MUMBLE_EVENT_HANDLER_METHOD9
-typedef void (*UniffiCallbackInterfaceMumbleEventHandlerMethod9)(uint64_t, RustBuffer, void* _Nonnull, 
+typedef void (*UniffiCallbackInterfaceMumbleEventHandlerMethod9)(uint64_t, RustBuffer, void* _Nonnull,
+        RustCallStatus *_Nonnull uniffiCallStatus
+    );
+
+#endif
+#ifndef UNIFFI_FFIDEF_CALLBACK_INTERFACE_MUMBLE_EVENT_HANDLER_METHOD10
+#define UNIFFI_FFIDEF_CALLBACK_INTERFACE_MUMBLE_EVENT_HANDLER_METHOD10
+typedef void (*UniffiCallbackInterfaceMumbleEventHandlerMethod10)(uint64_t, RustBuffer, void* _Nonnull,
+        RustCallStatus *_Nonnull uniffiCallStatus
+    );
+
+#endif
+#ifndef UNIFFI_FFIDEF_CALLBACK_INTERFACE_MUMBLE_EVENT_HANDLER_METHOD11
+#define UNIFFI_FFIDEF_CALLBACK_INTERFACE_MUMBLE_EVENT_HANDLER_METHOD11
+typedef void (*UniffiCallbackInterfaceMumbleEventHandlerMethod11)(uint64_t, RustBuffer, void* _Nonnull,
         RustCallStatus *_Nonnull uniffiCallStatus
     );
 
@@ -318,16 +332,18 @@ typedef void (*UniffiCallbackInterfaceMumbleEventHandlerMethod9)(uint64_t, RustB
 typedef struct UniffiVTableCallbackInterfaceMumbleEventHandler {
     UniffiCallbackInterfaceFree _Nonnull uniffiFree;
     UniffiCallbackInterfaceClone _Nonnull uniffiClone;
-    UniffiCallbackInterfaceMumbleEventHandlerMethod0 _Nonnull onConnectionStatusChanged;
-    UniffiCallbackInterfaceMumbleEventHandlerMethod1 _Nonnull onChannelsUpdated;
-    UniffiCallbackInterfaceMumbleEventHandlerMethod2 _Nonnull onUsersUpdated;
-    UniffiCallbackInterfaceMumbleEventHandlerMethod3 _Nonnull onUserTalkingChanged;
-    UniffiCallbackInterfaceMumbleEventHandlerMethod4 _Nonnull onChatMessage;
-    UniffiCallbackInterfaceMumbleEventHandlerMethod5 _Nonnull onPingUpdated;
-    UniffiCallbackInterfaceMumbleEventHandlerMethod6 _Nonnull onServerConnectionInfoUpdated;
-    UniffiCallbackInterfaceMumbleEventHandlerMethod7 _Nonnull onRegisteredUsersUpdated;
-    UniffiCallbackInterfaceMumbleEventHandlerMethod8 _Nonnull onBanListUpdated;
-    UniffiCallbackInterfaceMumbleEventHandlerMethod9 _Nonnull onUserStatsReceived;
+    UniffiCallbackInterfaceMumbleEventHandlerMethod0 _Nonnull onServerIdentityChallenge;
+    UniffiCallbackInterfaceMumbleEventHandlerMethod1 _Nonnull onChannelAclReceived;
+    UniffiCallbackInterfaceMumbleEventHandlerMethod2 _Nonnull onConnectionStatusChanged;
+    UniffiCallbackInterfaceMumbleEventHandlerMethod3 _Nonnull onChannelsUpdated;
+    UniffiCallbackInterfaceMumbleEventHandlerMethod4 _Nonnull onUsersUpdated;
+    UniffiCallbackInterfaceMumbleEventHandlerMethod5 _Nonnull onUserTalkingChanged;
+    UniffiCallbackInterfaceMumbleEventHandlerMethod6 _Nonnull onChatMessage;
+    UniffiCallbackInterfaceMumbleEventHandlerMethod7 _Nonnull onPingUpdated;
+    UniffiCallbackInterfaceMumbleEventHandlerMethod8 _Nonnull onServerConnectionInfoUpdated;
+    UniffiCallbackInterfaceMumbleEventHandlerMethod9 _Nonnull onRegisteredUsersUpdated;
+    UniffiCallbackInterfaceMumbleEventHandlerMethod10 _Nonnull onBanListUpdated;
+    UniffiCallbackInterfaceMumbleEventHandlerMethod11 _Nonnull onUserStatsReceived;
 } UniffiVTableCallbackInterfaceMumbleEventHandler;
 
 #endif
@@ -351,14 +367,54 @@ uint64_t uniffi_mumble_core_fn_constructor_mumbleclient_new(uint64_t handler, Ru
 void uniffi_mumble_core_fn_method_mumbleclient_add_ban(uint64_t ptr, RustBuffer ip, uint32_t mask, RustBuffer reason, uint32_t duration_seconds, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_AUDIO_BITRATE
+#define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_AUDIO_BITRATE
+uint32_t uniffi_mumble_core_fn_method_mumbleclient_audio_bitrate(uint64_t ptr, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_AUDIO_METRICS
+#define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_AUDIO_METRICS
+RustBuffer uniffi_mumble_core_fn_method_mumbleclient_audio_metrics(uint64_t ptr, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_AUDIO_PORT_HANDLE
+#define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_AUDIO_PORT_HANDLE
+uint64_t uniffi_mumble_core_fn_method_mumbleclient_audio_port_handle(uint64_t ptr, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_BAN_USER
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_BAN_USER
 void uniffi_mumble_core_fn_method_mumbleclient_ban_user(uint64_t ptr, uint32_t session_id, RustBuffer reason, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_CLEAR_COMMENT_AND_DISCONNECT
+#define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_CLEAR_COMMENT_AND_DISCONNECT
+void uniffi_mumble_core_fn_method_mumbleclient_clear_comment_and_disconnect(uint64_t ptr, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_CONFIGURE_AUDIO_QUALITY
+#define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_CONFIGURE_AUDIO_QUALITY
+void uniffi_mumble_core_fn_method_mumbleclient_configure_audio_quality(uint64_t ptr, uint32_t bitrate, uint32_t packet_ms, int8_t fec, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_CONFIGURE_NETWORK
+#define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_CONFIGURE_NETWORK
+void uniffi_mumble_core_fn_method_mumbleclient_configure_network(uint64_t ptr, int8_t force_tcp, int8_t hide_os, RustBuffer os_version, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_CONFIGURE_POSITIONING
+#define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_CONFIGURE_POSITIONING
+void uniffi_mumble_core_fn_method_mumbleclient_configure_positioning(uint64_t ptr, float minimum_distance, float maximum_distance, float far_volume, float bloom, int8_t manual, float x, float y, float z, float heading, RustBuffer context, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_CONFIGURE_SPATIAL_AUDIO
+#define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_CONFIGURE_SPATIAL_AUDIO
+void uniffi_mumble_core_fn_method_mumbleclient_configure_spatial_audio(uint64_t ptr, int8_t spatial, int8_t mumble_link, uint32_t jitter_ms, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_CONNECT
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_CONNECT
-void uniffi_mumble_core_fn_method_mumbleclient_connect(uint64_t ptr, RustBuffer host, uint16_t port, RustBuffer username, RustBuffer password, RustBuffer client_cert_pem, RustBuffer client_key_pem, RustCallStatus *_Nonnull out_status
+void uniffi_mumble_core_fn_method_mumbleclient_connect(uint64_t ptr, RustBuffer host, uint16_t port, RustBuffer username, RustBuffer password, RustBuffer client_cert_pem, RustBuffer client_key_pem, RustBuffer trusted_fingerprint, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_CREATE_CHANNEL
@@ -369,6 +425,16 @@ void uniffi_mumble_core_fn_method_mumbleclient_create_channel(uint64_t ptr, uint
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_DISCONNECT
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_DISCONNECT
 void uniffi_mumble_core_fn_method_mumbleclient_disconnect(uint64_t ptr, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_DISCONNECT_REASON
+#define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_DISCONNECT_REASON
+RustBuffer uniffi_mumble_core_fn_method_mumbleclient_disconnect_reason(uint64_t ptr, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_EDIT_CHANNEL
+#define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_EDIT_CHANNEL
+void uniffi_mumble_core_fn_method_mumbleclient_edit_channel(uint64_t ptr, uint32_t channel_id, RustBuffer name, RustBuffer parent, int32_t position, uint32_t max_users, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_FINISH_MIC_STREAM
@@ -431,9 +497,19 @@ void uniffi_mumble_core_fn_method_mumbleclient_join_channel(uint64_t ptr, uint32
 void uniffi_mumble_core_fn_method_mumbleclient_kick_user(uint64_t ptr, uint32_t session_id, RustBuffer reason, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_LOAD_POSITIONAL_PLUGIN
+#define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_LOAD_POSITIONAL_PLUGIN
+RustBuffer uniffi_mumble_core_fn_method_mumbleclient_load_positional_plugin(uint64_t ptr, RustBuffer path, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_MOVE_USER
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_MOVE_USER
 void uniffi_mumble_core_fn_method_mumbleclient_move_user(uint64_t ptr, uint32_t session_id, uint32_t channel_id, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_POSITIONING_DIAGNOSTICS
+#define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_POSITIONING_DIAGNOSTICS
+RustBuffer uniffi_mumble_core_fn_method_mumbleclient_positioning_diagnostics(uint64_t ptr, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_PULL_SPEAKER_PCM
@@ -444,6 +520,11 @@ RustBuffer uniffi_mumble_core_fn_method_mumbleclient_pull_speaker_pcm(uint64_t p
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_PUSH_MIC_PCM
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_PUSH_MIC_PCM
 void uniffi_mumble_core_fn_method_mumbleclient_push_mic_pcm(uint64_t ptr, RustBuffer samples, RustBuffer target, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_RECONNECT_ALLOWED
+#define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_RECONNECT_ALLOWED
+int8_t uniffi_mumble_core_fn_method_mumbleclient_reconnect_allowed(uint64_t ptr, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_REGISTER_USER
@@ -486,6 +567,16 @@ void uniffi_mumble_core_fn_method_mumbleclient_request_ban_list(uint64_t ptr, Ru
 void uniffi_mumble_core_fn_method_mumbleclient_request_blob(uint64_t ptr, RustBuffer session_textures, RustBuffer session_comments, RustBuffer channel_descriptions, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_REQUEST_CHANNEL_ACL
+#define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_REQUEST_CHANNEL_ACL
+void uniffi_mumble_core_fn_method_mumbleclient_request_channel_acl(uint64_t ptr, uint32_t channel_id, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_REQUEST_CHANNEL_PERMISSIONS
+#define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_REQUEST_CHANNEL_PERMISSIONS
+void uniffi_mumble_core_fn_method_mumbleclient_request_channel_permissions(uint64_t ptr, uint32_t channel_id, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_REQUEST_REGISTERED_USERS
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_REQUEST_REGISTERED_USERS
 void uniffi_mumble_core_fn_method_mumbleclient_request_registered_users(uint64_t ptr, RustCallStatus *_Nonnull out_status
@@ -511,6 +602,11 @@ void uniffi_mumble_core_fn_method_mumbleclient_send_user_message(uint64_t ptr, u
 void uniffi_mumble_core_fn_method_mumbleclient_set_active_voice_target_id(uint64_t ptr, uint8_t target_id, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_SET_AUDIO_DIAGNOSTICS
+#define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_SET_AUDIO_DIAGNOSTICS
+void uniffi_mumble_core_fn_method_mumbleclient_set_audio_diagnostics(uint64_t ptr, int8_t enabled, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_SET_AVATAR
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_SET_AVATAR
 void uniffi_mumble_core_fn_method_mumbleclient_set_avatar(uint64_t ptr, RustBuffer texture, RustCallStatus *_Nonnull out_status
@@ -521,14 +617,34 @@ void uniffi_mumble_core_fn_method_mumbleclient_set_avatar(uint64_t ptr, RustBuff
 void uniffi_mumble_core_fn_method_mumbleclient_set_ban_list(uint64_t ptr, RustBuffer bans, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_SET_CHANNEL_ACL
+#define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_SET_CHANNEL_ACL
+void uniffi_mumble_core_fn_method_mumbleclient_set_channel_acl(uint64_t ptr, RustBuffer acl, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_SET_CHANNEL_DESCRIPTION
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_SET_CHANNEL_DESCRIPTION
 void uniffi_mumble_core_fn_method_mumbleclient_set_channel_description(uint64_t ptr, uint32_t channel_id, RustBuffer description, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_SET_CHANNEL_LINK
+#define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_SET_CHANNEL_LINK
+void uniffi_mumble_core_fn_method_mumbleclient_set_channel_link(uint64_t ptr, uint32_t channel_id, uint32_t other_id, int8_t linked, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_SET_CHANNEL_LISTENING
+#define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_SET_CHANNEL_LISTENING
+void uniffi_mumble_core_fn_method_mumbleclient_set_channel_listening(uint64_t ptr, uint32_t channel_id, int8_t listening, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_SET_COMMENT
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_SET_COMMENT
 void uniffi_mumble_core_fn_method_mumbleclient_set_comment(uint64_t ptr, RustBuffer comment, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_SET_LOOPBACK_MODE
+#define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_SET_LOOPBACK_MODE
+void uniffi_mumble_core_fn_method_mumbleclient_set_loopback_mode(uint64_t ptr, uint32_t mode, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_SET_RECORDING_STATE
@@ -571,6 +687,21 @@ void uniffi_mumble_core_fn_method_mumbleclient_set_user_server_mute_deaf(uint64_
 void uniffi_mumble_core_fn_method_mumbleclient_set_voice_target(uint64_t ptr, RustBuffer config, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_START_RECORDING
+#define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_START_RECORDING
+int8_t uniffi_mumble_core_fn_method_mumbleclient_start_recording(uint64_t ptr, RustBuffer path, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_STOP_RECORDING
+#define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_STOP_RECORDING
+void uniffi_mumble_core_fn_method_mumbleclient_stop_recording(uint64_t ptr, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_UNLOAD_POSITIONAL_PLUGIN
+#define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_METHOD_MUMBLECLIENT_UNLOAD_POSITIONAL_PLUGIN
+void uniffi_mumble_core_fn_method_mumbleclient_unload_positional_plugin(uint64_t ptr, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_INIT_CALLBACK_VTABLE_MUMBLEEVENTHANDLER
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_INIT_CALLBACK_VTABLE_MUMBLEEVENTHANDLER
 void uniffi_mumble_core_fn_init_callback_vtable_mumbleeventhandler(const UniffiVTableCallbackInterfaceMumbleEventHandler* _Nonnull vtable
@@ -604,6 +735,18 @@ uint64_t uniffi_mumble_core_fn_func_resolve_mumble_srv(RustBuffer host, uint16_t
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_FUNC_PING_MUMBLE_SERVER
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_FUNC_PING_MUMBLE_SERVER
 uint64_t uniffi_mumble_core_fn_func_ping_mumble_server(RustBuffer host, uint16_t port, uint64_t timeout_ms
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_FUNC_START_LOCAL_CONTROL
+#define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_FUNC_START_LOCAL_CONTROL
+RustBuffer uniffi_mumble_core_fn_func_start_local_control(RustCallStatus *_Nonnull out_status
+
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_FUNC_TAKE_LOCAL_COMMANDS
+#define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_FN_FUNC_TAKE_LOCAL_COMMANDS
+RustBuffer uniffi_mumble_core_fn_func_take_local_commands(RustCallStatus *_Nonnull out_status
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_FFI_MUMBLE_CORE_RUSTBUFFER_ALLOC
@@ -869,379 +1012,541 @@ void ffi_mumble_core_rust_future_complete_void(uint64_t handle, RustCallStatus *
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_FUNC_EXPORT_IDENTITY_TO_PKCS12
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_FUNC_EXPORT_IDENTITY_TO_PKCS12
 uint16_t uniffi_mumble_core_checksum_func_export_identity_to_pkcs12(void
-    
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_FUNC_EXPORT_PKCS12_VIA_OPENSSL
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_FUNC_EXPORT_PKCS12_VIA_OPENSSL
 uint16_t uniffi_mumble_core_checksum_func_export_pkcs12_via_openssl(void
-    
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_FUNC_GENERATE_CLIENT_IDENTITY
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_FUNC_GENERATE_CLIENT_IDENTITY
 uint16_t uniffi_mumble_core_checksum_func_generate_client_identity(void
-    
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_FUNC_IMPORT_IDENTITY_FROM_PKCS12
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_FUNC_IMPORT_IDENTITY_FROM_PKCS12
 uint16_t uniffi_mumble_core_checksum_func_import_identity_from_pkcs12(void
-    
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_FUNC_RESOLVE_MUMBLE_SRV
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_FUNC_RESOLVE_MUMBLE_SRV
 uint16_t uniffi_mumble_core_checksum_func_resolve_mumble_srv(void
-    
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_FUNC_PING_MUMBLE_SERVER
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_FUNC_PING_MUMBLE_SERVER
 uint16_t uniffi_mumble_core_checksum_func_ping_mumble_server(void
-    
+
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_FUNC_START_LOCAL_CONTROL
+#define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_FUNC_START_LOCAL_CONTROL
+uint16_t uniffi_mumble_core_checksum_func_start_local_control(void
+
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_FUNC_TAKE_LOCAL_COMMANDS
+#define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_FUNC_TAKE_LOCAL_COMMANDS
+uint16_t uniffi_mumble_core_checksum_func_take_local_commands(void
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_ADD_BAN
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_ADD_BAN
 uint16_t uniffi_mumble_core_checksum_method_mumbleclient_add_ban(void
-    
+
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_AUDIO_BITRATE
+#define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_AUDIO_BITRATE
+uint16_t uniffi_mumble_core_checksum_method_mumbleclient_audio_bitrate(void
+
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_AUDIO_METRICS
+#define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_AUDIO_METRICS
+uint16_t uniffi_mumble_core_checksum_method_mumbleclient_audio_metrics(void
+
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_AUDIO_PORT_HANDLE
+#define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_AUDIO_PORT_HANDLE
+uint16_t uniffi_mumble_core_checksum_method_mumbleclient_audio_port_handle(void
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_BAN_USER
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_BAN_USER
 uint16_t uniffi_mumble_core_checksum_method_mumbleclient_ban_user(void
-    
+
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_CLEAR_COMMENT_AND_DISCONNECT
+#define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_CLEAR_COMMENT_AND_DISCONNECT
+uint16_t uniffi_mumble_core_checksum_method_mumbleclient_clear_comment_and_disconnect(void
+
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_CONFIGURE_AUDIO_QUALITY
+#define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_CONFIGURE_AUDIO_QUALITY
+uint16_t uniffi_mumble_core_checksum_method_mumbleclient_configure_audio_quality(void
+
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_CONFIGURE_NETWORK
+#define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_CONFIGURE_NETWORK
+uint16_t uniffi_mumble_core_checksum_method_mumbleclient_configure_network(void
+
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_CONFIGURE_POSITIONING
+#define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_CONFIGURE_POSITIONING
+uint16_t uniffi_mumble_core_checksum_method_mumbleclient_configure_positioning(void
+
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_CONFIGURE_SPATIAL_AUDIO
+#define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_CONFIGURE_SPATIAL_AUDIO
+uint16_t uniffi_mumble_core_checksum_method_mumbleclient_configure_spatial_audio(void
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_CONNECT
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_CONNECT
 uint16_t uniffi_mumble_core_checksum_method_mumbleclient_connect(void
-    
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_CREATE_CHANNEL
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_CREATE_CHANNEL
 uint16_t uniffi_mumble_core_checksum_method_mumbleclient_create_channel(void
-    
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_DISCONNECT
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_DISCONNECT
 uint16_t uniffi_mumble_core_checksum_method_mumbleclient_disconnect(void
-    
+
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_DISCONNECT_REASON
+#define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_DISCONNECT_REASON
+uint16_t uniffi_mumble_core_checksum_method_mumbleclient_disconnect_reason(void
+
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_EDIT_CHANNEL
+#define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_EDIT_CHANNEL
+uint16_t uniffi_mumble_core_checksum_method_mumbleclient_edit_channel(void
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_FINISH_MIC_STREAM
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_FINISH_MIC_STREAM
 uint16_t uniffi_mumble_core_checksum_method_mumbleclient_finish_mic_stream(void
-    
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_GET_ACTIVE_VOICE_TARGET_ID
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_GET_ACTIVE_VOICE_TARGET_ID
 uint16_t uniffi_mumble_core_checksum_method_mumbleclient_get_active_voice_target_id(void
-    
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_GET_BAN_LIST
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_GET_BAN_LIST
 uint16_t uniffi_mumble_core_checksum_method_mumbleclient_get_ban_list(void
-    
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_GET_CHANNELS
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_GET_CHANNELS
 uint16_t uniffi_mumble_core_checksum_method_mumbleclient_get_channels(void
-    
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_GET_CONNECTION_STATUS
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_GET_CONNECTION_STATUS
 uint16_t uniffi_mumble_core_checksum_method_mumbleclient_get_connection_status(void
-    
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_GET_MY_SESSION
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_GET_MY_SESSION
 uint16_t uniffi_mumble_core_checksum_method_mumbleclient_get_my_session(void
-    
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_GET_REGISTERED_USERS
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_GET_REGISTERED_USERS
 uint16_t uniffi_mumble_core_checksum_method_mumbleclient_get_registered_users(void
-    
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_GET_SERVER_CONNECTION_INFO
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_GET_SERVER_CONNECTION_INFO
 uint16_t uniffi_mumble_core_checksum_method_mumbleclient_get_server_connection_info(void
-    
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_GET_TOKENS
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_GET_TOKENS
 uint16_t uniffi_mumble_core_checksum_method_mumbleclient_get_tokens(void
-    
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_GET_USERS
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_GET_USERS
 uint16_t uniffi_mumble_core_checksum_method_mumbleclient_get_users(void
-    
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_JOIN_CHANNEL
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_JOIN_CHANNEL
 uint16_t uniffi_mumble_core_checksum_method_mumbleclient_join_channel(void
-    
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_KICK_USER
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_KICK_USER
 uint16_t uniffi_mumble_core_checksum_method_mumbleclient_kick_user(void
-    
+
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_LOAD_POSITIONAL_PLUGIN
+#define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_LOAD_POSITIONAL_PLUGIN
+uint16_t uniffi_mumble_core_checksum_method_mumbleclient_load_positional_plugin(void
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_MOVE_USER
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_MOVE_USER
 uint16_t uniffi_mumble_core_checksum_method_mumbleclient_move_user(void
-    
+
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_POSITIONING_DIAGNOSTICS
+#define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_POSITIONING_DIAGNOSTICS
+uint16_t uniffi_mumble_core_checksum_method_mumbleclient_positioning_diagnostics(void
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_PULL_SPEAKER_PCM
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_PULL_SPEAKER_PCM
 uint16_t uniffi_mumble_core_checksum_method_mumbleclient_pull_speaker_pcm(void
-    
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_PUSH_MIC_PCM
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_PUSH_MIC_PCM
 uint16_t uniffi_mumble_core_checksum_method_mumbleclient_push_mic_pcm(void
-    
+
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_RECONNECT_ALLOWED
+#define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_RECONNECT_ALLOWED
+uint16_t uniffi_mumble_core_checksum_method_mumbleclient_reconnect_allowed(void
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_REGISTER_USER
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_REGISTER_USER
 uint16_t uniffi_mumble_core_checksum_method_mumbleclient_register_user(void
-    
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_REMOVE_AVATAR
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_REMOVE_AVATAR
 uint16_t uniffi_mumble_core_checksum_method_mumbleclient_remove_avatar(void
-    
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_REMOVE_BAN
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_REMOVE_BAN
 uint16_t uniffi_mumble_core_checksum_method_mumbleclient_remove_ban(void
-    
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_REMOVE_CHANNEL
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_REMOVE_CHANNEL
 uint16_t uniffi_mumble_core_checksum_method_mumbleclient_remove_channel(void
-    
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_REMOVE_REGISTERED_USER
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_REMOVE_REGISTERED_USER
 uint16_t uniffi_mumble_core_checksum_method_mumbleclient_remove_registered_user(void
-    
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_RENAME_REGISTERED_USER
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_RENAME_REGISTERED_USER
 uint16_t uniffi_mumble_core_checksum_method_mumbleclient_rename_registered_user(void
-    
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_REQUEST_BAN_LIST
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_REQUEST_BAN_LIST
 uint16_t uniffi_mumble_core_checksum_method_mumbleclient_request_ban_list(void
-    
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_REQUEST_BLOB
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_REQUEST_BLOB
 uint16_t uniffi_mumble_core_checksum_method_mumbleclient_request_blob(void
-    
+
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_REQUEST_CHANNEL_ACL
+#define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_REQUEST_CHANNEL_ACL
+uint16_t uniffi_mumble_core_checksum_method_mumbleclient_request_channel_acl(void
+
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_REQUEST_CHANNEL_PERMISSIONS
+#define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_REQUEST_CHANNEL_PERMISSIONS
+uint16_t uniffi_mumble_core_checksum_method_mumbleclient_request_channel_permissions(void
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_REQUEST_REGISTERED_USERS
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_REQUEST_REGISTERED_USERS
 uint16_t uniffi_mumble_core_checksum_method_mumbleclient_request_registered_users(void
-    
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_REQUEST_USER_STATS
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_REQUEST_USER_STATS
 uint16_t uniffi_mumble_core_checksum_method_mumbleclient_request_user_stats(void
-    
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_SEND_CHAT_MESSAGE
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_SEND_CHAT_MESSAGE
 uint16_t uniffi_mumble_core_checksum_method_mumbleclient_send_chat_message(void
-    
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_SEND_USER_MESSAGE
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_SEND_USER_MESSAGE
 uint16_t uniffi_mumble_core_checksum_method_mumbleclient_send_user_message(void
-    
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_SET_ACTIVE_VOICE_TARGET_ID
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_SET_ACTIVE_VOICE_TARGET_ID
 uint16_t uniffi_mumble_core_checksum_method_mumbleclient_set_active_voice_target_id(void
-    
+
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_SET_AUDIO_DIAGNOSTICS
+#define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_SET_AUDIO_DIAGNOSTICS
+uint16_t uniffi_mumble_core_checksum_method_mumbleclient_set_audio_diagnostics(void
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_SET_AVATAR
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_SET_AVATAR
 uint16_t uniffi_mumble_core_checksum_method_mumbleclient_set_avatar(void
-    
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_SET_BAN_LIST
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_SET_BAN_LIST
 uint16_t uniffi_mumble_core_checksum_method_mumbleclient_set_ban_list(void
-    
+
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_SET_CHANNEL_ACL
+#define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_SET_CHANNEL_ACL
+uint16_t uniffi_mumble_core_checksum_method_mumbleclient_set_channel_acl(void
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_SET_CHANNEL_DESCRIPTION
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_SET_CHANNEL_DESCRIPTION
 uint16_t uniffi_mumble_core_checksum_method_mumbleclient_set_channel_description(void
-    
+
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_SET_CHANNEL_LINK
+#define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_SET_CHANNEL_LINK
+uint16_t uniffi_mumble_core_checksum_method_mumbleclient_set_channel_link(void
+
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_SET_CHANNEL_LISTENING
+#define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_SET_CHANNEL_LISTENING
+uint16_t uniffi_mumble_core_checksum_method_mumbleclient_set_channel_listening(void
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_SET_COMMENT
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_SET_COMMENT
 uint16_t uniffi_mumble_core_checksum_method_mumbleclient_set_comment(void
-    
+
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_SET_LOOPBACK_MODE
+#define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_SET_LOOPBACK_MODE
+uint16_t uniffi_mumble_core_checksum_method_mumbleclient_set_loopback_mode(void
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_SET_RECORDING_STATE
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_SET_RECORDING_STATE
 uint16_t uniffi_mumble_core_checksum_method_mumbleclient_set_recording_state(void
-    
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_SET_SELF_DEAF
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_SET_SELF_DEAF
 uint16_t uniffi_mumble_core_checksum_method_mumbleclient_set_self_deaf(void
-    
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_SET_SELF_MUTE
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_SET_SELF_MUTE
 uint16_t uniffi_mumble_core_checksum_method_mumbleclient_set_self_mute(void
-    
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_SET_TOKENS
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_SET_TOKENS
 uint16_t uniffi_mumble_core_checksum_method_mumbleclient_set_tokens(void
-    
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_SET_USER_LOCAL_VOLUME
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_SET_USER_LOCAL_VOLUME
 uint16_t uniffi_mumble_core_checksum_method_mumbleclient_set_user_local_volume(void
-    
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_SET_USER_PRIORITY_SPEAKER
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_SET_USER_PRIORITY_SPEAKER
 uint16_t uniffi_mumble_core_checksum_method_mumbleclient_set_user_priority_speaker(void
-    
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_SET_USER_SERVER_MUTE_DEAF
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_SET_USER_SERVER_MUTE_DEAF
 uint16_t uniffi_mumble_core_checksum_method_mumbleclient_set_user_server_mute_deaf(void
-    
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_SET_VOICE_TARGET
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_SET_VOICE_TARGET
 uint16_t uniffi_mumble_core_checksum_method_mumbleclient_set_voice_target(void
-    
+
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_START_RECORDING
+#define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_START_RECORDING
+uint16_t uniffi_mumble_core_checksum_method_mumbleclient_start_recording(void
+
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_STOP_RECORDING
+#define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_STOP_RECORDING
+uint16_t uniffi_mumble_core_checksum_method_mumbleclient_stop_recording(void
+
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_UNLOAD_POSITIONAL_PLUGIN
+#define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLECLIENT_UNLOAD_POSITIONAL_PLUGIN
+uint16_t uniffi_mumble_core_checksum_method_mumbleclient_unload_positional_plugin(void
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_CONSTRUCTOR_MUMBLECLIENT_NEW
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_CONSTRUCTOR_MUMBLECLIENT_NEW
 uint16_t uniffi_mumble_core_checksum_constructor_mumbleclient_new(void
-    
+
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLEEVENTHANDLER_ON_SERVER_IDENTITY_CHALLENGE
+#define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLEEVENTHANDLER_ON_SERVER_IDENTITY_CHALLENGE
+uint16_t uniffi_mumble_core_checksum_method_mumbleeventhandler_on_server_identity_challenge(void
+
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLEEVENTHANDLER_ON_CHANNEL_ACL_RECEIVED
+#define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLEEVENTHANDLER_ON_CHANNEL_ACL_RECEIVED
+uint16_t uniffi_mumble_core_checksum_method_mumbleeventhandler_on_channel_acl_received(void
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLEEVENTHANDLER_ON_CONNECTION_STATUS_CHANGED
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLEEVENTHANDLER_ON_CONNECTION_STATUS_CHANGED
 uint16_t uniffi_mumble_core_checksum_method_mumbleeventhandler_on_connection_status_changed(void
-    
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLEEVENTHANDLER_ON_CHANNELS_UPDATED
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLEEVENTHANDLER_ON_CHANNELS_UPDATED
 uint16_t uniffi_mumble_core_checksum_method_mumbleeventhandler_on_channels_updated(void
-    
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLEEVENTHANDLER_ON_USERS_UPDATED
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLEEVENTHANDLER_ON_USERS_UPDATED
 uint16_t uniffi_mumble_core_checksum_method_mumbleeventhandler_on_users_updated(void
-    
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLEEVENTHANDLER_ON_USER_TALKING_CHANGED
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLEEVENTHANDLER_ON_USER_TALKING_CHANGED
 uint16_t uniffi_mumble_core_checksum_method_mumbleeventhandler_on_user_talking_changed(void
-    
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLEEVENTHANDLER_ON_CHAT_MESSAGE
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLEEVENTHANDLER_ON_CHAT_MESSAGE
 uint16_t uniffi_mumble_core_checksum_method_mumbleeventhandler_on_chat_message(void
-    
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLEEVENTHANDLER_ON_PING_UPDATED
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLEEVENTHANDLER_ON_PING_UPDATED
 uint16_t uniffi_mumble_core_checksum_method_mumbleeventhandler_on_ping_updated(void
-    
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLEEVENTHANDLER_ON_SERVER_CONNECTION_INFO_UPDATED
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLEEVENTHANDLER_ON_SERVER_CONNECTION_INFO_UPDATED
 uint16_t uniffi_mumble_core_checksum_method_mumbleeventhandler_on_server_connection_info_updated(void
-    
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLEEVENTHANDLER_ON_REGISTERED_USERS_UPDATED
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLEEVENTHANDLER_ON_REGISTERED_USERS_UPDATED
 uint16_t uniffi_mumble_core_checksum_method_mumbleeventhandler_on_registered_users_updated(void
-    
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLEEVENTHANDLER_ON_BAN_LIST_UPDATED
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLEEVENTHANDLER_ON_BAN_LIST_UPDATED
 uint16_t uniffi_mumble_core_checksum_method_mumbleeventhandler_on_ban_list_updated(void
-    
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLEEVENTHANDLER_ON_USER_STATS_RECEIVED
 #define UNIFFI_FFIDEF_UNIFFI_MUMBLE_CORE_CHECKSUM_METHOD_MUMBLEEVENTHANDLER_ON_USER_STATS_RECEIVED
 uint16_t uniffi_mumble_core_checksum_method_mumbleeventhandler_on_user_stats_received(void
-    
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_FFI_MUMBLE_CORE_UNIFFI_CONTRACT_VERSION
 #define UNIFFI_FFIDEF_FFI_MUMBLE_CORE_UNIFFI_CONTRACT_VERSION
 uint32_t ffi_mumble_core_uniffi_contract_version(void
-    
+
 );
 #endif
 

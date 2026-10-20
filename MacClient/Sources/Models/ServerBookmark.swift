@@ -28,14 +28,12 @@ public struct ServerBookmark: Identifiable, Codable, Hashable, Equatable, Sendab
         self.isFavorite = isFavorite
     }
 
-    /// Pre-configured bookmark for the local Docker Murmur test server.
-    public static let localDefault = ServerBookmark(
-        id: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!,
-        name: "Local Murmur (Docker)",
-        host: "127.0.0.1",
-        port: 64738,
-        username: "AntigravityTester",
-        password: nil,
-        isFavorite: true
-    )
+    private enum CodingKeys: String, CodingKey { case id, name, host, port, username, password, isFavorite }
+    // Decode old bookmarks for migration; never serialize credentials again.
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id); try c.encode(name, forKey: .name)
+        try c.encode(host, forKey: .host); try c.encode(port, forKey: .port)
+        try c.encode(username, forKey: .username); try c.encode(isFavorite, forKey: .isFavorite)
+    }
 }

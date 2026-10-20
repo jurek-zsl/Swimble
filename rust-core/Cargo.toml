@@ -1,6 +1,6 @@
 [package]
 name = "mumble_core"
-version = "0.1.0"
+version = "1.2.0"
 edition = "2021"
 
 [lib]
@@ -27,6 +27,14 @@ base64 = "0.22"
 ribergshamra-pkcs12 = "0.11.0"
 tempfile = "3.27.0"
 hickory-resolver = "0.26"
+rustls-platform-verifier = "0.7.1"
+sha2 = "0.11.1"
+libc = "0.2.191"
+
+rubato = "0.16.2"
+hound = "3.5"
+rand = "0.9"
 
 [build-dependencies]
+cc = "1"
 prost-build = "0.13"

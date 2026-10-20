@@ -1,3 +1,5 @@
+use prost::Message;
+
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum VoicePacketError {
     UnexpectedEof,
@@ -110,10 +112,51 @@ pub fn decode_varint(data: &[u8]) -> Result<(u64, usize), VoicePacketError> {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ClientVoicePacket {
+    pub positional_data: Option<[f32; 3]>,
     pub target: u8,
     pub sequence: u64,
     pub is_terminator: bool,
     pub opus_payload: Vec<u8>,
+}
+
+/// Mumble 1.5+ uses a one-byte message type followed by protobuf, including
+/// voice tunneled over TCP. Older servers retain the legacy Opus framing.
+pub fn encode_client_voice_versioned(packet: &ClientVoicePacket, modern: bool) -> Vec<u8> {
+    if !modern {
+        return encode_client_voice(packet);
+    }
+    let message = crate::udp_proto::Audio {
+        header: Some(crate::udp_proto::audio::Header::Target(
+            packet.target as u32,
+        )),
+        frame_number: packet.sequence,
+        opus_data: packet.opus_payload.clone(),
+        positional_data: packet
+            .positional_data
+            .filter(|p| p.iter().all(|x| x.is_finite()))
+            .map(Vec::from)
+            .unwrap_or_default(),
+        is_terminator: packet.is_terminator,
+        ..Default::default()
+    };
+    let mut encoded = Vec::with_capacity(message.encoded_len() + 1);
+    encoded.push(0);
+    message.encode(&mut encoded).expect("Vec write");
+    encoded
+}
+
+pub fn encode_udp_ping_versioned(timestamp: u64, modern: bool) -> Vec<u8> {
+    if !modern {
+        return encode_udp_ping(timestamp);
+    }
+    let message = crate::udp_proto::Ping {
+        timestamp,
+        ..Default::default()
+    };
+    let mut encoded = Vec::with_capacity(message.encoded_len() + 1);
+    encoded.push(1);
+    message.encode(&mut encoded).expect("Vec write");
+    encoded
 }
 
 pub fn encode_client_voice(packet: &ClientVoicePacket) -> Vec<u8> {
@@ -126,17 +169,26 @@ pub fn encode_client_voice(packet: &ClientVoicePacket) -> Vec<u8> {
     encode_varint(packet.sequence, &mut buf);
 
     // Opus length and terminator flag (13-bit length + 14th terminator bit)
-    let len_flag = (packet.opus_payload.len() as u64 & 0x1FFF)
-        | if packet.is_terminator { 0x2000 } else { 0 };
+    let len_flag =
+        (packet.opus_payload.len() as u64 & 0x1FFF) | if packet.is_terminator { 0x2000 } else { 0 };
     encode_varint(len_flag, &mut buf);
 
     // Opus payload
     buf.extend_from_slice(&packet.opus_payload);
+    if let Some(position) = packet
+        .positional_data
+        .filter(|p| p.iter().all(|x| x.is_finite()))
+    {
+        for value in position {
+            buf.extend_from_slice(&value.to_le_bytes());
+        }
+    }
     buf
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ServerVoicePacket {
+    pub volume_adjustment: f32,
     pub codec: u8,
     pub target: u8,
     pub session_id: u32,
@@ -149,6 +201,31 @@ pub struct ServerVoicePacket {
 pub fn decode_server_voice(data: &[u8]) -> Result<ServerVoicePacket, VoicePacketError> {
     if data.is_empty() {
         return Err(VoicePacketError::UnexpectedEof);
+    }
+    if data[0] == 0 {
+        let audio = crate::udp_proto::Audio::decode(&data[1..])
+            .map_err(|_| VoicePacketError::InvalidPacketType)?;
+        let context = match audio.header {
+            Some(crate::udp_proto::audio::Header::Context(c)) if c <= 3 => c as u8,
+            _ => return Err(VoicePacketError::InvalidPacketType),
+        };
+        let position: Option<[f32; 3]> = audio.positional_data.as_slice().try_into().ok();
+        return Ok(ServerVoicePacket {
+            codec: 4,
+            target: context,
+            session_id: audio.sender_session,
+            sequence: audio.frame_number,
+            is_terminator: audio.is_terminator,
+            opus_payload: audio.opus_data,
+            volume_adjustment: if audio.volume_adjustment.is_finite()
+                && audio.volume_adjustment != 0.0
+            {
+                audio.volume_adjustment.clamp(0.0, 4.0)
+            } else {
+                1.0
+            },
+            positional_data: position.filter(|p| p.iter().all(|x| x.is_finite())),
+        });
     }
     let header = data[0];
     let codec = (header >> 5) & 0x07;
@@ -184,12 +261,13 @@ pub fn decode_server_voice(data: &[u8]) -> Result<ServerVoicePacket, VoicePacket
             let x = f32::from_le_bytes(data[offset..offset + 4].try_into().unwrap());
             let y = f32::from_le_bytes(data[offset + 4..offset + 8].try_into().unwrap());
             let z = f32::from_le_bytes(data[offset + 8..offset + 12].try_into().unwrap());
-            Some([x, y, z])
+            [x, y, z].iter().all(|x| x.is_finite()).then_some([x, y, z])
         } else {
             None
         };
 
         Ok(ServerVoicePacket {
+            volume_adjustment: 1.0,
             codec,
             target,
             session_id,
@@ -221,6 +299,17 @@ pub struct UdpPingReply {
 }
 
 pub fn decode_udp_ping_reply(data: &[u8]) -> Result<UdpPingReply, VoicePacketError> {
+    if data.first() == Some(&1) {
+        let ping = crate::udp_proto::Ping::decode(&data[1..])
+            .map_err(|_| VoicePacketError::InvalidPacketType)?;
+        return Ok(UdpPingReply {
+            timestamp: ping.timestamp,
+            good: 0,
+            late: 0,
+            lost: 0,
+            resync: 0,
+        });
+    }
     if data.is_empty() || (data[0] >> 5) != 1 {
         return Err(VoicePacketError::InvalidPacketType);
     }
@@ -248,6 +337,47 @@ pub fn decode_udp_ping_reply(data: &[u8]) -> Result<UdpPingReply, VoicePacketErr
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn modern_audio_and_position_round_trip() {
+        let packet = ClientVoicePacket {
+            target: 2,
+            sequence: 42,
+            is_terminator: true,
+            opus_payload: vec![1, 2, 3],
+            positional_data: Some([1.0, 2.0, 3.0]),
+        };
+        let encoded = encode_client_voice_versioned(&packet, true);
+        assert_eq!(encoded[0], 0);
+        let mut audio = crate::udp_proto::Audio::decode(&encoded[1..]).unwrap();
+        assert_eq!(
+            audio.header,
+            Some(crate::udp_proto::audio::Header::Target(2))
+        );
+        assert_eq!(audio.positional_data, vec![1.0, 2.0, 3.0]);
+        audio.header = Some(crate::udp_proto::audio::Header::Context(2));
+        audio.sender_session = 123;
+        audio.volume_adjustment = 0.5;
+        let mut server = vec![0];
+        audio.encode(&mut server).unwrap();
+        let decoded = decode_server_voice(&server).unwrap();
+        assert_eq!(decoded.session_id, 123);
+        assert_eq!(decoded.sequence, 42);
+        assert_eq!(decoded.volume_adjustment, 0.5);
+        assert!(decoded.is_terminator);
+        assert_eq!(decoded.positional_data, Some([1.0, 2.0, 3.0]));
+        audio.positional_data[0] = f32::NAN;
+        let mut invalid = vec![0];
+        audio.encode(&mut invalid).unwrap();
+        assert_eq!(decode_server_voice(&invalid).unwrap().positional_data, None);
+    }
+
+    #[test]
+    fn modern_ping_round_trip() {
+        let encoded = encode_udp_ping_versioned(1234567, true);
+        assert_eq!(encoded[0], 1);
+        assert_eq!(decode_udp_ping_reply(&encoded).unwrap().timestamp, 1234567);
+    }
 
     #[test]
     fn test_varint_roundtrip() {
@@ -279,6 +409,7 @@ mod tests {
     #[test]
     fn test_client_voice_packet_roundtrip() {
         let client_packet = ClientVoicePacket {
+            positional_data: None,
             target: 0,
             sequence: 42,
             is_terminator: true,

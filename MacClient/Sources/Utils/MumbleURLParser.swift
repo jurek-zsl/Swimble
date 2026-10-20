@@ -96,7 +96,8 @@ public enum MumbleURLParser {
             return nil
         }
 
-        let port = comps.port.map { UInt16($0) } ?? 64738
+        let rawPort = comps.port ?? 64738
+        guard (1...65535).contains(rawPort), let port = UInt16(exactly: rawPort) else { return nil }
 
         // Query parameters parsing
         var queryUsername: String?

@@ -7,7 +7,7 @@ public struct AudioStatisticsModal: View {
     @Environment(\.dismiss) private var dismiss
 
     private var spectrum: AudioSpectrumAnalyzer {
-        AudioSpectrumAnalyzer.shared
+        store.audioEngine.spectrum
     }
 
     private var audioEngine: MacAudioEngine {
@@ -55,16 +55,17 @@ public struct AudioStatisticsModal: View {
                     HStack(alignment: .top, spacing: 14) {
                         // 1. Input Levels
                         StatsCard(title: "Input Levels") {
-                            StatRow(label: "Peak microphone level", value: String(format: "%+.2f dB", spectrum.peakMicDb))
-                            StatRow(label: "Peak speaker level", value: String(format: "%+.2f dB", spectrum.peakSpeakerDb))
-                            StatRow(label: "Peak clean level", value: String(format: "%+.2f dB", spectrum.peakCleanDb))
+                            StatRow(label: "Microphone RMS level", value: String(format: "%+.2f dB", spectrum.peakMicDb))
+                            StatRow(label: "Speaker RMS level", value: String(format: "%+.2f dB", spectrum.peakSpeakerDb))
+                            StatRow(label: "Capture overruns", value: "\(store.client.audioMetrics().captureOverruns)")
+                            StatRow(label: "Playback underruns", value: "\(store.client.audioMetrics().playbackUnderruns)")
                         }
 
                         // 2. Signal Analysis
                         StatsCard(title: "Signal Analysis") {
-                            StatRow(label: "Microphone power", value: "\(spectrum.micPowerPercent)%")
-                            StatRow(label: "Signal-To-Noise ratio", value: String(format: "%.3f", spectrum.snrValue))
-                            StatRow(label: "Speech Probability", value: String(format: "%03d%%", spectrum.speechProbabilityPercent))
+                            StatRow(label: "Microphone RMS amplitude", value: "\(spectrum.micPowerPercent)%")
+                            StatRow(label: "Signal-to-noise ratio", value: "Not measured")
+                            StatRow(label: "Speech detection", value: audioEngine.isTransmitting ? "Threshold active" : "Below threshold")
                         }
                     }
 
@@ -76,17 +77,17 @@ public struct AudioStatisticsModal: View {
                                     Text("Current audio bitrate")
                                         .font(.subheadline)
                                         .foregroundStyle(.secondary)
-                                    Text(store.connectionStatus == .connected ? "48.0 kbit/s" : "00.0 kbit/s")
+                                    Text(store.connectionStatus == .connected ? "\(store.client.audioBitrate() / 1000) kbit/s configured" : "Disconnected")
                                         .font(.subheadline.monospacedDigit().bold())
                                 }
 
                                 Spacer()
 
                                 HStack(spacing: 6) {
-                                    Text("DoublePush interval")
+                                    Text("Packet duration")
                                         .font(.subheadline)
                                         .foregroundStyle(.secondary)
-                                    Text("1000 ms")
+                                    Text("\(ClientPreferences.shared.packetDurationMs) ms")
                                         .font(.subheadline.monospacedDigit().bold())
                                 }
                             }
@@ -160,6 +161,8 @@ public struct AudioStatisticsModal: View {
             }
         }
         .frame(width: 580, height: 600)
+        .onAppear { spectrum.beginObserving(); store.client.setAudioDiagnostics(enabled: true); store.audioEngine.beginPreview() }
+        .onDisappear { spectrum.endObserving(); store.client.setAudioDiagnostics(enabled: false); store.audioEngine.endPreview() }
     }
 }
 

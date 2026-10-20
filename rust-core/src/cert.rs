@@ -1,6 +1,6 @@
-use rcgen::{CertificateParams, DnType, KeyPair};
 use crate::MumbleError;
 use base64::Engine;
+use rcgen::{CertificateParams, DnType, KeyPair};
 
 #[derive(uniffi::Record, Clone, Debug, PartialEq)]
 pub struct ClientIdentity {
@@ -11,7 +11,9 @@ pub struct ClientIdentity {
 #[uniffi::export]
 pub fn generate_client_identity(common_name: String) -> ClientIdentity {
     let mut params = CertificateParams::new(vec![common_name.clone()]).unwrap_or_default();
-    params.distinguished_name.push(DnType::CommonName, common_name);
+    params
+        .distinguished_name
+        .push(DnType::CommonName, common_name);
     let key_pair = KeyPair::generate().expect("Failed to generate client key pair");
     let cert = params
         .self_signed(&key_pair)
@@ -44,6 +46,33 @@ pub fn der_to_pem(tag: &str, der: &[u8]) -> String {
     }
     out.push_str(&format!("-----END {}-----\n", tag));
     out
+}
+
+// Keep PKCS#12 passwords out of the process argument list. OpenSSL reads one
+// line from stdin; passwords containing line breaks use the pure-Rust path.
+fn openssl_with_password(
+    command: &mut std::process::Command,
+    password: &str,
+) -> Result<std::process::Output, MumbleError> {
+    use std::io::Write;
+    use std::process::Stdio;
+    if password.contains(['\r', '\n']) {
+        return Err(MumbleError::CertificateError(
+            "OpenSSL cannot accept a multiline password".into(),
+        ));
+    }
+    let mut child = command
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| MumbleError::CertificateError(format!("OpenSSL execution error: {e}")))?;
+    if let Some(mut input) = child.stdin.take() {
+        let _ = writeln!(input, "{password}");
+    }
+    child
+        .wait_with_output()
+        .map_err(|e| MumbleError::CertificateError(format!("OpenSSL execution error: {e}")))
 }
 
 #[uniffi::export]
@@ -85,8 +114,8 @@ fn export_pkcs12_via_openssl(
         "/usr/bin/openssl"
     };
 
-    let status = Command::new(openssl_bin)
-        .args([
+    let status = openssl_with_password(
+        Command::new(openssl_bin).args([
             "pkcs12",
             "-export",
             "-in",
@@ -100,18 +129,22 @@ fn export_pkcs12_via_openssl(
             "-keypbe",
             "PBE-SHA1-3DES",
             "-passout",
-            &format!("pass:{}", password),
-        ])
-        .output()
-        .map_err(|e| MumbleError::CertificateError(format!("Failed to run openssl: {}", e)))?;
+            "stdin",
+        ]),
+        password,
+    )?;
 
     if status.status.success() {
-        let bytes = std::fs::read(out_file.path())
-            .map_err(|e| MumbleError::CertificateError(format!("Failed to read exported p12: {}", e)))?;
+        let bytes = std::fs::read(out_file.path()).map_err(|e| {
+            MumbleError::CertificateError(format!("Failed to read exported p12: {}", e))
+        })?;
         Ok(bytes)
     } else {
         let err = String::from_utf8_lossy(&status.stderr);
-        Err(MumbleError::CertificateError(format!("OpenSSL export failed: {}", err)))
+        Err(MumbleError::CertificateError(format!(
+            "OpenSSL export failed: {}",
+            err
+        )))
     }
 }
 
@@ -127,8 +160,9 @@ fn import_pkcs12_via_openssl(
         .suffix(".p12")
         .tempfile()
         .map_err(|e| MumbleError::CertificateError(format!("Tempfile error: {}", e)))?;
-    temp.write_all(p12_bytes)
-        .map_err(|e| MumbleError::CertificateError(format!("Failed to write p12 tempfile: {}", e)))?;
+    temp.write_all(p12_bytes).map_err(|e| {
+        MumbleError::CertificateError(format!("Failed to write p12 tempfile: {}", e))
+    })?;
 
     let openssl_bin = if std::path::Path::new("/opt/homebrew/bin/openssl").exists() {
         "/opt/homebrew/bin/openssl"
@@ -136,21 +170,24 @@ fn import_pkcs12_via_openssl(
         "/usr/bin/openssl"
     };
 
-    let output = Command::new(openssl_bin)
-        .args([
+    let output = openssl_with_password(
+        Command::new(openssl_bin).args([
             "pkcs12",
             "-in",
             temp.path().to_str().unwrap_or(""),
             "-nodes",
             "-passin",
-            &format!("pass:{}", password),
-        ])
-        .output()
-        .map_err(|e| MumbleError::CertificateError(format!("OpenSSL execution error: {}", e)))?;
+            "stdin",
+        ]),
+        password,
+    )?;
 
     if !output.status.success() {
         let err = String::from_utf8_lossy(&output.stderr);
-        return Err(MumbleError::CertificateError(format!("OpenSSL import failed: {}", err)));
+        return Err(MumbleError::CertificateError(format!(
+            "OpenSSL import failed: {}",
+            err
+        )));
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -219,8 +256,9 @@ pub fn export_identity_to_pkcs12(
     // 2. Fall back to pure-Rust p12 crate
     let cert_der = pem_to_der(&cert_pem)?;
     let key_der = pem_to_der(&key_pem)?;
-    let pfx = p12::PFX::new(&cert_der, &key_der, None, &password, "Swimble Identity")
-        .ok_or_else(|| MumbleError::CertificateError("Failed to construct PKCS#12 bundle".into()))?;
+    let pfx = p12::PFX::new(&cert_der, &key_der, None, &password, "Swimble Identity").ok_or_else(
+        || MumbleError::CertificateError("Failed to construct PKCS#12 bundle".into()),
+    )?;
     Ok(pfx.to_der())
 }
 
@@ -231,7 +269,9 @@ pub fn import_identity_from_pkcs12(
 ) -> Result<ClientIdentity, MumbleError> {
     // 1. Try modern pure-Rust parser (ribergshamra-pkcs12, supports PBES2 AES-256 + 3DES as used by OpenSSL 3/4 & Mumble)
     if let Ok(parsed) = ribergshamra_pkcs12::parse_pkcs12(&p12_bytes, &password) {
-        if let (Some(cert_der), Some(key_der)) = (parsed.certificates.first(), parsed.private_keys.first()) {
+        if let (Some(cert_der), Some(key_der)) =
+            (parsed.certificates.first(), parsed.private_keys.first())
+        {
             return Ok(ClientIdentity {
                 cert_pem: der_to_pem("CERTIFICATE", cert_der),
                 key_pem: der_to_pem("PRIVATE KEY", key_der.as_ref()),
@@ -242,7 +282,9 @@ pub fn import_identity_from_pkcs12(
     // If password was non-empty and failed, also try empty string in case the file wasn't encrypted with password
     if !password.is_empty() {
         if let Ok(parsed) = ribergshamra_pkcs12::parse_pkcs12(&p12_bytes, "") {
-            if let (Some(cert_der), Some(key_der)) = (parsed.certificates.first(), parsed.private_keys.first()) {
+            if let (Some(cert_der), Some(key_der)) =
+                (parsed.certificates.first(), parsed.private_keys.first())
+            {
                 return Ok(ClientIdentity {
                     cert_pem: der_to_pem("CERTIFICATE", cert_der),
                     key_pem: der_to_pem("PRIVATE KEY", key_der.as_ref()),
@@ -253,11 +295,15 @@ pub fn import_identity_from_pkcs12(
 
     // 2. Try legacy p12 crate parser (supporting 40-bit RC2 and 3DES)
     if let Ok(pfx) = p12::PFX::parse(&p12_bytes) {
-        let certs = pfx.cert_x509_bags(&password).or_else(|_| pfx.cert_x509_bags(""));
+        let certs = pfx
+            .cert_x509_bags(&password)
+            .or_else(|_| pfx.cert_x509_bags(""));
         let keys = pfx.key_bags(&password).or_else(|_| pfx.key_bags(""));
 
         if let (Ok(certs), Ok(keys)) = (certs, keys) {
-            if let (Some(cert_der), Some(key_der)) = (certs.into_iter().next(), keys.into_iter().next()) {
+            if let (Some(cert_der), Some(key_der)) =
+                (certs.into_iter().next(), keys.into_iter().next())
+            {
                 return Ok(ClientIdentity {
                     cert_pem: der_to_pem("CERTIFICATE", &cert_der),
                     key_pem: der_to_pem("PRIVATE KEY", &key_der),
@@ -294,16 +340,22 @@ mod tests {
             identity.cert_pem.clone(),
             identity.key_pem.clone(),
             password.clone(),
-        ).expect("Export failed");
+        )
+        .expect("Export failed");
         assert!(!p12_bytes.is_empty());
 
-        let imported = import_identity_from_pkcs12(p12_bytes, password)
-            .expect("Import failed");
+        let imported = import_identity_from_pkcs12(p12_bytes, password).expect("Import failed");
 
         assert!(!imported.cert_pem.is_empty());
         assert!(!imported.key_pem.is_empty());
-        assert_eq!(pem_to_der(&identity.cert_pem).unwrap(), pem_to_der(&imported.cert_pem).unwrap());
-        assert_eq!(pem_to_der(&identity.key_pem).unwrap(), pem_to_der(&imported.key_pem).unwrap());
+        assert_eq!(
+            pem_to_der(&identity.cert_pem).unwrap(),
+            pem_to_der(&imported.cert_pem).unwrap()
+        );
+        assert_eq!(
+            pem_to_der(&identity.key_pem).unwrap(),
+            pem_to_der(&imported.key_pem).unwrap()
+        );
     }
 
     #[test]
@@ -315,13 +367,16 @@ mod tests {
             identity.cert_pem.clone(),
             identity.key_pem.clone(),
             password.clone(),
-        ).expect("Export failed");
+        )
+        .expect("Export failed");
 
-        let imported = import_identity_from_pkcs12(p12_bytes.clone(), password)
-            .expect("Import failed");
+        let imported =
+            import_identity_from_pkcs12(p12_bytes.clone(), password).expect("Import failed");
 
-        std::fs::write("/tmp/swimble_export.p12", &p12_bytes).unwrap();
-        assert_eq!(pem_to_der(&identity.cert_pem).unwrap(), pem_to_der(&imported.cert_pem).unwrap());
+        assert_eq!(
+            pem_to_der(&identity.cert_pem).unwrap(),
+            pem_to_der(&imported.cert_pem).unwrap()
+        );
     }
 
     #[test]

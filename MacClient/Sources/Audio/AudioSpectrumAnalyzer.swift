@@ -14,15 +14,50 @@ public final class AudioSpectrumAnalyzer: @unchecked Sendable {
     /// Peak statistics
     public var peakMicDb: Float = -100.0
     public var peakSpeakerDb: Float = -100.0
-    public var peakCleanDb: Float = -100.0
     public var micPowerPercent: Int = 0
-    public var snrValue: Float = 0.0
-    public var speechProbabilityPercent: Int = 0
 
     @ObservationIgnored private let binCount = 64
     @ObservationIgnored private let sampleCount = 512
     @ObservationIgnored private var fftSetup: vDSP_DFT_Setup?
-    @ObservationIgnored private let processingQueue = DispatchQueue(label: "com.swimble.spectrum", qos: .userInteractive)
+    @ObservationIgnored private let processingQueue = DispatchQueue(label: "com.swimble.spectrum", qos: .utility)
+
+    @ObservationIgnored private let demandLock = NSLock()
+    @ObservationIgnored private var observers = 0
+    @ObservationIgnored private var micJobPending = false
+    @ObservationIgnored private var speakerJobPending = false
+    @ObservationIgnored private var lastMicUpdate: TimeInterval = 0
+    @ObservationIgnored private var lastSpeakerUpdate: TimeInterval = 0
+
+    public func beginObserving() {
+        demandLock.lock(); defer { demandLock.unlock() }
+        observers += 1
+    }
+
+    public func endObserving() {
+        demandLock.lock(); defer { demandLock.unlock() }
+        observers = max(0, observers - 1)
+    }
+
+    private func reserveUpdate(microphone: Bool) -> Bool {
+        demandLock.lock(); defer { demandLock.unlock() }
+        guard observers > 0 else { return false }
+        let now = ProcessInfo.processInfo.systemUptime
+        if microphone {
+            guard !micJobPending, now - lastMicUpdate >= 1.0 / 15.0 else { return false }
+            micJobPending = true
+            lastMicUpdate = now
+        } else {
+            guard !speakerJobPending, now - lastSpeakerUpdate >= 1.0 / 15.0 else { return false }
+            speakerJobPending = true
+            lastSpeakerUpdate = now
+        }
+        return true
+    }
+
+    private func finishUpdate(microphone: Bool) {
+        demandLock.lock(); defer { demandLock.unlock() }
+        if microphone { micJobPending = false } else { speakerJobPending = false }
+    }
 
     public init() {
         fftSetup = vDSP_DFT_zop_CreateSetup(nil, vDSP_Length(sampleCount), .FORWARD)
@@ -36,11 +71,10 @@ public final class AudioSpectrumAnalyzer: @unchecked Sendable {
 
     /// Feeds microphone samples for FFT frequency analysis
     nonisolated public func processMic(samples: [Float], db: Float) {
-        guard !samples.isEmpty else { return }
+        guard !samples.isEmpty, reserveUpdate(microphone: true) else { return }
 
         processingQueue.async { [weak self] in
             guard let self = self else { return }
-
             let count = min(samples.count, self.sampleCount)
             var inputReal = [Float](repeating: 0.0, count: self.sampleCount)
             var inputImag = [Float](repeating: 0.0, count: self.sampleCount)
@@ -52,7 +86,10 @@ public final class AudioSpectrumAnalyzer: @unchecked Sendable {
             vDSP_hann_window(&window, vDSP_Length(count), Int32(vDSP_HANN_NORM))
             vDSP_vmul(samples, 1, window, 1, &inputReal, 1, vDSP_Length(count))
 
-            guard let setup = self.fftSetup else { return }
+            guard let setup = self.fftSetup else {
+                self.finishUpdate(microphone: true)
+                return
+            }
             vDSP_DFT_Execute(setup, &inputReal, &inputImag, &outReal, &outImag)
 
             // Compute magnitudes
@@ -75,32 +112,29 @@ public final class AudioSpectrumAnalyzer: @unchecked Sendable {
             }
 
             // Calculate signal metrics
-            let micPower = Int(max(0, min(300, (db + 90.0) * 3.5)))
-            let cleanDb = max(-60.0, db - 3.5)
-            let snr = max(1.0, pow(10.0, max(0.0, db + 60.0) / 10.0) * 1000.0)
-            let speechProb = db > -45.0 ? min(99, Int(65 + (db + 45.0) * 2.0)) : max(2, Int((db + 90.0) * 0.8))
+            let micPower = Int(max(0, min(100, pow(10.0, db / 20.0) * 100.0)))
 
             DispatchQueue.main.async {
+                defer { self.finishUpdate(microphone: true) }
                 self.magnitudes = mags
                 self.peakMicDb = db
-                self.peakCleanDb = cleanDb
                 self.micPowerPercent = micPower
-                self.snrValue = snr
-                self.speechProbabilityPercent = speechProb
             }
         }
     }
 
     /// Feeds speaker audio for peak speaker level tracking
     nonisolated public func processSpeaker(samples: [Float]) {
-        guard !samples.isEmpty else { return }
+        guard !samples.isEmpty, reserveUpdate(microphone: false) else { return }
         var sumSquares: Float = 0.0
         for s in samples { sumSquares += s * s }
         let rms = sqrt(sumSquares / Float(samples.count))
         let db = 20.0 * log10(max(rms, 1e-5))
 
         DispatchQueue.main.async { [weak self] in
-            self?.peakSpeakerDb = db
+            guard let self else { return }
+            defer { self.finishUpdate(microphone: false) }
+            self.peakSpeakerDb = db
         }
     }
 }

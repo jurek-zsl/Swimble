@@ -61,6 +61,9 @@ public struct ServerSplitView: View {
                 }
             }
         }
+        .sheet(item: $store.serverIdentityChallenge) { challenge in
+            ServerIdentityReview(store: store, challenge: challenge)
+        }
         .toolbar {
             if store.isRecordingAudio {
                 ToolbarItem(placement: .status) {

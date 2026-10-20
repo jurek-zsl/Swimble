@@ -157,53 +157,9 @@ public final class CoreAudioDeviceManager: @unchecked Sendable {
         }
     }
 
-    /// Sets the system default input device.
-    @discardableResult
-    public func setInputDevice(_ deviceID: AudioDeviceID) -> Bool {
-        var propertyAddress = AudioObjectPropertyAddress(
-            mSelector: kAudioHardwarePropertyDefaultInputDevice,
-            mScope: kAudioObjectPropertyScopeGlobal,
-            mElement: kAudioObjectPropertyElementMain
-        )
-        var dev = deviceID
-        let status = AudioObjectSetPropertyData(
-            AudioObjectID(kAudioObjectSystemObject),
-            &propertyAddress,
-            0,
-            nil,
-            UInt32(MemoryLayout<AudioDeviceID>.size),
-            &dev
-        )
-        if status == noErr {
-            self.selectedInputDeviceID = deviceID
-            return true
-        }
-        return false
-    }
-
-    /// Sets the system default output device.
-    @discardableResult
-    public func setOutputDevice(_ deviceID: AudioDeviceID) -> Bool {
-        var propertyAddress = AudioObjectPropertyAddress(
-            mSelector: kAudioHardwarePropertyDefaultOutputDevice,
-            mScope: kAudioObjectPropertyScopeGlobal,
-            mElement: kAudioObjectPropertyElementMain
-        )
-        var dev = deviceID
-        let status = AudioObjectSetPropertyData(
-            AudioObjectID(kAudioObjectSystemObject),
-            &propertyAddress,
-            0,
-            nil,
-            UInt32(MemoryLayout<AudioDeviceID>.size),
-            &dev
-        )
-        if status == noErr {
-            self.selectedOutputDeviceID = deviceID
-            return true
-        }
-        return false
-    }
+    /// Selection is applied to each engine's AudioUnit, never the system defaults.
+    public func setInputDevice(_ deviceID: AudioDeviceID) -> Bool { selectedInputDeviceID = deviceID; return true }
+    public func setOutputDevice(_ deviceID: AudioDeviceID) -> Bool { selectedOutputDeviceID = deviceID; return true }
 
     private func startHardwareListener() {
         guard !isListening else { return }

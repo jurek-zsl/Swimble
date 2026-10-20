@@ -18,6 +18,7 @@ public struct AudioInputSettingsTab: View {
     public var body: some View {
         ScrollView {
             VStack(spacing: 20) {
+                AudioQualitySettings()
                 // 1. Interface
                 SettingsCard {
                     SettingsSectionHeader(
@@ -32,7 +33,7 @@ public struct AudioInputSettingsTab: View {
                         Picker("Microphone", selection: $state.audioInputDevice) {
                             Text("Default Device").tag("")
                             ForEach(deviceManager.inputDevices) { dev in
-                                Text(dev.name).tag(dev.name)
+                                Text(dev.name).tag(dev.uid)
                             }
                         }
                         .labelsHidden()
@@ -256,7 +257,8 @@ public struct AudioInputSettingsTab: View {
                             .controlSize(.small)
 
                             Button("Preview Cue") {
-                                SoundManager.shared.playSelfMuted()
+                                if state.muteCuePath.isEmpty { NSSound(named: "Basso")?.play() }
+                                else { SoundManager.shared.playSound(filePath: state.muteCuePath) }
                             }
                             .buttonStyle(.bordered)
                             .controlSize(.small)

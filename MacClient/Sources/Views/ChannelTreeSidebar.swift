@@ -188,7 +188,7 @@ struct ChannelTreeNodeView: View {
 
     var body: some View {
         if node.children.isEmpty && node.users.isEmpty {
-            ChannelRowView(store: store, channel: node.channel, userCount: node.totalUserCount)
+            ChannelRowView(store: store, channel: node.channel, userCount: store.totalUsers(in: node.id))
                 .tag(node.channel.id)
         } else {
             DisclosureGroup(isExpanded: $isExpanded) {
@@ -205,7 +205,7 @@ struct ChannelTreeNodeView: View {
                 ChannelRowView(
                     store: store,
                     channel: node.channel,
-                    userCount: node.totalUserCount
+                    userCount: store.totalUsers(in: node.id)
                 )
                 .tag(node.channel.id)
             }
@@ -313,7 +313,7 @@ struct SearchChannelRow: View {
             Spacer()
 
             let count = store.totalUsers(in: channel.id)
-            if count > 0 {
+            if count > 0 && SettingsState.shared.alwaysShowChannelUserCount {
                 Text("\(count)")
                     .font(.caption2.bold())
                     .padding(.horizontal, 6)
@@ -346,7 +346,7 @@ struct SearchChannelRow: View {
             if hovering {
                 guard !channel.description.isEmpty else { return }
                 hoverTask = Task { @MainActor in
-                    try? await Task.sleep(for: .milliseconds(350))
+                    try? await Task.sleep(for: .milliseconds(1200))
                     if !Task.isCancelled && isHoveringRow {
                         showDescriptionPopover = true
                     }

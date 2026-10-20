@@ -23,6 +23,7 @@ public enum IdleActionType: String, CaseIterable, Identifiable, Sendable {
 public enum LoopbackMode: String, CaseIterable, Identifiable, Sendable {
     case none = "None"
     case local = "Local Test"
+    case server = "Server Test"
 
     public var id: String { rawValue }
 }
@@ -102,6 +103,9 @@ public final class SettingsState {
     public var defaultJitterBufferMs: Double = 10.0
     public var outputVolumePercent: Double = 100.0
     public var audioDuckingEnabled: Bool = false
+    public var hapticFeedbackEnabled: Bool = true
+    public var spatialAudioEnabled: Bool = false
+    public var mumbleLinkEnabled: Bool = false
     public var loopbackMode: LoopbackMode = .none
 
     // 3. User Interface
@@ -124,7 +128,6 @@ public final class SettingsState {
     public var useTcpCompatibilityMode: Bool = false
     public var reconnectAutomatically: Bool = true
     public var autoConnectLastUsedServer: Bool = false
-    public var suppressCertPasswordWarnings: Bool = false
     public var doNotEmbedExternalImages: Bool = false
     public var clearUserCommentsOnExit: Bool = false
     public var clearChatWindowOnExit: Bool = false
@@ -193,6 +196,9 @@ public final class SettingsState {
             "defaultJitterBufferMs": defaultJitterBufferMs,
             "outputVolumePercent": outputVolumePercent,
             "audioDuckingEnabled": audioDuckingEnabled,
+            "mumbleLinkEnabled": mumbleLinkEnabled,
+            "spatialAudioEnabled": spatialAudioEnabled,
+            "hapticFeedbackEnabled": hapticFeedbackEnabled,
             "loopbackMode": loopbackMode.rawValue,
             "uiTheme": uiTheme,
             "displayQuitConfirmation": displayQuitConfirmation,
@@ -209,7 +215,6 @@ public final class SettingsState {
             "useTcpCompatibilityMode": useTcpCompatibilityMode,
             "reconnectAutomatically": reconnectAutomatically,
             "autoConnectLastUsedServer": autoConnectLastUsedServer,
-            "suppressCertPasswordWarnings": suppressCertPasswordWarnings,
             "doNotEmbedExternalImages": doNotEmbedExternalImages,
             "clearUserCommentsOnExit": clearUserCommentsOnExit,
             "clearChatWindowOnExit": clearChatWindowOnExit,
@@ -253,6 +258,9 @@ public final class SettingsState {
         if let v = snapshotData["defaultJitterBufferMs"] as? Double { defaultJitterBufferMs = v }
         if let v = snapshotData["outputVolumePercent"] as? Double { outputVolumePercent = v }
         if let v = snapshotData["audioDuckingEnabled"] as? Bool { audioDuckingEnabled = v }
+        if let v = snapshotData["mumbleLinkEnabled"] as? Bool { mumbleLinkEnabled = v }
+        if let v = snapshotData["spatialAudioEnabled"] as? Bool { spatialAudioEnabled = v }
+        if let v = snapshotData["hapticFeedbackEnabled"] as? Bool { hapticFeedbackEnabled = v }
         if let s = snapshotData["loopbackMode"] as? String, let m = LoopbackMode(rawValue: s) { loopbackMode = m }
         if let v = snapshotData["uiTheme"] as? String { uiTheme = v }
         if let v = snapshotData["displayQuitConfirmation"] as? Bool { displayQuitConfirmation = v }
@@ -269,7 +277,6 @@ public final class SettingsState {
         if let v = snapshotData["useTcpCompatibilityMode"] as? Bool { useTcpCompatibilityMode = v }
         if let v = snapshotData["reconnectAutomatically"] as? Bool { reconnectAutomatically = v }
         if let v = snapshotData["autoConnectLastUsedServer"] as? Bool { autoConnectLastUsedServer = v }
-        if let v = snapshotData["suppressCertPasswordWarnings"] as? Bool { suppressCertPasswordWarnings = v }
         if let v = snapshotData["doNotEmbedExternalImages"] as? Bool { doNotEmbedExternalImages = v }
         if let v = snapshotData["clearUserCommentsOnExit"] as? Bool { clearUserCommentsOnExit = v }
         if let v = snapshotData["clearChatWindowOnExit"] as? Bool { clearChatWindowOnExit = v }
@@ -315,9 +322,12 @@ public final class SettingsState {
             defaultJitterBufferMs = 10.0
             outputVolumePercent = 100.0
             audioDuckingEnabled = false
+            mumbleLinkEnabled = false
+            spatialAudioEnabled = false
             loopbackMode = .none
 
         case .userInterface:
+            hapticFeedbackEnabled = true
             uiTheme = "System Default"
             displayQuitConfirmation = false
             includeUnreadCountInTaskbar = true
@@ -337,7 +347,6 @@ public final class SettingsState {
             useTcpCompatibilityMode = false
             reconnectAutomatically = true
             autoConnectLastUsedServer = false
-            suppressCertPasswordWarnings = false
             doNotEmbedExternalImages = false
             clearUserCommentsOnExit = false
             clearChatWindowOnExit = false
@@ -371,18 +380,20 @@ public final class SettingsState {
     }
 
     public func apply(to store: MumbleStore) {
+        ClientPreferences.shared.apply(to: store)
         // 1. Audio Engine updates
         if let engine = store.audioEngine {
             engine.configureFromSettings(state: self)
         }
 
-        // 2. Hardware device selection
-        if !audioInputDevice.isEmpty, let dev = CoreAudioDeviceManager.shared.inputDevices.first(where: { $0.name == audioInputDevice }) {
-            _ = CoreAudioDeviceManager.shared.setInputDevice(dev.id)
-        }
-        if !audioOutputDevice.isEmpty, let dev = CoreAudioDeviceManager.shared.outputDevices.first(where: { $0.name == audioOutputDevice }) {
-            _ = CoreAudioDeviceManager.shared.setOutputDevice(dev.id)
-        }
+        store.client?.configureSpatialAudio(spatial: spatialAudioEnabled, mumbleLink: mumbleLinkEnabled,
+                                            jitterMs: UInt32(min(100, max(10, defaultJitterBufferMs))))
+
+        store.audioEngine?.selectDevices(input: audioInputDevice, output: audioOutputDevice)
+        store.client?.configureNetwork(forceTcp: useTcpCompatibilityMode, hideOs: hideOsInfoFromServers,
+                                       osVersion: ProcessInfo.processInfo.operatingSystemVersionString)
+
+        store.client?.setLoopbackMode(mode: loopbackMode == .server ? 2 : loopbackMode == .local ? 1 : 0)
 
         // 3. UI Theme
         switch uiTheme {
@@ -447,6 +458,9 @@ public final class SettingsState {
         d.set(defaultJitterBufferMs, forKey: "Swimble_JitterBufferMs")
         d.set(outputVolumePercent, forKey: "Swimble_OutputVolume")
         d.set(audioDuckingEnabled, forKey: "Swimble_AudioDucking")
+        d.set(mumbleLinkEnabled, forKey: "Swimble_MumbleLink")
+        d.set(spatialAudioEnabled, forKey: "Swimble_SpatialAudio")
+        d.set(hapticFeedbackEnabled, forKey: "Swimble_HapticFeedback")
         d.set(loopbackMode.rawValue, forKey: "Swimble_LoopbackMode")
 
         // 3. User Interface
@@ -469,7 +483,6 @@ public final class SettingsState {
         d.set(useTcpCompatibilityMode, forKey: "Swimble_TcpMode")
         d.set(reconnectAutomatically, forKey: "Swimble_ReconnectAuto")
         d.set(autoConnectLastUsedServer, forKey: "Swimble_AutoConnectLast")
-        d.set(suppressCertPasswordWarnings, forKey: "Swimble_SuppressCertWarnings")
         d.set(doNotEmbedExternalImages, forKey: "Swimble_NoExternalImages")
         d.set(clearUserCommentsOnExit, forKey: "Swimble_ClearCommentsExit")
         d.set(clearChatWindowOnExit, forKey: "Swimble_ClearChatExit")
@@ -518,6 +531,12 @@ public final class SettingsState {
         if let s = d.string(forKey: "Swimble_IdleAction"), let m = IdleActionType(rawValue: s) { idleActionType = m }
         if d.object(forKey: "Swimble_UndoIdle") != nil { undoIdleActionOnActivity = d.bool(forKey: "Swimble_UndoIdle") }
 
+        if d.object(forKey: "Swimble_HapticFeedback") != nil { hapticFeedbackEnabled = d.bool(forKey: "Swimble_HapticFeedback") }
+
+        if d.object(forKey: "Swimble_SpatialAudio") != nil { spatialAudioEnabled = d.bool(forKey: "Swimble_SpatialAudio") }
+
+        if d.object(forKey: "Swimble_MumbleLink") != nil { mumbleLinkEnabled = d.bool(forKey: "Swimble_MumbleLink") }
+
         // 2. Audio Output
         if let dev = d.string(forKey: "Swimble_AudioOutputDevice") { audioOutputDevice = dev }
         if d.object(forKey: "Swimble_JitterBufferMs") != nil { defaultJitterBufferMs = d.double(forKey: "Swimble_JitterBufferMs") }
@@ -545,7 +564,6 @@ public final class SettingsState {
         if d.object(forKey: "Swimble_TcpMode") != nil { useTcpCompatibilityMode = d.bool(forKey: "Swimble_TcpMode") }
         if d.object(forKey: "Swimble_ReconnectAuto") != nil { reconnectAutomatically = d.bool(forKey: "Swimble_ReconnectAuto") }
         if d.object(forKey: "Swimble_AutoConnectLast") != nil { autoConnectLastUsedServer = d.bool(forKey: "Swimble_AutoConnectLast") }
-        if d.object(forKey: "Swimble_SuppressCertWarnings") != nil { suppressCertPasswordWarnings = d.bool(forKey: "Swimble_SuppressCertWarnings") }
         if d.object(forKey: "Swimble_NoExternalImages") != nil { doNotEmbedExternalImages = d.bool(forKey: "Swimble_NoExternalImages") }
         if d.object(forKey: "Swimble_ClearCommentsExit") != nil { clearUserCommentsOnExit = d.bool(forKey: "Swimble_ClearCommentsExit") }
         if d.object(forKey: "Swimble_ClearChatExit") != nil { clearChatWindowOnExit = d.bool(forKey: "Swimble_ClearChatExit") }

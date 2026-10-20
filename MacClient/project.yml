@@ -11,6 +11,9 @@ targets:
     sources:
       - Sources
       - Generated/mumble_core.swift
+      - path: ../rust-core/proto/LICENSE.mumble
+        type: file
+        buildPhase: resources
       - path: Resources/Swimble.icon
         type: file
         buildPhase: resources
@@ -23,8 +26,8 @@ targets:
         CFBundleDisplayName: "Swimble"
         CFBundleIconName: "Swimble"
         CFBundleIconFile: "Swimble"
-        CFBundleShortVersionString: "1.1.1"
-        CFBundleVersion: "3"
+        CFBundleShortVersionString: "1.2.0"
+        CFBundleVersion: "4"
         NSMicrophoneUsageDescription: "Swimble requires microphone access for voice chat."
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: true
@@ -47,6 +50,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.swimble.Swimble
         MACOSX_DEPLOYMENT_TARGET: "26.0"
         SWIFT_VERSION: "6.0"
+        SWIFT_OBJC_BRIDGING_HEADER: Sources/Audio/NativeAudioBridge.h
         GENERATE_INFOPLIST_FILE: NO
         SWIFT_INCLUDE_PATHS:
           - "$(PROJECT_DIR)/Generated"
@@ -58,6 +62,7 @@ targets:
           - "/opt/homebrew/opt/opus/lib"
         OTHER_LDFLAGS:
           - "-lopus"
+          - "-lc++"
           - "-lresolv"
         OTHER_SWIFT_FLAGS:
           - "-Xcc"
@@ -65,3 +70,34 @@ targets:
         CODE_SIGN_IDENTITY: "-"
         CODE_SIGNING_REQUIRED: "NO"
         CODE_SIGNING_ALLOWED: "YES"
+
+  SwimbleTests:
+    type: bundle.unit-test
+    platform: macOS
+    deploymentTarget: "26.0"
+    sources:
+      - Tests
+    dependencies:
+      - target: Swimble
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.swimble.SwimbleTests
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "6.0"
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Swimble.app/Contents/MacOS/Swimble"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+        SWIFT_INCLUDE_PATHS: ["$(PROJECT_DIR)/Generated"]
+        CODE_SIGN_IDENTITY: "-"
+        HEADER_SEARCH_PATHS: ["$(PROJECT_DIR)/Generated"]
+        OTHER_SWIFT_FLAGS: ["-Xcc", "-fmodule-map-file=$(PROJECT_DIR)/Generated/mumble_coreFFI.modulemap"]
+schemes:
+  Swimble:
+    build:
+      targets:
+        Swimble: all
+        SwimbleTests: [test]
+    test:
+      targets: [SwimbleTests]
+      environmentVariables:
+        SWIMBLE_TESTING: "1"
+        SWIMBLE_REQUEST_MICROPHONE: "$(SWIMBLE_REQUEST_MICROPHONE)"

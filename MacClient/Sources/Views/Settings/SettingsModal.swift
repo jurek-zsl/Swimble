@@ -122,6 +122,7 @@ public struct SettingsModal: View {
         }
         .toolbar(removing: .sidebarToggle)
         .frame(minWidth: 840, idealWidth: 900, minHeight: 620, idealHeight: 680)
+        .modifier(AudioPreviewLifecycle(store: store, tab: selectedTab))
         .onDisappear {
             SettingsState.shared.apply(to: store)
         }
@@ -353,13 +354,19 @@ struct CertificatesSettingsTab: View {
         .alert("Generate New Certificate?", isPresented: $showingRegenConfirmation) {
             Button("Generate", role: .destructive) {
                 let newId = generateClientIdentity(commonName: "Swimble User")
-                store.updateClientIdentity(newId)
-                statusMessage = "Successfully generated and saved new identity."
-                isError = false
+                installIdentity(newId, message: "New identity saved to Keychain.")
             }
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("Generating a new certificate will replace your current identity in Keychain. You may lose server registrations tied to your existing certificate.")
+        }
+    }
+
+    private func installIdentity(_ identity: ClientIdentity, message: String) {
+        statusMessage = "Saving identity to Keychain…"
+        Task { @MainActor in
+            do { try await store.updateClientIdentity(identity); statusMessage = message; isError = false }
+            catch { statusMessage = "Identity was not changed: \(error.localizedDescription)"; isError = true }
         }
     }
 
@@ -388,9 +395,7 @@ struct CertificatesSettingsTab: View {
         do {
             let data = try Data(contentsOf: url)
             let imported = try importIdentityFromPkcs12(p12Bytes: data, password: password)
-            store.updateClientIdentity(imported)
-            statusMessage = "Certificate imported successfully into Keychain."
-            isError = false
+            installIdentity(imported, message: "Certificate imported into Keychain.")
         } catch {
             statusMessage = "Import failed: \(error.localizedDescription)"
             isError = true

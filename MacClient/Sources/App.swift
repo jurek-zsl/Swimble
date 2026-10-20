@@ -3,6 +3,9 @@ import AppKit
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
+        guard ProcessInfo.processInfo.environment["SWIMBLE_TESTING"] != "1" else { return }
+        LocalControl.shared.start()
+        UpdateChecker.shared.checkAtLaunchIfEnabled()
         switch SettingsState.shared.uiTheme {
         case "Dark":
             NSApp.appearance = NSAppearance(named: .darkAqua)
@@ -37,6 +40,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             for s in MumbleStore.activeStores {
                 s.chatMessages.removeAll()
             }
+        }
+        let stores = MumbleStore.activeStores
+        let waitForFlush = SettingsState.shared.clearUserCommentsOnExit && stores.contains { $0.connectionStatus == .connected }
+        for store in stores { store.shutdown() }
+        if waitForFlush {
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(2.1))
+                NSApplication.shared.reply(toApplicationShouldTerminate: true)
+            }
+            return .terminateLater
         }
         return .terminateNow
     }
@@ -82,7 +95,8 @@ struct SwimbleApp: App {
     var body: some Scene {
         // Main Application Window (Multi-Server Tab / Window Support)
         WindowGroup("Swimble") {
-            ServerWindowView()
+            if ProcessInfo.processInfo.environment["SWIMBLE_TESTING"] == "1" { Text("Swimble regression tests") }
+            else { ServerWindowView() }
         }
         .windowStyle(.titleBar)
         .windowToolbarStyle(.unified)
@@ -408,6 +422,7 @@ struct ServerWindowView: View {
 
     var body: some View {
         ServerSplitView(store: store)
+            .background(SessionFocusObserver(store: store).frame(width: 0, height: 0))
             .frame(minWidth: 820, minHeight: 540)
             .focusedValue(\.mumbleStore, store)
             .navigationTitle(store.activeBookmark?.name ?? (store.connectionStatus == .connected ? "Connected" : "Swimble"))
@@ -425,7 +440,7 @@ struct ServerWindowView: View {
                 }
             }
             .onDisappear {
-                store.disconnect()
+                store.shutdown()
             }
     }
 }

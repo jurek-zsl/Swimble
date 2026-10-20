@@ -41,11 +41,12 @@ public struct NetworkSettingsTab: View {
                         isOn: $state.autoConnectLastUsedServer
                     )
 
-                    SettingsToggleRow(
-                        "Suppress Certificate and Password Warnings",
-                        subtitle: "Silently accept self-signed server certificates without interactive alert sheets.",
-                        isOn: $state.suppressCertPasswordWarnings
-                    )
+                    Label("Server Identity Verification Enabled", systemImage: "checkmark.shield.fill")
+                        .foregroundStyle(.green)
+                    Text("Certificates are checked against macOS trust and the requested hostname. Private certificates require explicit fingerprint approval. Changed saved certificates block the connection until reviewed.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
                 }
 
                 // 2. Privacy & Anonymity
@@ -89,6 +90,9 @@ public struct NetworkSettingsTab: View {
                         subtitle: "Automated version verification on launch."
                     )
 
+                    Button("Check for Updates Now") { Task { await UpdateChecker.shared.check() } }
+                        .disabled(UpdateChecker.shared.checking)
+                    if !UpdateChecker.shared.status.isEmpty { Text(UpdateChecker.shared.status).font(.caption) }
                     SettingsToggleRow(
                         "Check for Application Updates on Startup",
                         subtitle: "Checks GitHub Releases for new Swimble builds on launch.",

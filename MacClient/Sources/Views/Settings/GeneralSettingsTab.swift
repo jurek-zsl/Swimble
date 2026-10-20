@@ -4,6 +4,7 @@ import SwiftUI
 /// Liquid Glass accent tints, and Game Overlay preferences.
 public struct GeneralSettingsTab: View {
     @Bindable public var store: MumbleStore
+    @Bindable private var state = SettingsState.shared
     @State private var audioCuesEnabled: Bool = SoundManager.shared.isAudioCuesEnabled
     @State private var muteCueEnabled: Bool = SoundManager.shared.isMuteCueEnabled
     @State private var userActivityCueEnabled: Bool = SoundManager.shared.isUserActivityCueEnabled
@@ -35,9 +36,9 @@ public struct GeneralSettingsTab: View {
                     )
 
                     SettingsToggleRow(
-                        "Auto-Connect to Favorite Server",
-                        subtitle: "Automatically connects to your favorite server bookmark when Swimble launches.",
-                        isOn: $store.autoReconnectOnLaunch
+                        "Auto-Connect to Last Used Server",
+                        subtitle: "Connects to your last successful saved server when Swimble launches.",
+                        isOn: $state.autoConnectLastUsedServer
                     )
                 }
 
