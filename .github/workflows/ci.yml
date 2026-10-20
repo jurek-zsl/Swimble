@@ -14,6 +14,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: rust-core
+          cache-on-failure: true
       - run: sudo apt-get update && sudo apt-get install -y libopus-dev protobuf-compiler libssl-dev g++
       - name: Start local Murmur fixture
         run: |
@@ -36,6 +37,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: rust-core
+          cache-on-failure: true
       - run: brew install opus protobuf xcodegen
       - run: ./scripts/check_versions.py
       - run: ./scripts/build_bridge.sh
