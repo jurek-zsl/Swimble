@@ -16,7 +16,7 @@ docker run --rm --detach --pull never --name "$fixture_name" \
   mumblevoip/mumble-server:latest >/dev/null
 fixture_ready=false
 for attempt in {1..100}; do
-  if docker logs "$fixture_name" 2>&1 | rg -q 'Not registering server as public'; then fixture_ready=true; break; fi
+  if docker logs "$fixture_name" 2>&1 | grep -q 'Not registering server as public'; then fixture_ready=true; break; fi
   sleep 0.1
 done
 if [[ "$fixture_ready" != true ]]; then echo "Murmur fixture did not become ready" >&2; exit 1; fi
