@@ -11,6 +11,7 @@ import Synchronization
 public final class MacAudioEngine: @unchecked Sendable {
     private let engine = AVAudioEngine()
     private var sourceNode: AVAudioSourceNode?
+    private var testPlayers: [UUID: AVAudioPlayerNode] = [:]
     private let client: MumbleClient
     private let endpoint: NativeAudioEndpoint
     private var meterTimer: Timer?
@@ -286,6 +287,8 @@ public final class MacAudioEngine: @unchecked Sendable {
         guard isRunning else { swimble_audio_active(endpoint.handle, false); return }
         engine.stop()
         swimble_audio_active(endpoint.handle, false)
+        for player in testPlayers.values { player.stop(); engine.detach(player) }
+        testPlayers.removeAll()
 
         engine.inputNode.removeTap(onBus: 0)
         if let srcNode = sourceNode {
@@ -332,8 +335,10 @@ public final class MacAudioEngine: @unchecked Sendable {
             try start()
             let format = AVAudioFormat(standardFormatWithSampleRate: 48000, channels: 2)!
             let player = AVAudioPlayerNode()
-            engine.attach(player); engine.connect(player, to: engine.mainMixerNode, format: format)
             guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 28800), let data = buffer.floatChannelData else { return }
+            let id = UUID()
+            testPlayers[id] = player
+            engine.attach(player); engine.connect(player, to: engine.mainMixerNode, format: format)
             buffer.frameLength = 28800
             for i in 0..<28800 {
                 let envelope = min(1.0, Double(i)/240.0) * min(1.0, Double(28800-i)/2400.0)
@@ -341,7 +346,10 @@ public final class MacAudioEngine: @unchecked Sendable {
                 data[0][i] = value; data[1][i] = value
             }
             player.scheduleBuffer(buffer) { [weak self] in
-                Task { @MainActor [weak self] in guard let self else { return }; player.stop(); self.engine.detach(player) }
+                Task { @MainActor [weak self] in
+                    guard let self, let completed = self.testPlayers.removeValue(forKey: id) else { return }
+                    completed.stop(); self.engine.detach(completed)
+                }
             }
             player.play()
         } catch { lastError = error.localizedDescription }
