@@ -4,7 +4,7 @@
 
 **Swimble** is a native macOS client for standard Mumble voice servers. SwiftUI provides the interface and audio hardware integration; Rust implements the Mumble protocol, encrypted voice transport, Opus processing, and playback buffering.
 
-[Download](https://github.com/jurek-zsl/Swimble/releases/latest) · [Release history](https://github.com/jurek-zsl/Swimble/releases) · [Report an issue](https://github.com/jurek-zsl/Swimble/issues)
+[Download](https://github.com/jurek-zsl/Swimble/releases/latest) · [Screenshots & Video](MEDIA.md) · [Release history](https://github.com/jurek-zsl/Swimble/releases) · [Report an issue](https://github.com/jurek-zsl/Swimble/issues)
 
 ## Requirements and installation
 
