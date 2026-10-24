@@ -768,7 +768,7 @@ async fn native_audio_bridge_recording_and_forced_tcp() {
                 960,
                 48000,
                 1.0,
-                -1,
+                0,
             );
             mumble_core::audio_io::swimble_audio_playback(
                 handle,
@@ -804,7 +804,152 @@ async fn native_audio_bridge_recording_and_forced_tcp() {
         0,
         "Forced TCP must suppress encrypted UDP pings and voice"
     );
-    for client in clients {
-        client.disconnect();
+    // Reuse this live connection to verify that server loopback also closes
+    // on release, rather than echoing private mic audio into the remote track.
+    sender.disconnect();
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    for _ in 0..4 {
+        receiver.pull_speaker_pcm(8192);
+    }
+    for rate in [48000, 44100] {
+        assert_recording_gate(receiver, rate, 2).await;
+    }
+    receiver.disconnect();
+}
+
+/// Exercise the real capture worker and WAV writer with synthetic hardware I/O.
+/// Negative targets represent released PTT, mute, or a closed VAD gate.
+#[tokio::test]
+async fn native_audio_recording_respects_transmission_gate() {
+    let client = MumbleClient::new(Box::new(TestHandler::new(
+        Arc::new(Notify::new()),
+        Arc::new(Notify::new()),
+        Arc::new(Notify::new()),
+    )));
+    for rate in [48000, 44100] {
+        for loopback in [0, 1] {
+            assert_recording_gate(&client, rate, loopback).await;
+        }
+    }
+}
+
+async fn assert_recording_gate(client: &Arc<MumbleClient>, rate: u32, loopback: u32) {
+    client.set_loopback_mode(loopback);
+    let handle = Arc::clone(&client).audio_port_handle();
+    let directory = tempfile::tempdir().unwrap();
+    unsafe { mumble_core::audio_io::swimble_audio_active(handle, true) };
+    if loopback == 2 {
+        // Settle codec history and queued audio from the preceding duplex
+        // test before asserting that an entirely silent WAV stays silent.
+        let silence = vec![0.0; (rate / 100) as usize];
+        for _ in 0..20 {
+            let mut left = [0.0; 480];
+            let mut right = [0.0; 480];
+            unsafe {
+                mumble_core::audio_io::swimble_audio_capture(
+                    handle,
+                    silence.as_ptr(),
+                    silence.len() as u32,
+                    rate,
+                    1.0,
+                    0,
+                );
+                mumble_core::audio_io::swimble_audio_playback(
+                    handle,
+                    left.as_mut_ptr(),
+                    right.as_mut_ptr(),
+                    480,
+                    1.0,
+                );
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    }
+
+    for (name, initial_target, initial_sample, final_target, final_sample) in [
+        // Closed mic must stay silent, including filter history when
+        // PTT is pressed again with a silent microphone.
+        ("reopen", -1, 0.7, 0, 0.0),
+        // A genuine transmitted voice precedes private post-release
+        // speech, so silence cannot pass by disabling recording.
+        ("release", 0, 0.2, -1, 0.7),
+    ] {
+        let path = directory.path().join(format!("{name}.wav"));
+        assert!(client.start_recording(path.to_str().unwrap().into()));
+        let mut preview_energy = 0.0f32;
+        for (target, sample, blocks) in [
+            (initial_target, initial_sample, 20),
+            (final_target, final_sample, 40),
+        ] {
+            // A tone remains audible through Opus high-pass filtering;
+            // DC input could hide a server-loopback leak as it decays.
+            let mic: Vec<f32> = (0..rate / 100)
+                .map(|i| {
+                    sample * (i as f32 * 440.0 * 2.0 * std::f32::consts::PI / rate as f32).sin()
+                })
+                .collect();
+            for _ in 0..blocks {
+                let mut left = [0.0; 480];
+                let mut right = [0.0; 480];
+                unsafe {
+                    mumble_core::audio_io::swimble_audio_capture(
+                        handle,
+                        mic.as_ptr(),
+                        mic.len() as u32,
+                        rate,
+                        1.0,
+                        target,
+                    );
+                    mumble_core::audio_io::swimble_audio_playback(
+                        handle,
+                        left.as_mut_ptr(),
+                        right.as_mut_ptr(),
+                        480,
+                        1.0,
+                    );
+                }
+                preview_energy += left.iter().map(|value| value.abs()).sum::<f32>();
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        }
+        client.stop_recording();
+        let reader = hound::WavReader::open(path).unwrap();
+        assert_eq!(reader.spec().sample_rate, 48000);
+        let samples: Vec<i16> = reader.into_samples().map(Result::unwrap).collect();
+        let mic: Vec<i16> = samples.iter().step_by(2).copied().collect();
+        assert!(mic.len() >= 24000, "Recording must advance with playback");
+        let remote: Vec<i16> = samples.iter().skip(1).step_by(2).copied().collect();
+        if loopback != 2 || name == "reopen" {
+            assert!(
+                remote.iter().all(|&sample| sample == 0),
+                "Closed mic leaked into remote track: {rate} Hz, loopback {loopback}, {name}"
+            );
+        } else {
+            assert!(
+                remote[remote.len() - 9600..]
+                    .iter()
+                    .all(|&sample| sample == 0),
+                "Server echoed post-release mic: {rate} Hz"
+            );
+        }
+        if name == "reopen" {
+            assert!(
+                mic.iter().all(|&sample| sample == 0),
+                "Closed mic or resampler history leaked: {rate} Hz, loopback {loopback}"
+            );
+        } else {
+            assert!(mic.iter().any(|sample| sample.unsigned_abs() > 1000));
+            assert!(
+                mic[mic.len() - 9600..].iter().all(|&sample| sample == 0),
+                "Post-release mic leaked: {rate} Hz, loopback {loopback}"
+            );
+        }
+        if loopback == 1 {
+            assert!(preview_energy > 100.0, "Local preview must remain audible");
+        }
+    }
+    unsafe {
+        mumble_core::audio_io::swimble_audio_active(handle, false);
+        mumble_core::audio_io::swimble_audio_release(handle);
     }
 }

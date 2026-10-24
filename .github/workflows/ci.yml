@@ -25,7 +25,8 @@ jobs:
             sleep 0.2
           done
           exit 1
-      - run: cargo test --manifest-path rust-core/Cargo.toml --locked
+      # Live audio assertions share one Murmur fixture.
+      - run: cargo test --manifest-path rust-core/Cargo.toml --locked -- --test-threads=1
       - run: ./scripts/test_acl.sh
       - if: failure()
         run: docker logs murmur-test

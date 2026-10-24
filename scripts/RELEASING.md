@@ -69,7 +69,7 @@ Before packaging:
 
 ```sh
 ./scripts/check_versions.py
-cargo test --manifest-path rust-core/Cargo.toml --locked
+cargo test --manifest-path rust-core/Cargo.toml --locked -- --test-threads=1
 ./scripts/test_acl.sh
 xcodebuild -project MacClient/Swimble.xcodeproj -scheme Swimble \
   -destination 'platform=macOS' -parallel-testing-enabled NO test

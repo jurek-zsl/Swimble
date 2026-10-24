@@ -26,7 +26,7 @@ Published builds currently use ad hoc signing and are not Apple-notarized. Each 
 | Messaging | Channel/private messages, formatted descriptions and comments, inline images, per-user text ignore, TTS, notifications, bounded in-memory history, and unread indicators. |
 | Audio hardware | App-scoped device routing by stable device UID, offline microphone preview, an output test tone, local/server loopback, VoiceProcessingIO echo cancellation, speech-driven system ducking, and Bluetooth input protection. |
 | Positioning | Native Mumble Link, stereo virtual seating, manual world coordinates, distance/volume controls, native positional-plugin loading, and source diagnostics. |
-| Recording | Synchronized 48 kHz stereo WAV: microphone on the left, received mix on the right. Each server window owns its recording. |
+| Recording | Synchronized 48 kHz stereo WAV: microphone on the left only while transmitting, received mix on the right. Each server window owns its recording. |
 | Connections | Bookmarks, public directory, DNS SRV, IPv4/IPv6 endpoints, `mumble://` links, automatic TCP fallback, forced TCP mode, and reconnect backoff. |
 | Identities | Client certificate generation and PKCS#12 import/export, certificate-based friends/local nicknames, system TLS trust, and explicit private-server fingerprint approval. |
 | macOS | Liquid Glass interface, menu bar controls, trackpad haptics, speaker overlay, global keyboard/mouse shortcuts, named whisper presets, and local command-line control. |
@@ -49,7 +49,9 @@ Murmur remains authoritative for permissions. Persistent user grants use registe
 
 Capture/playback callbacks exchange PCM through bounded lock-free queues. Resampling, Opus, mixing, and recording run on a worker. Statistics calculate FFT data only while displayed. Counters distinguish capture overruns and playback underruns; unavailable signal measurements are identified explicitly rather than estimated as measured values.
 
-Local loopback works without a server. Server loopback requires a connection and uses the standard Mumble loopback voice target. Use headphones for microphone tests.
+Microphone recording follows the transmission gate, including configured hold times. Local monitoring stays out of the received-audio recording track.
+
+Local loopback works without a server. Server loopback requires a connection, uses the standard Mumble loopback voice target, and follows the transmission gate. Use headphones for microphone tests.
 
 Ducking uses Apple's speech-driven voice processing. With ducking disabled, VoiceProcessingIO can still apply Apple's minimum attenuation. Disabling echo cancellation as well selects unprocessed capture. Bluetooth protection selects the built-in microphone for Swimble when appropriate, preserving stereo headphone output.
 
@@ -99,7 +101,7 @@ Run the protocol and Swift regression suites:
 
 ```sh
 # A disposable local Murmur fixture must be available on 127.0.0.1:64738.
-cargo test --manifest-path rust-core/Cargo.toml
+cargo test --manifest-path rust-core/Cargo.toml -- --test-threads=1
 ./scripts/test_acl.sh
 xcodebuild -project MacClient/Swimble.xcodeproj -scheme Swimble -destination 'platform=macOS' -parallel-testing-enabled NO test
 ```

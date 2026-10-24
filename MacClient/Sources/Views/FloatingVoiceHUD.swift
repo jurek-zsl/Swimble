@@ -15,13 +15,24 @@ public struct HUDCircleButtonStyle: ButtonStyle {
 
 /// Interactive button style for capsule-shaped pills.
 public struct HUDCapsuleButtonStyle: ButtonStyle {
-    public init() {}
+    private let onPressChanged: ((Bool) -> Void)?
+
+    public init(onPressChanged: ((Bool) -> Void)? = nil) {
+        self.onPressChanged = onPressChanged
+    }
 
     public func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
             .animation(.spring(response: 0.18, dampingFraction: 0.75), value: configuration.isPressed)
             .contentShape(Capsule())
+            .onChange(of: configuration.isPressed) { _, pressed in
+                onPressChanged?(pressed)
+            }
+            .onDisappear {
+                // Removing a held PTT control must also close the mic gate.
+                if configuration.isPressed { onPressChanged?(false) }
+            }
     }
 }
 
@@ -113,21 +124,15 @@ public struct FloatingVoiceHUD: View {
                         .padding(.vertical, 10)
                         .contentShape(Capsule())
                     }
-                    .buttonStyle(HUDCapsuleButtonStyle())
+                    .buttonStyle(HUDCapsuleButtonStyle(onPressChanged: { pressed in
+                        audioEngine.setPushToTalkActive(pressed)
+                    }))
+                    .help("Hold to talk, release to stop")
                     .glassEffect(
                         .regular.tint(audioEngine.isTransmitting ? .green : nil).interactive(),
                         in: .capsule
                     )
                     .glassEffectID("transmitPill", in: glassNamespace)
-                    .simultaneousGesture(
-                        DragGesture(minimumDistance: 0)
-                            .onChanged { _ in
-                                audioEngine.setPushToTalkActive(true)
-                            }
-                            .onEnded { _ in
-                                audioEngine.setPushToTalkActive(false)
-                            }
-                    )
                     .contextMenu {
                         Button("Switch to Voice Activity (VAD)") {
                             audioEngine.isPushToTalk = false

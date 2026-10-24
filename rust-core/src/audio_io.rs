@@ -186,7 +186,10 @@ pub fn start_worker(client: Weak<crate::MumbleClient>) {
     owner.runner.spawn(async move {
         let mut source_rate = 48000;
         let mut resampler: Option<SincFixedIn<f32>> = None;
-        let mut mic = VecDeque::<f32>::with_capacity(19200);
+        // Queue only permitted recording audio and explicitly enabled local
+        // preview audio. Closed-gate mic samples must never reach the WAV.
+        let mut mic = VecDeque::<[f32; 2]>::with_capacity(19200);
+        let mut was_transmitting = false;
         let mut tick = tokio::time::interval(Duration::from_millis(5));
         tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
         loop {
@@ -198,6 +201,10 @@ pub fn start_worker(client: Weak<crate::MumbleClient>) {
             if !port.active.load(Ordering::Acquire) {
                 while port.input.lock().unwrap().pop().is_ok() {}
                 mic.clear();
+                if let Some(converter) = resampler.as_mut() {
+                    converter.reset();
+                }
+                was_transmitting = false;
                 drop(client);
                 tokio::time::sleep(Duration::from_millis(50)).await;
                 tick.reset();
@@ -227,6 +234,15 @@ pub fn start_worker(client: Weak<crate::MumbleClient>) {
                         .ok()
                     };
                 }
+                let transmitting = block.target >= 0;
+                if transmitting != was_transmitting {
+                    // A closed-gate buffer can otherwise survive in the sinc
+                    // filter and leak into the next transmitted/recorded block.
+                    if let Some(converter) = resampler.as_mut() {
+                        converter.reset();
+                    }
+                }
+                was_transmitting = transmitting;
                 let converted = if let Some(ref mut converter) = resampler {
                     let _ = converter.set_chunk_size(block.len);
                     converter
@@ -240,25 +256,35 @@ pub fn start_worker(client: Weak<crate::MumbleClient>) {
                 if mic.len() + converted.len() > 19200 {
                     mic.clear();
                 }
-                mic.extend(converted.iter().copied());
+                let loopback = port.loopback.load(Ordering::Relaxed);
+                mic.extend(converted.iter().map(|&sample| {
+                    [
+                        if loopback == 1 { sample } else { 0.0 },
+                        if transmitting { sample } else { 0.0 },
+                    ]
+                }));
                 let mut metrics = port.metrics.lock().unwrap();
                 let rms = (converted.iter().map(|x| x * x).sum::<f32>()
                     / converted.len().max(1) as f32)
                     .sqrt();
                 metrics.mic_frames_processed += converted.len() as u64;
                 metrics.mic_db = 20.0 * rms.max(1e-5).log10();
-                metrics.transmitting = block.target >= 0;
+                metrics.transmitting = transmitting;
                 if port.diagnostics.load(Ordering::Relaxed) {
                     metrics.mic_samples = converted.iter().rev().take(1024).copied().collect();
                 }
                 drop(metrics);
-                let loopback = port.loopback.load(Ordering::Relaxed);
-                if loopback == 2 {
-                    client.push_mic_pcm(converted, Some(31));
-                } else if block.target >= 0 {
-                    client.push_mic_pcm(converted, Some(block.target as u8));
+                let target = if loopback == 2 {
+                    31
                 } else {
-                    client.finish_mic_stream(None);
+                    block.target as u8
+                };
+                if transmitting {
+                    client.push_mic_pcm(converted, Some(target));
+                } else {
+                    // Server loopback must obey the same gate: an echoed
+                    // closed-gate mic would reenter the remote recording mix.
+                    client.finish_mic_stream(if loopback == 2 { Some(31) } else { None });
                 }
             }
             // Hardware consumption sets the sample clock; scheduler jitter never
@@ -269,19 +295,20 @@ pub fn start_worker(client: Weak<crate::MumbleClient>) {
                 }
                 let mut speaker = client.pull_speaker_pcm(480);
                 let mut recorder = port.recorder.lock().unwrap();
-                for (i, frame) in speaker.chunks_exact_mut(2).enumerate() {
-                    let local = mic.pop_front().unwrap_or(0.0);
-                    if port.loopback.load(Ordering::Relaxed) == 1 {
-                        frame[0] += local;
-                        frame[1] += local;
-                    }
+                for frame in speaker.chunks_exact_mut(2) {
+                    let [local, recorded] = mic.pop_front().unwrap_or([0.0; 2]);
                     if let Some(file) = recorder.as_mut() {
-                        let _ = file.write_sample((local.clamp(-1.0, 1.0) * 32767.0) as i16);
+                        let _ = file.write_sample((recorded.clamp(-1.0, 1.0) * 32767.0) as i16);
                         let _ = file.write_sample(
                             (((frame[0] + frame[1]) * 0.5).clamp(-1.0, 1.0) * 32767.0) as i16,
                         );
                     }
-                    let _ = i;
+                    // Local monitor audio is for playback only, never the
+                    // remote recording track (including while PTT is closed).
+                    if port.loopback.load(Ordering::Relaxed) == 1 {
+                        frame[0] += local;
+                        frame[1] += local;
+                    }
                 }
                 drop(recorder);
                 if port.diagnostics.load(Ordering::Relaxed) {
