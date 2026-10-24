@@ -686,6 +686,7 @@
 		8853D884CA0752B9EDF3FC58 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ARCHS = "arm64 x86_64";
 				ASSETCATALOG_COMPILER_APPICON_NAME = Swimble;
 				CODE_SIGNING_ALLOWED = YES;
 				CODE_SIGNING_REQUIRED = NO;
@@ -698,7 +699,9 @@
 				GENERATE_INFOPLIST_FILE = NO;
 				HEADER_SEARCH_PATHS = (
 					"$(PROJECT_DIR)/Generated",
+					"$(PROJECT_DIR)/../build/opus-macos26/include",
 					/opt/homebrew/opt/opus/include,
+					/usr/local/opt/opus/include,
 				);
 				INFOPLIST_FILE = Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -707,9 +710,12 @@
 				);
 				LIBRARY_SEARCH_PATHS = (
 					"$(PROJECT_DIR)/Generated",
+					"$(PROJECT_DIR)/../build/opus-macos26/lib",
 					/opt/homebrew/opt/opus/lib,
+					/usr/local/opt/opus/lib,
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				ONLY_ACTIVE_ARCH = NO;
 				OTHER_LDFLAGS = (
 					"-lopus",
 					"-lc++",
@@ -733,6 +739,7 @@
 		B98B882F8328F7C9A439DE0C /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ARCHS = "arm64 x86_64";
 				ASSETCATALOG_COMPILER_APPICON_NAME = Swimble;
 				CODE_SIGNING_ALLOWED = YES;
 				CODE_SIGNING_REQUIRED = NO;
@@ -745,7 +752,9 @@
 				GENERATE_INFOPLIST_FILE = NO;
 				HEADER_SEARCH_PATHS = (
 					"$(PROJECT_DIR)/Generated",
+					"$(PROJECT_DIR)/../build/opus-macos26/include",
 					/opt/homebrew/opt/opus/include,
+					/usr/local/opt/opus/include,
 				);
 				INFOPLIST_FILE = Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -754,9 +763,12 @@
 				);
 				LIBRARY_SEARCH_PATHS = (
 					"$(PROJECT_DIR)/Generated",
+					"$(PROJECT_DIR)/../build/opus-macos26/lib",
 					/opt/homebrew/opt/opus/lib,
+					/usr/local/opt/opus/lib,
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				ONLY_ACTIVE_ARCH = NO;
 				OTHER_LDFLAGS = (
 					"-lopus",
 					"-lc++",

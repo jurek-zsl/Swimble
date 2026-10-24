@@ -8,7 +8,7 @@
 
 ## Requirements and installation
 
-- Apple Silicon Mac running macOS 26 or later.
+- Apple Silicon or Intel Mac running macOS 26 or later. Release builds are universal.
 - A standard Murmur server. No server extensions are required.
 - Microphone permission for capture; Accessibility permission for global shortcuts.
 

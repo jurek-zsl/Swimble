@@ -1,7 +1,7 @@
 import SwiftUI
 import AppKit
 
-/// Native Audio Input configuration tab tailored for macOS 26 CoreAudio & Apple Silicon.
+/// Native Audio Input configuration tab tailored for macOS 26 CoreAudio.
 public struct AudioInputSettingsTab: View {
     @Bindable public var store: MumbleStore
     @Bindable public var state: SettingsState = SettingsState.shared
@@ -229,7 +229,7 @@ public struct AudioInputSettingsTab: View {
 
                     SettingsToggleRow(
                         "Hardware Echo Cancellation (VoiceProcessingIO)",
-                        subtitle: "Apple Silicon hardware VoiceProcessing eliminates speaker playback and room echo from your microphone.",
+                        subtitle: "Hardware VoiceProcessing eliminates speaker playback and room echo from your microphone.",
                         isOn: $state.echoCancellation
                     )
                 }
