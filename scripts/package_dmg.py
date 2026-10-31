@@ -28,6 +28,18 @@ def dependencies(binary):
     return [line.strip().split(' (', 1)[0] for line in lines]
 
 
+def architectures(binary):
+    return set(run('lipo', '-archs', binary, capture=True).decode().split())
+
+
+def require_universal(binary, label):
+    """Release builds must run on both Apple Silicon and Intel Macs."""
+    missing = {'arm64', 'x86_64'} - architectures(binary)
+    if missing:
+        raise RuntimeError(
+            f'{label} is not universal; missing {" ".join(sorted(missing))}: {binary}')
+
+
 def prepare_app(source, destination, signing_identity="-", notary_profile=None):
     run('ditto', source, destination)
     # Cloud-backed working copies may add these to build products. They are
@@ -36,15 +48,21 @@ def prepare_app(source, destination, signing_identity="-", notary_profile=None):
         run('xattr', '-rd', attribute, destination)
     info = plistlib.loads((destination / 'Contents/Info.plist').read_bytes())
     executable = destination / 'Contents/MacOS' / info['CFBundleExecutable']
+    require_universal(executable, 'App executable')
     for dep in dependencies(executable):
         if Path(dep).name != 'libopus.0.dylib' or dep.startswith('@'):
             continue
-        original = Path(dep).resolve(strict=True)
+        # Keep the unversioned name: build_opus.sh installs libopus.0.dylib as
+        # a symlink to libopus.0.<abi>.dylib, and the app links the former.
+        original = Path(dep)
+        if not original.is_file():
+            raise RuntimeError(f'Missing Opus library: {dep}')
         frameworks = destination / 'Contents/Frameworks'
         frameworks.mkdir(exist_ok=True)
         bundled = frameworks / original.name
         shutil.copy2(original, bundled)
         bundled.chmod(0o755)
+        require_universal(bundled, 'Bundled Opus')
         run('install_name_tool', '-id', '@rpath/' + original.name, bundled)
         run('install_name_tool', '-change', dep,
             '@executable_path/../Frameworks/' + original.name, executable)
@@ -60,6 +78,7 @@ def prepare_app(source, destination, signing_identity="-", notary_profile=None):
     if not rpc.is_file():
         raise RuntimeError('Missing release swimble-rpc executable; run build_bridge.sh first')
     shutil.copy2(rpc, destination / 'Contents/MacOS/swimble-rpc')
+    require_universal(destination / 'Contents/MacOS/swimble-rpc', 'swimble-rpc')
     run('codesign', '--force', '--sign', signing_identity, *(['--timestamp', '--options', 'runtime'] if signing_identity != '-' else []), destination / 'Contents/MacOS/swimble-rpc')
     # User-selected native positional plugins can have another developer's
     # signature. Other hardened-runtime protections remain enabled.
@@ -133,8 +152,11 @@ def verify(volume, layout, background):
     deps = dependencies(executable)
     opus = '@executable_path/../Frameworks/libopus.0.dylib'
     assert opus in deps and (app / 'Contents/Frameworks/libopus.0.dylib').is_file()
+    require_universal(executable, 'App executable')
+    require_universal(app / 'Contents/MacOS/swimble-rpc', 'swimble-rpc')
+    require_universal(app / 'Contents/Frameworks/libopus.0.dylib', 'Bundled Opus')
     print('Verified: embedded background alias, icon positions, Applications link, '
-          'bundled Opus, and app signature.', flush=True)
+          'bundled universal Opus, universal app/rpc, and app signature.', flush=True)
 
 
 def main():

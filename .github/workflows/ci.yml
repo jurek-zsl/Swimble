@@ -30,16 +30,48 @@ jobs:
       - run: ./scripts/test_acl.sh
       - if: failure()
         run: docker logs murmur-test
+  # macOS runners are Apple Silicon; they cross-compile the x86_64 slice so the
+  # resulting app is universal and exercises the Intel build path on every PR.
   macos:
     runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: rust-core
           cache-on-failure: true
-      - run: brew install opus protobuf xcodegen
+      # Opus is built from source for both slices by build_opus.sh; only the
+      # build tools come from Homebrew.
+      - run: brew install protobuf xcodegen
       - run: ./scripts/check_versions.py
+      - run: ./scripts/build_opus.sh
       - run: ./scripts/build_bridge.sh
-      - run: xcodebuild -project MacClient/Swimble.xcodeproj -scheme Swimble -destination 'platform=macOS' -parallel-testing-enabled NO "LIBRARY_SEARCH_PATHS=$PWD/MacClient/Generated $(brew --prefix opus)/lib" test
+      - name: Verify universal artifacts
+        run: |
+          set -euo pipefail
+          for artifact in \
+            MacClient/Generated/libmumble_core.a \
+            rust-core/target/release/swimble-rpc \
+            build/opus-macos26/lib/libopus.0.dylib; do
+            archs="$(lipo -archs "$artifact")"
+            echo "$artifact: $archs"
+            [[ "$archs" == *arm64* && "$archs" == *x86_64* ]] \
+              || { echo "Missing architecture in $artifact"; exit 1; }
+          done
+      - run: |
+          xcodebuild -project MacClient/Swimble.xcodeproj -scheme Swimble \
+            -destination 'platform=macOS' -parallel-testing-enabled NO \
+            -derivedDataPath build/ci-derived-data \
+            "LIBRARY_SEARCH_PATHS=$PWD/build/opus-macos26/lib $PWD/MacClient/Generated" \
+            test
+      - name: Verify universal app
+        run: |
+          set -euo pipefail
+          app="build/ci-derived-data/Build/Products/Debug/Swimble.app"
+          archs="$(lipo -archs "$app/Contents/MacOS/Swimble")"
+          echo "Swimble.app: $archs"
+          [[ "$archs" == *arm64* && "$archs" == *x86_64* ]] \
+            || { echo "App is not universal"; exit 1; }

@@ -13,6 +13,13 @@ You are building **Swimble**, a native macOS 26 Mumble VoIP client for standard 
 - Verify Swift compilation from the terminal using:
   `xcodebuild -project MacClient/Swimble.xcodeproj -scheme Swimble -destination 'platform=macOS' build`
 
+## 2a. Universal Binaries (Apple Silicon + Intel)
+- Release artifacts are universal: `arm64` + `x86_64`. macOS 26 is the last Intel-supported release, so keep `MACOSX_DEPLOYMENT_TARGET=26.0`.
+- Build order: `./scripts/build_opus.sh` (universal Opus) → `./scripts/build_bridge.sh` (universal `libmumble_core.a` and `swimble-rpc` via `lipo`) → `xcodebuild`.
+- Never hardcode Homebrew prefixes in build files: `/opt/homebrew` is Apple Silicon, `/usr/local` is Intel. Both are listed as fallbacks.
+- `./scripts/build_release.sh` builds with `ARCHS="arm64 x86_64"`; the DMG packager refuses app, `swimble-rpc`, or Opus artifacts that lack either slice.
+- For faster single-architecture iteration: `SWIMBLE_ARCHS="$(uname -m)" ./scripts/build_bridge.sh`.
+
 ## 3. macOS 26 "Liquid Glass" SwiftUI Standards
 Do NOT use legacy `.background(.ultraThinMaterial)` for floating controls. Use macOS 26 Liquid Glass APIs:
 - Use standard `NavigationSplitView` for the channel tree sidebar (macOS 26 applies Liquid Glass to the sidebar automatically).

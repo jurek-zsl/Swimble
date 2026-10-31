@@ -11,7 +11,7 @@ export MACOSX_DEPLOYMENT_TARGET=26.0
 ./scripts/build_opus.sh
 xcodebuild -project MacClient/Swimble.xcodeproj -scheme Swimble \
   -destination 'platform=macOS' -configuration Release \
-  ARCHS=arm64 ONLY_ACTIVE_ARCH=YES \
+  ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO \
   -derivedDataPath build/release-derived-data \
   "LIBRARY_SEARCH_PATHS=$REPO_ROOT/build/opus-macos26/lib $REPO_ROOT/MacClient/Generated" \
   CODE_SIGNING_ALLOWED=NO build

@@ -48,6 +48,23 @@ pub fn der_to_pem(tag: &str, der: &[u8]) -> String {
     out
 }
 
+// Homebrew installs OpenSSL in /opt/homebrew on Apple Silicon and in
+// /usr/local on Intel Macs. Prefer a real OpenSSL over the system LibreSSL,
+// and fall back to PATH if none of the known locations exist.
+fn openssl_binary() -> std::ffi::OsString {
+    const CANDIDATES: [&str; 3] = [
+        "/opt/homebrew/bin/openssl",
+        "/usr/local/bin/openssl",
+        "/usr/bin/openssl",
+    ];
+    for candidate in CANDIDATES {
+        if std::path::Path::new(candidate).exists() {
+            return candidate.into();
+        }
+    }
+    "openssl".into()
+}
+
 // Keep PKCS#12 passwords out of the process argument list. OpenSSL reads one
 // line from stdin; passwords containing line breaks use the pure-Rust path.
 fn openssl_with_password(
@@ -108,11 +125,7 @@ fn export_pkcs12_via_openssl(
         .tempfile()
         .map_err(|e| MumbleError::CertificateError(format!("Tempfile error: {}", e)))?;
 
-    let openssl_bin = if std::path::Path::new("/opt/homebrew/bin/openssl").exists() {
-        "/opt/homebrew/bin/openssl"
-    } else {
-        "/usr/bin/openssl"
-    };
+    let openssl_bin = openssl_binary();
 
     let status = openssl_with_password(
         Command::new(openssl_bin).args([
@@ -164,11 +177,7 @@ fn import_pkcs12_via_openssl(
         MumbleError::CertificateError(format!("Failed to write p12 tempfile: {}", e))
     })?;
 
-    let openssl_bin = if std::path::Path::new("/opt/homebrew/bin/openssl").exists() {
-        "/opt/homebrew/bin/openssl"
-    } else {
-        "/usr/bin/openssl"
-    };
+    let openssl_bin = openssl_binary();
 
     let output = openssl_with_password(
         Command::new(openssl_bin).args([

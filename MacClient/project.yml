@@ -52,14 +52,24 @@ targets:
         SWIFT_VERSION: "6.0"
         SWIFT_OBJC_BRIDGING_HEADER: Sources/Audio/NativeAudioBridge.h
         GENERATE_INFOPLIST_FILE: NO
+        # Universal app: Apple Silicon + Intel.
+        ARCHS: "arm64 x86_64"
+        ONLY_ACTIVE_ARCH: "NO"
         SWIFT_INCLUDE_PATHS:
           - "$(PROJECT_DIR)/Generated"
+        # Universal Opus built by scripts/build_opus.sh comes first; the
+        # Homebrew fallbacks cover /opt/homebrew (Apple Silicon) and
+        # /usr/local (Intel) for ad-hoc local builds.
         HEADER_SEARCH_PATHS:
           - "$(PROJECT_DIR)/Generated"
+          - "$(PROJECT_DIR)/../build/opus-macos26/include"
           - "/opt/homebrew/opt/opus/include"
+          - "/usr/local/opt/opus/include"
         LIBRARY_SEARCH_PATHS:
           - "$(PROJECT_DIR)/Generated"
+          - "$(PROJECT_DIR)/../build/opus-macos26/lib"
           - "/opt/homebrew/opt/opus/lib"
+          - "/usr/local/opt/opus/lib"
         OTHER_LDFLAGS:
           - "-lopus"
           - "-lc++"

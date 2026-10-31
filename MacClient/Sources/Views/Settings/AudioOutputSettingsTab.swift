@@ -1,7 +1,7 @@
 import SwiftUI
 import AppKit
 
-/// Native Audio Output configuration tab tailored for macOS 26 CoreAudio & Apple Silicon.
+/// Native Audio Output configuration tab tailored for macOS 26 CoreAudio.
 public struct AudioOutputSettingsTab: View {
     @Bindable public var store: MumbleStore
     @Bindable public var state: SettingsState = SettingsState.shared

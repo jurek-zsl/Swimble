@@ -11,8 +11,12 @@ This rebuilds the Rust bridge with `MACOSX_DEPLOYMENT_TARGET=26.0`, regenerates
 the Xcode project, builds a checksum-verified Opus 1.6.1 for macOS 26, and
 builds the Release app. Xcode leaves this intermediate app unsigned; the
 packager signs it after embedding Opus. It creates
-`build/Swimble-<version>.dmg` and its `.dmg.sha256` checksum. The default build
-is for Apple Silicon and is ad hoc signed, without Apple notarization.
+`build/Swimble-<version>.dmg` and its `.dmg.sha256` checksum. Release builds are
+universal (`arm64` + `x86_64`), so one DMG runs on Apple Silicon and Intel Macs,
+and are ad hoc signed, without Apple notarization.
+
+The packager refuses to produce a DMG unless the app executable, the bundled
+`swimble-rpc` CLI, and the embedded Opus dylib all contain both architectures.
 
 The packaging script copies the app into a fresh temporary staging directory outside the
 workspace, embeds
