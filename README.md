@@ -4,7 +4,7 @@
 
 **Swimble** is a native macOS client for standard Mumble voice servers. SwiftUI provides the interface and audio hardware integration; Rust implements the Mumble protocol, encrypted voice transport, Opus processing, and playback buffering.
 
-[Download](https://github.com/jurek-zsl/Swimble/releases/latest) · [Screenshots & Video](MEDIA.md) · [Release history](https://github.com/jurek-zsl/Swimble/releases) · [Report an issue](https://github.com/jurek-zsl/Swimble/issues)
+[Download](https://github.com/jurek-zsl/Swimble/releases/latest) · [Screenshots & Video](MEDIA.md) · [Release history](https://github.com/jurek-zsl/Swimble/releases) · [Report an issue](https://github.com/jurek-zsl/Swimble/issues) · [Contributor to-do list](#contributing-and-to-do-list)
 
 ## Requirements and installation
 
@@ -83,16 +83,117 @@ Run `swimble-rpc --help` for the command vocabulary. The control socket is restr
 
 The protocol targets standard Mumble 1.5 and 1.6 Murmur servers, including 1.5+ protobuf voice packets and legacy voice fallback. Default control/voice port: TCP/TLS and UDP `64738`. Compatibility testing uses local Murmur fixtures; a target version is not a claim that every upstream client feature is implemented.
 
-Public server browsing uses Mumist.eu with a Mumble.info fallback. Directory activity data depends on the source. Intel distributions, legacy voice codecs, a general Mumble plugin host, and injected game overlays are not provided. The floating macOS overlay depends on the game's window/full-screen behavior.
+Public server browsing uses Mumist.eu with a Mumble.info fallback. Directory activity data depends on the source. Release builds include Apple Silicon and Intel slices. Legacy voice codecs, a general Mumble plugin host, and injected game overlays are not provided. The floating macOS overlay depends on the game's window/full-screen behavior.
+
+## Contributing and to-do list
+
+Contributions are welcome. The checklist below contains all **63 tasks** from the [Mumble/Murmur compatibility audit](TO-DO.md), grouped by area. Each task links to its evidence, affected files, and completion criteria. The audit compares Mumble/Murmur 1.5.939 and 1.6.1001 RC 2; universal-binary support merged afterward is already reflected in the backlog.
+
+**Priorities:** P1 covers privacy, identity, audio correctness, and connection reliability; P2 covers compatibility, usability, and release quality; P3 covers optional parity. Items marked **Verify** need reproduction or test evidence before being treated as confirmed bugs. Optional features need a product decision before implementation.
+
+To start, choose a task, check [existing issues](https://github.com/jurek-zsl/Swimble/issues) and [pull requests](https://github.com/jurek-zsl/Swimble/pulls), then open or comment on an issue with its task ID and proposed approach. Keep pull requests focused, include the relevant validation, and update both this checklist and the detailed backlog when a task is completed. Larger entries can be split into smaller fixes under the same task ID.
+
+| Interested in | Possible starting point |
+| --- | --- |
+| Documentation | [REL-04: build prerequisites and verification limits](TO-DO.md#rel-04) |
+| Test reliability | [TEST-05: local fixtures and meaningful assertions](TO-DO.md#test-05) |
+| Rust networking | [NET-03: use the connected TCP peer for UDP](TO-DO.md#net-03) |
+| Swift privacy controls | [SEC-02: enforce remote-image blocking](TO-DO.md#sec-02) |
+
+For priority work, start with **SEC-01 → SEC-02 → SEC-03 → NET-01 → NET-02 → PRO-01 → AUD-01 → UX-01**. Follow [the architecture rules](AGENTS.md): Mumble networking and processing belong in Rust; native UI, Keychain, input, and hardware I/O belong in Swift. Rust FFI changes require regenerated UniFFI bindings. Edit `MacClient/project.yml` and regenerate with XcodeGen for project changes. Protocol changes need integration tests against a disposable local Murmur server.
+
+### Privacy, credentials, and identity
+
+- [ ] [SEC-01 · P1 · Bug — Isolate access tokens by server and move them to Keychain.](TO-DO.md#sec-01)
+- [ ] [SEC-02 · P1 · Bug — Make “Block External Remote Images” enforceable.](TO-DO.md#sec-02)
+- [ ] [SEC-03 · P1 · Bug — Treat corrupt stored identities as errors, not missing identities.](TO-DO.md#sec-03)
+- [ ] [SEC-04 · P1 · Bug — Synchronize identity replacement across server windows.](TO-DO.md#sec-04)
+- [ ] [SEC-05 · P2 · Improve — Validate PKCS#12 identities before installing them.](TO-DO.md#sec-05)
+- [ ] [SEC-06 · P2 · Improve — Provide complete certificate inspection and backup recovery.](TO-DO.md#sec-06)
+- [ ] [SEC-07 · P1 · Improve — Bound and sanitize untrusted rich content.](TO-DO.md#sec-07)
+
+### Connection and Rust core reliability
+
+- [ ] [NET-01 · P1 · Bug — Clear session-scoped state on server changes and reconnects.](TO-DO.md#net-01)
+- [ ] [NET-02 · P1 · Verify — Make connection replacement cancel and isolate every old task/callback.](TO-DO.md#net-02)
+- [ ] [NET-03 · P1 · Bug — Use the established TCP peer for UDP.](TO-DO.md#net-03)
+- [ ] [NET-04 · P1 · Bug — Correct ping and packet-statistics reporting.](TO-DO.md#net-04)
+- [ ] [NET-05 · P1 · Improve — Propagate connection and command errors explicitly.](TO-DO.md#net-05)
+- [ ] [NET-06 · P1 · Improve — Couple writer failure and write deadlines to connection shutdown.](TO-DO.md#net-06)
+- [ ] [NET-07 · P1 · Improve — Harden parsers and per-session resource limits.](TO-DO.md#net-07)
+- [ ] [NET-08 · P2 · Verify — Complete real-network recovery behavior.](TO-DO.md#net-08)
+- [ ] [NET-09 · P2 · Missing — Add proxy support if full connection parity is required.](TO-DO.md#net-09)
+
+### Mumble/Murmur protocol and administration parity
+
+- [ ] [PRO-01 · P1 · Bug — Honor server recording policy.](TO-DO.md#pro-01)
+- [ ] [PRO-02 · P2 · Missing — Respect server HTML and text/image length limits.](TO-DO.md#pro-02)
+- [ ] [PRO-03 · P2 · Missing — Handle SuggestConfig and codec negotiation.](TO-DO.md#pro-03)
+- [ ] [PRO-04 · P2 · Missing — Add listener volume adjustment and restoration.](TO-DO.md#pro-04)
+- [ ] [PRO-05 · P2 · Missing — Add QueryUsers name/ID resolution for ACL editing.](TO-DO.md#pro-05)
+- [ ] [PRO-06 · P2 · Missing — Support standard server-provided context actions.](TO-DO.md#pro-06)
+- [ ] [PRO-07 · P2 · Missing — Expose newer ban choices and existing-ban editing.](TO-DO.md#pro-07)
+- [ ] [PRO-08 · P1 · Bug — Validate bans before sending and reconcile with the server.](TO-DO.md#pro-08)
+- [ ] [PRO-09 · P2 · Missing — Finish user administration actions.](TO-DO.md#pro-09)
+- [ ] [PRO-10 · P2 · Bug — Make permissions and operation results consistent across UI paths.](TO-DO.md#pro-10)
+- [ ] [PRO-11 · P2 · Missing — Preserve full text-message addressing.](TO-DO.md#pro-11)
+- [ ] [PRO-12 · P2 · Improve — Finish incremental state and blob semantics.](TO-DO.md#pro-12)
+- [ ] [PRO-13 · P2 · Bug — Make diagnostics describe actual data.](TO-DO.md#pro-13)
+
+### Audio, recording, positioning, and shortcuts
+
+- [ ] [AUD-01 · P1 · Bug — Adapt packet duration as well as bitrate to bandwidth limits.](TO-DO.md#aud-01)
+- [ ] [AUD-02 · P1 · Verify — Make jitter recovery robust to variable durations and stream gaps.](TO-DO.md#aud-02)
+- [ ] [AUD-03 · P1 · Bug — Apply local mute/volume changes immediately to buffered audio.](TO-DO.md#aud-03)
+- [ ] [AUD-04 · P1 · Verify — Define target transitions and competing transmission inputs.](TO-DO.md#aud-04)
+- [ ] [AUD-05 · P1 · Bug — Detect actual user activity for idle actions.](TO-DO.md#aud-05)
+- [ ] [AUD-06 · P1 · Improve — Support receive-only audio and explain hardware failures.](TO-DO.md#aud-06)
+- [ ] [AUD-07 · P2 · Improve — Isolate recording/plugin work from the audio worker.](TO-DO.md#aud-07)
+- [ ] [AUD-08 · P2 · Missing — Preserve stereo Opus sources where applicable.](TO-DO.md#aud-08)
+- [ ] [AUD-09 · P2 · Improve — Finish audio calibration and recording UX.](TO-DO.md#aud-09)
+- [ ] [AUD-10 · P2 · Verify — Validate positional/plugin lifecycle across games and windows.](TO-DO.md#aud-10)
+
+### SwiftUI, messaging, preferences, and native behavior
+
+- [ ] [UX-01 · P1 · Bug — Make TTS controls authoritative.](TO-DO.md#ux-01)
+- [ ] [UX-02 · P2 · Bug — Make settings Apply/Cancel/Reset transactional and shared.](TO-DO.md#ux-02)
+- [ ] [UX-03 · P2 · Bug — Share bookmark storage across windows and validate edits.](TO-DO.md#ux-03)
+- [ ] [UX-04 · P2 · Missing — Persist local user preferences by certificate identity.](TO-DO.md#ux-04)
+- [ ] [UX-05 · P2 · Improve — Give chat stable identity and explicit destinations.](TO-DO.md#ux-05)
+- [ ] [UX-06 · P2 · Bug — Route typed events instead of inferring them from English text.](TO-DO.md#ux-06)
+- [ ] [UX-07 · P2 · Bug — Isolate drag/drop and channel navigation by server.](TO-DO.md#ux-07)
+- [ ] [UX-08 · P2 · Improve — Unify active-session ownership and window lifecycle.](TO-DO.md#ux-08)
+- [ ] [UX-09 · P2 · Improve — Complete accessibility and responsive layouts.](TO-DO.md#ux-09)
+- [ ] [UX-10 · P2 · Improve — Reduce repeated rendering and consolidate duplicate components.](TO-DO.md#ux-10)
+- [ ] [UX-11 · P2 · Missing — Add localization and finish user-facing settings semantics.](TO-DO.md#ux-11)
+- [ ] [UX-12 · P3 · Missing — Add LAN discovery and migration conveniences.](TO-DO.md#ux-12)
+
+### Tests and continuous integration
+
+- [ ] [TEST-01 · P1 · Verify — Restore the local Murmur fixture and rerun live suites.](TO-DO.md#test-01)
+- [ ] [TEST-02 · P1 · Missing — Pin and test both supported server versions.](TO-DO.md#test-02)
+- [ ] [TEST-03 · P1 · Missing — Test against the original Mumble client, not only another Swimble endpoint.](TO-DO.md#test-03)
+- [ ] [TEST-04 · P1 · Missing — Add deterministic lifecycle, policy, and credential regressions.](TO-DO.md#test-04)
+- [ ] [TEST-05 · P2 · Improve — Make tests hermetic and assertions meaningful.](TO-DO.md#test-05)
+- [ ] [TEST-06 · P1 · Verify — Exercise real audio hardware and concurrent sessions.](TO-DO.md#test-06)
+- [ ] [TEST-07 · P2 · Improve — Add formatting/lint and bridge freshness checks to CI.](TO-DO.md#test-07)
+
+### Packaging, documentation, and optional parity decisions
+
+- [ ] [REL-01 · P2 · Improve — Verify compatible universal Opus builds and development fallbacks.](TO-DO.md#rel-01)
+- [ ] [REL-02 · P2 · Improve — Make signing/notarization a verified release gate when credentials are available.](TO-DO.md#rel-02)
+- [ ] [REL-03 · P2 · Improve — Inventory and bundle third-party notices.](TO-DO.md#rel-03)
+- [ ] [REL-04 · P2 · Improve — Document the build environment and audit limitations accurately.](TO-DO.md#rel-04)
+- [ ] [REL-05 · P3 · Optional — Decide the remaining upstream feature boundaries explicitly.](TO-DO.md#rel-05)
 
 ## Build and test
 
-Install Xcode with the macOS 26 SDK or later, Rust, XcodeGen, Opus, and Protobuf tooling:
+Install Xcode with the macOS 26 SDK or later and Rust. The commands below install XcodeGen and Protobuf tooling, then build universal Opus and the Rust bridge before building the app:
 
 ```sh
-brew install opus protobuf xcodegen
+brew install protobuf xcodegen
 ./scripts/check_versions.py
-cargo check --manifest-path rust-core/Cargo.toml
+./scripts/build_opus.sh
 ./scripts/build_bridge.sh
 xcodebuild -project MacClient/Swimble.xcodeproj -scheme Swimble -destination 'platform=macOS' build
 ```
