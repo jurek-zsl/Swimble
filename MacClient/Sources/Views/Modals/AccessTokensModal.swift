@@ -42,6 +42,7 @@ public struct AccessTokensModal: View {
             Divider()
 
             VStack(spacing: 16) {
+                LegacyTokensBanner(store: store)
                 // Add Token Input
                 HStack {
                     TextField("Enter channel password / token...", text: $newToken)
@@ -134,5 +135,26 @@ public struct AccessTokensModal: View {
         guard !trimmed.isEmpty else { return }
         store.addAccessToken(trimmed)
         newToken = ""
+    }
+}
+
+/// Tokens saved before per-server scoping. They are never sent anywhere until the user assigns them.
+struct LegacyTokensBanner: View {
+    @Bindable var store: MumbleStore
+    var body: some View {
+        if !store.legacyUnassignedTokens.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("\(store.legacyUnassignedTokens.count) saved token\(store.legacyUnassignedTokens.count == 1 ? "" : "s") from an earlier version are not assigned to any server.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                HStack {
+                    Button("Use for \(store.activeBookmark?.name ?? "this server")") { store.adoptLegacyTokensForCurrentServer() }
+                        .disabled(store.activeBookmark == nil)
+                    Button("Discard", role: .destructive) { store.discardLegacyTokens() }
+                }
+            }
+            .padding(10)
+            .background(Color.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
+        }
     }
 }

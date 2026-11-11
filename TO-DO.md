@@ -42,19 +42,19 @@ Suggested first implementation sequence: **SEC-01 → SEC-02 → SEC-03 → NET-
 
 <a id="sec-01"></a>
 
-- [ ] **SEC-01 · P1 · Bug — Isolate access tokens by server and move them to Keychain.**
+- [x] **SEC-01 · P1 · Bug — Isolate access tokens by server and move them to Keychain.**
   `MumbleStore.loadAccessTokens/saveAccessTokens` use one plaintext `Swimble_AccessTokens` preference. `connect` and the connected callback send that same list to every server. Upstream scopes tokens by server digest in [Database.cpp](https://github.com/mumble-voip/mumble/blob/v1.5.939/src/mumble/Database.cpp).
   **Done when:** server A's tokens never enter server B's Authenticate messages; migration preserves existing tokens without automatically assigning them to every server; concurrent windows stay isolated. Sources: `MacClient/Sources/Store/MumbleStore.swift`, `MacClient/Sources/KeychainHelper.swift`, `rust-core/src/client.rs`.
 
 <a id="sec-02"></a>
 
-- [ ] **SEC-02 · P1 · Bug — Make “Block External Remote Images” enforceable.**
+- [x] **SEC-02 · P1 · Bug — Make “Block External Remote Images” enforceable.**
   `doNotEmbedExternalImages` is saved and displayed but never read by the rendering/loading paths. `RemoteChatImageView.fetchImage` fetches remote URLs unconditionally, including images reached through `RichDescriptionView`.
   **Done when:** enabling the setting prevents network loads from chat, welcome text, descriptions, comments, previews, and cached views; sanitize external resources before the HTML attributed-string importer too. Add a local HTTP request-counter test. Sources: `Views/Settings/NetworkSettingsTab.swift`, `Views/ChatAndActivityView.swift`, `Views/Components/RichDescriptionView.swift` under `MacClient/Sources/`.
 
 <a id="sec-03"></a>
 
-- [ ] **SEC-03 · P1 · Bug — Treat corrupt stored identities as errors, not missing identities.**
+- [x] **SEC-03 · P1 · Bug — Treat corrupt stored identities as errors, not missing identities.**
   `KeychainHelper.loadClientIdentity` suppresses JSON decoding errors with `try?` and can return `nil` even when an identity item exists. `CredentialRepository.loadIdentity` then generates and saves a new identity, potentially losing the certificate associated with registrations and permissions.
   **Done when:** malformed/incomplete stored identity data fails visibly and remains recoverable; only a genuinely absent identity creates a new key. Sources: `MacClient/Sources/KeychainHelper.swift`, `MacClient/Sources/Utils/CredentialRepository.swift`.
 

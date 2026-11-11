@@ -357,8 +357,8 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
         // Resolve password from Keychain if present
         let password = bookmark.password ?? KeychainHelper.loadServerPassword(bookmarkId: bookmark.id)
 
-        // Synchronize tokens to client before connecting
-        client.setTokens(tokens: accessTokens)
+        // Synchronize this server's tokens (and only these) before connecting
+        syncAccessTokensToClient()
 
         client.connect(
             host: bookmark.host,
@@ -393,6 +393,7 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
         if clearComment { client.clearCommentAndDisconnect() } else { client.disconnect() }
         self.connectionStatus = .disconnected
         self.activeBookmark = nil
+        self.syncAccessTokensToClient()
         self.channels = []
         self.channelTree = []
         self.users = []
@@ -921,33 +922,55 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
 
     // MARK: - Server Access Tokens Management
 
+    /// Tokens belong to one server. Nothing is stored or sent while no server is active.
+    private var accessTokenServerKey: String? { activeBookmark.map { _ in serverPreferenceKey } }
+    public var legacyUnassignedTokens: [String] = []
+
     public func addAccessToken(_ token: String) {
         let trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, !accessTokens.contains(trimmed) else { return }
-        accessTokens.append(trimmed)
-        saveAccessTokens()
+        guard !trimmed.isEmpty, let key = accessTokenServerKey else { return }
+        accessTokens = KeychainHelper.updateAccessTokens(serverKey: key) { if !$0.contains(trimmed) { $0.append(trimmed) } }
         client.setTokens(tokens: accessTokens)
     }
 
     public func removeAccessToken(_ token: String) {
-        accessTokens.removeAll { $0 == token }
-        saveAccessTokens()
+        guard let key = accessTokenServerKey else { return }
+        accessTokens = KeychainHelper.updateAccessTokens(serverKey: key) { $0.removeAll { $0 == token } }
         client.setTokens(tokens: accessTokens)
     }
 
     public func removeAccessToken(at index: Int) {
         guard index >= 0 && index < accessTokens.count else { return }
-        accessTokens.remove(at: index)
-        saveAccessTokens()
+        removeAccessToken(accessTokens[index])
+    }
+
+    /// Explicit, user-confirmed assignment of pre-update global tokens to the current server.
+    public func adoptLegacyTokensForCurrentServer() {
+        guard let key = accessTokenServerKey, !legacyUnassignedTokens.isEmpty else { return }
+        let legacy = legacyUnassignedTokens
+        accessTokens = KeychainHelper.updateAccessTokens(serverKey: key) { list in
+            for t in legacy where !list.contains(t) { list.append(t) }
+        }
+        KeychainHelper.clearLegacyUnassignedTokens()
+        legacyUnassignedTokens = []
         client.setTokens(tokens: accessTokens)
     }
 
-    private func loadAccessTokens() {
-        self.accessTokens = UserDefaults.standard.stringArray(forKey: "Swimble_AccessTokens") ?? []
+    public func discardLegacyTokens() {
+        KeychainHelper.clearLegacyUnassignedTokens()
+        legacyUnassignedTokens = []
     }
 
-    private func saveAccessTokens() {
-        UserDefaults.standard.set(accessTokens, forKey: "Swimble_AccessTokens")
+    private func loadAccessTokens() {
+        KeychainHelper.migrateLegacyAccessTokens()
+        legacyUnassignedTokens = KeychainHelper.loadLegacyUnassignedTokens()
+        accessTokens = []
+    }
+
+    /// Reloads the active server's tokens (or none) and pushes exactly that list to the client.
+    private func syncAccessTokensToClient() {
+        accessTokens = accessTokenServerKey.map { KeychainHelper.loadAccessTokens(serverKey: $0) } ?? []
+        client.setTokens(tokens: accessTokens)
     }
 
     // MARK: - Server Registered Users Management
@@ -1202,7 +1225,7 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
                 if let me = self.users.first(where: { $0.sessionId == self.mySessionId }) {
                     self.audioEngine.isMuted = me.isSelfMuted || me.isMuted || me.isSuppressed || me.isDeafened || me.isSelfDeafened || !self.canSpeak(in: me.channelId)
                 }
-                self.client.setTokens(tokens: self.accessTokens)
+                self.syncAccessTokensToClient()
                 EventNotificationManager.shared.dispatch(
                     eventName: "Connected",
                     detail: "Connected to \(self.activeBookmark?.name ?? "Server")",

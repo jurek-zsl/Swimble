@@ -142,8 +142,10 @@ struct AccessTokensSettingsTab: View {
                     SettingsSectionHeader(
                         "Server Access Tokens",
                         systemImage: "key.fill",
-                        subtitle: "Access tokens grant access to password-protected channels and private groups on Mumble servers without needing server administrator status."
+                        subtitle: "Tokens are saved in Keychain for the server you are connected to and are only sent to that server. Connect to a server to manage its tokens."
                     )
+
+                    LegacyTokensBanner(store: store)
 
                     // Add Token Field
                     HStack(spacing: 10) {

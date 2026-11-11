@@ -2,6 +2,22 @@ import XCTest
 @testable import Swimble
 
 final class ClientRegressionTests: XCTestCase {
+    func testExternalResourcesAreStrippedBeforeHTMLImport() {
+        let html = #"<p>hi</p><img src="https://evil.example/a.png"><img src='//evil.example/b.png'><link rel="stylesheet" href="https://evil.example/x.css"><div style="background:url(https://evil.example/c.png)">x</div><img src="data:image/png;base64,AAAA">"#
+        let out = stripExternalResources(html)
+        XCTAssertFalse(out.contains("evil.example"))
+        XCTAssertTrue(out.contains("data:image/png"))
+        XCTAssertTrue(out.contains("<p>hi</p>"))
+    }
+
+    func testAccessTokensAreScopedPerServer() {
+        let a = "[test-a-\(UUID().uuidString)]:64738", b = "[test-b-\(UUID().uuidString)]:64738"
+        defer { KeychainHelper.updateAccessTokens(serverKey: a) { $0.removeAll() }; KeychainHelper.updateAccessTokens(serverKey: b) { $0.removeAll() } }
+        KeychainHelper.updateAccessTokens(serverKey: a) { $0 = ["secret-a"] }
+        XCTAssertEqual(KeychainHelper.loadAccessTokens(serverKey: a), ["secret-a"])
+        XCTAssertEqual(KeychainHelper.loadAccessTokens(serverKey: b), [])
+    }
+
     func testURLPortsAreValidatedWithoutTrapping() {
         for port in ["0", "65536", "70000", "999999999"] {
             XCTAssertNil(MumbleURLParser.parse(string: "mumble://localhost:\(port)"))

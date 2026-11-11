@@ -931,10 +931,23 @@ struct RemoteChatImageView: View {
     @State private var loadedImage: NSImage? = nil
     @State private var isLoading: Bool = true
     @State private var loadFailed: Bool = false
+    private var settings = SettingsState.shared
+    private var blocked: Bool { settings.doNotEmbedExternalImages }
 
     var body: some View {
         Group {
-            if let img = loadedImage {
+            if blocked {
+                HStack(spacing: 8) {
+                    Image(systemName: "photo.badge.exclamationmark")
+                        .foregroundStyle(.secondary)
+                    Link("External image blocked: \(url.host ?? url.absoluteString)", destination: url)
+                        .font(.caption)
+                        .lineLimit(1)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+            } else if let img = loadedImage {
                 Image(nsImage: img)
                     .resizable()
                     .scaledToFit()
@@ -990,12 +1003,13 @@ struct RemoteChatImageView: View {
                 .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
             }
         }
-        .task(id: url) {
+        .task(id: "\(url.absoluteString)|\(blocked)") {
             await fetchImage()
         }
     }
 
     private func fetchImage() async {
+        guard !blocked else { return }
         if let cached = ImageCache.shared.object(forKey: url as NSURL) {
             self.loadedImage = cached
             self.isLoading = false
@@ -1452,7 +1466,7 @@ func parseChatMessageBody(_ raw: String, isPreformatted: Bool? = nil) -> Attribu
         font-family: Menlo, Monaco, Consolas, "Courier New", monospace !important;
         white-space: pre !important;
     }
-    </style></head><body>\(raw)</body></html>
+    </style></head><body>\(stripExternalResources(raw))</body></html>
     """
 
     guard let data = styledHtml.data(using: .utf8),
@@ -1621,4 +1635,25 @@ func extractRemoteImageUrls(from text: String) -> [URL] {
     // Deduplicate preserving order
     var seen = Set<String>()
     return urls.filter { seen.insert($0.absoluteString).inserted }
+}
+
+
+/// Removes markup that makes the HTML importer touch the network (external images, stylesheets,
+/// frames, media, CSS url()/@import). Remote images are shown separately by `RemoteChatImageView`,
+/// which honors "Block External Remote Images". Local `data:` images are left alone.
+func stripExternalResources(_ html: String) -> String {
+    let patterns = [
+        #"(?is)<script\b.*?</script\s*>"#,
+        #"(?is)<(iframe|object|embed|video|audio)\b.*?(</\1\s*>|/>|>)"#,
+        #"(?i)<(link|source|track|meta\s+http-equiv)\b[^>]*>"#,
+        #"(?i)<img\b[^>]*?\bsrc\s*=\s*["']?\s*(https?:|//|ftp:|file:)[^>]*>"#,
+        #"(?i)@import\s+[^;]+;?"#,
+        #"(?i)url\(\s*["']?\s*(https?:|//|ftp:|file:)[^)]*\)"#,
+    ]
+    var out = html
+    for pattern in patterns {
+        guard let re = try? NSRegularExpression(pattern: pattern) else { continue }
+        out = re.stringByReplacingMatches(in: out, range: NSRange(out.startIndex..., in: out), withTemplate: "")
+    }
+    return out
 }

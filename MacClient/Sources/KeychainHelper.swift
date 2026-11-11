@@ -24,30 +24,97 @@ public enum KeychainHelper {
         }
         return true
     }
+    /// Stored identity data exists but cannot be used. Callers must not replace it silently.
+    public struct CorruptIdentityError: LocalizedError {
+        public let source: String
+        public var errorDescription: String? {
+            "The stored client identity (\(source)) is damaged or incomplete. It was left untouched; restore it from a backup or import/generate a new identity in Certificate settings."
+        }
+    }
+    private static func validIdentity(certPem: String, keyPem: String) -> Bool {
+        certPem.contains("-----BEGIN CERTIFICATE-----") && keyPem.contains("-----BEGIN") && keyPem.contains("PRIVATE KEY-----")
+    }
+    /// Returns nil only when no identity exists anywhere. Present-but-unusable data throws.
     public static func loadClientIdentity() throws -> ClientIdentity? {
-        if let data = try checkedLoad(account: "identity", service: serviceIdentity),
-           let stored = try? JSONDecoder().decode(StoredIdentity.self, from: data) {
+        if let data = try checkedLoad(account: "identity", service: serviceIdentity) {
+            guard let stored = try? JSONDecoder().decode(StoredIdentity.self, from: data),
+                  validIdentity(certPem: stored.certPem, keyPem: stored.keyPem) else {
+                throw CorruptIdentityError(source: "Keychain item")
+            }
             // Also retry cleanup left by an interrupted previous migration.
             for file in legacyFiles("identity.json") { try? FileManager.default.removeItem(at: file) }
             return ClientIdentity(certPem: stored.certPem, keyPem: stored.keyPem)
         }
         for file in legacyFiles("identity.json") {
-            if let data = try? Data(contentsOf: file), let value = try? JSONDecoder().decode(StoredIdentity.self, from: data) {
-                let identity = ClientIdentity(certPem: value.certPem, keyPem: value.keyPem)
-                guard saveClientIdentity(identity) else { throw CocoaError(.fileWriteNoPermission) }
-                return identity
+            guard FileManager.default.fileExists(atPath: file.path) else { continue }
+            guard let data = try? Data(contentsOf: file) else { throw CocoaError(.fileReadNoPermission) }
+            guard let value = try? JSONDecoder().decode(StoredIdentity.self, from: data),
+                  validIdentity(certPem: value.certPem, keyPem: value.keyPem) else {
+                throw CorruptIdentityError(source: "legacy file \(file.lastPathComponent)")
             }
+            let identity = ClientIdentity(certPem: value.certPem, keyPem: value.keyPem)
+            guard saveClientIdentity(identity) else { throw CocoaError(.fileWriteNoPermission) }
+            return identity
         }
         for service in [serviceIdentity, legacyServiceIdentity] {
-            if let cert = try checkedLoad(account: "client_cert_pem", service: service),
-               let key = try checkedLoad(account: "client_key_pem", service: service),
-               let certPem = String(data: cert, encoding: .utf8), let keyPem = String(data: key, encoding: .utf8) {
-                let identity = ClientIdentity(certPem: certPem, keyPem: keyPem)
-                guard saveClientIdentity(identity) else { throw CocoaError(.fileWriteNoPermission) }
-                return identity
+            let cert = try checkedLoad(account: "client_cert_pem", service: service)
+            let key = try checkedLoad(account: "client_key_pem", service: service)
+            if cert == nil && key == nil { continue }
+            guard let cert, let key,
+                  let certPem = String(data: cert, encoding: .utf8), let keyPem = String(data: key, encoding: .utf8),
+                  validIdentity(certPem: certPem, keyPem: keyPem) else {
+                throw CorruptIdentityError(source: "legacy Keychain items")
             }
+            let identity = ClientIdentity(certPem: certPem, keyPem: keyPem)
+            guard saveClientIdentity(identity) else { throw CocoaError(.fileWriteNoPermission) }
+            return identity
         }
         return nil
+    }
+    // MARK: Access tokens (scoped per server, never shared between servers)
+    public static let serviceTokens = "com.swimble.access-tokens"
+    private static let legacyTokensAccount = "__legacy-unassigned__"
+    private static let tokenLock = NSLock()
+    private static func readTokens(account: String) -> [String] {
+        guard let data = loadFromKeychain(account: account, service: serviceTokens),
+              let list = try? JSONDecoder().decode([String].self, from: data) else { return [] }
+        return list
+    }
+    private static func writeTokens(_ tokens: [String], account: String) -> Bool {
+        if tokens.isEmpty { return deleteFromKeychain(account: account, service: serviceTokens) }
+        guard let data = try? JSONEncoder().encode(tokens) else { return false }
+        return saveToKeychain(account: account, service: serviceTokens, data: data)
+    }
+    public static func loadAccessTokens(serverKey: String) -> [String] {
+        tokenLock.lock(); defer { tokenLock.unlock() }
+        return readTokens(account: serverKey)
+    }
+    /// Atomic read-modify-write so concurrent windows on one server do not lose edits.
+    @discardableResult
+    public static func updateAccessTokens(serverKey: String, _ change: (inout [String]) -> Void) -> [String] {
+        tokenLock.lock(); defer { tokenLock.unlock() }
+        var list = readTokens(account: serverKey)
+        change(&list)
+        _ = writeTokens(list, account: serverKey)
+        return list
+    }
+    /// Moves the old global token preference into Keychain without assigning it to any server.
+    /// The plaintext copy is removed only after the Keychain write succeeds.
+    public static func migrateLegacyAccessTokens() {
+        tokenLock.lock(); defer { tokenLock.unlock() }
+        let key = "Swimble_AccessTokens"
+        guard let old = UserDefaults.standard.stringArray(forKey: key) else { return }
+        var merged = readTokens(account: legacyTokensAccount)
+        for t in old where !merged.contains(t) { merged.append(t) }
+        if writeTokens(merged, account: legacyTokensAccount) { UserDefaults.standard.removeObject(forKey: key) }
+    }
+    public static func loadLegacyUnassignedTokens() -> [String] {
+        tokenLock.lock(); defer { tokenLock.unlock() }
+        return readTokens(account: legacyTokensAccount)
+    }
+    public static func clearLegacyUnassignedTokens() {
+        tokenLock.lock(); defer { tokenLock.unlock() }
+        _ = writeTokens([], account: legacyTokensAccount)
     }
     public static func loadServerFingerprint(host: String, port: UInt16) -> String? {
         loadFromKeychain(account: "\(host.lowercased()):\(port)", service: "com.swimble.server-trust").flatMap { String(data: $0, encoding: .utf8) }
