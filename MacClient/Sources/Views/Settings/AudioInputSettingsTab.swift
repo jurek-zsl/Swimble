@@ -172,6 +172,20 @@ public struct AudioInputSettingsTab: View {
                                 Slider(value: $state.pttHoldTime, in: 0.0...0.5, step: 0.01)
                             }
 
+                            VStack(alignment: .leading, spacing: 4) {
+                                HStack {
+                                    Text("Double-Push Time:")
+                                        .font(.caption)
+                                    Spacer()
+                                    Text(state.pttDoublePushTime <= 0 ? "Off" : String(format: "%.0f ms", state.pttDoublePushTime * 1000))
+                                        .font(.caption.monospacedDigit())
+                                }
+                                Slider(value: $state.pttDoublePushTime, in: 0.0...1.0, step: 0.05)
+                                Text("Double-push the PTT key within this time to keep transmitting hands-free until you push it again. 0 disables.")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+
                             SettingsToggleRow(
                                 "Audio Cue",
                                 subtitle: "Play an audible notification when the microphone opens and closes.",

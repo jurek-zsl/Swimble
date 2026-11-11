@@ -85,6 +85,8 @@ public final class SettingsState {
     public var silenceBelowDb: Double = -50.0
     public var speechAboveDb: Double = -35.0
     public var pttHoldTime: Double = 0.05
+    /// Double-push window in seconds; 0 disables. Double-tapping PTT latches transmission until the next push.
+    public var pttDoublePushTime: Double = 0.0
     public var pttAudioCue: Bool = false
     public var pttOnCuePath: String = ""
     public var pttOffCuePath: String = ""
@@ -180,6 +182,7 @@ public final class SettingsState {
             "silenceBelowDb": silenceBelowDb,
             "speechAboveDb": speechAboveDb,
             "pttHoldTime": pttHoldTime,
+            "pttDoublePushTime": pttDoublePushTime,
             "pttAudioCue": pttAudioCue,
             "pttOnCuePath": pttOnCuePath,
             "pttOffCuePath": pttOffCuePath,
@@ -242,6 +245,7 @@ public final class SettingsState {
         if let v = snapshotData["silenceBelowDb"] as? Double { silenceBelowDb = v }
         if let v = snapshotData["speechAboveDb"] as? Double { speechAboveDb = v }
         if let v = snapshotData["pttHoldTime"] as? Double { pttHoldTime = v }
+        if let v = snapshotData["pttDoublePushTime"] as? Double { pttDoublePushTime = v }
         if let v = snapshotData["pttAudioCue"] as? Bool { pttAudioCue = v }
         if let v = snapshotData["pttOnCuePath"] as? String { pttOnCuePath = v }
         if let v = snapshotData["pttOffCuePath"] as? String { pttOffCuePath = v }
@@ -307,6 +311,7 @@ public final class SettingsState {
             silenceBelowDb = -50.0
             speechAboveDb = -35.0
             pttHoldTime = 0.05
+            pttDoublePushTime = 0.0
             pttAudioCue = false
             maxAmplification = 2.0
             echoCancellation = true
@@ -440,6 +445,7 @@ public final class SettingsState {
         d.set(silenceBelowDb, forKey: "Swimble_SilenceBelowDb")
         d.set(speechAboveDb, forKey: "Swimble_SpeechAboveDb")
         d.set(pttHoldTime, forKey: "Swimble_PttHold")
+        d.set(pttDoublePushTime, forKey: "Swimble_PttDoublePush")
         d.set(pttAudioCue, forKey: "Swimble_PttAudioCue")
         d.set(pttOnCuePath, forKey: "Swimble_PttOnCuePath")
         d.set(pttOffCuePath, forKey: "Swimble_PttOffCuePath")
@@ -518,6 +524,7 @@ public final class SettingsState {
         if d.object(forKey: "Swimble_SilenceBelowDb") != nil { silenceBelowDb = d.double(forKey: "Swimble_SilenceBelowDb") }
         if d.object(forKey: "Swimble_SpeechAboveDb") != nil { speechAboveDb = d.double(forKey: "Swimble_SpeechAboveDb") }
         if d.object(forKey: "Swimble_PttHold") != nil { pttHoldTime = d.double(forKey: "Swimble_PttHold") }
+        if d.object(forKey: "Swimble_PttDoublePush") != nil { pttDoublePushTime = d.double(forKey: "Swimble_PttDoublePush") }
         if d.object(forKey: "Swimble_PttAudioCue") != nil { pttAudioCue = d.bool(forKey: "Swimble_PttAudioCue") }
         if let p = d.string(forKey: "Swimble_PttOnCuePath") { pttOnCuePath = p }
         if let p = d.string(forKey: "Swimble_PttOffCuePath") { pttOffCuePath = p }

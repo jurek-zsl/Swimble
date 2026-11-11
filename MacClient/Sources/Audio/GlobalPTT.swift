@@ -345,10 +345,40 @@ public final class GlobalPTT: @unchecked Sendable {
     public var customRecorder: ((PTTKeybind?) -> Void)?
     private var pressedKeys = Set<UInt16>()
     private var latchedTransmission = false
+    private var doublePushLatched = false
+    private var lastPTTPressTime: Date? = nil
+
+    /// Applies PTT state with Mumble-style "double push" latching. Returns the state to apply.
+    private func applyPTT(_ engine: MacAudioEngine, down: Bool) {
+        let window = SettingsState.shared.pttDoublePushTime
+        guard window > 0 else {
+            doublePushLatched = false; lastPTTPressTime = nil
+            engine.setPushToTalkActive(down)
+            return
+        }
+        if down {
+            if doublePushLatched {
+                // Push again while latched: stop transmitting.
+                doublePushLatched = false; lastPTTPressTime = nil
+                engine.setPushToTalkActive(false)
+                return
+            }
+            let now = Date()
+            if let last = lastPTTPressTime, now.timeIntervalSince(last) <= window {
+                doublePushLatched = true; lastPTTPressTime = nil
+            } else {
+                lastPTTPressTime = now
+            }
+            engine.setPushToTalkActive(true)
+        } else if !doublePushLatched {
+            engine.setPushToTalkActive(false)
+        }
+    }
     public func focus(store: MumbleStore?) {
         guard activeStore !== store else { return }
         audioEngine?.setPushToTalkActive(false); audioEngine?.setTemporaryMute(false)
         activeStore?.setWhispering(false); pressedKeys.removeAll(); latchedTransmission = false
+        doublePushLatched = false; lastPTTPressTime = nil
         activeStore = store; audioEngine = store?.audioEngine
         onToggleMute = { [weak store] in store?.toggleSelfMute() }
         onToggleDeafen = { [weak store] in store?.toggleSelfDeaf() }
@@ -607,14 +637,14 @@ public final class GlobalPTT: @unchecked Sendable {
             if currentKeybind.isModifierKey {
                 if isModifierEvent && currentKeybind.keyCode == keyCode {
                     let active = PTTKeybind.isModifierDown(keyCode: keyCode, modifierFlags: modifierFlags)
-                    engine.setPushToTalkActive(active)
+                    applyPTT(engine, down: active)
                 }
             } else {
                 if currentKeybind.matches(keyCode: keyCode, modifierFlags: modifierFlags) {
-                    engine.setPushToTalkActive(isDown)
+                    if !isDown || firstPress { applyPTT(engine, down: isDown) }  // ignore key auto-repeat
                 } else if !isDown && currentKeybind.keyCode == keyCode {
-                    engine.setPushToTalkActive(false)
-                } else if isModifierEvent && engine.isTransmitting {
+                    applyPTT(engine, down: false)
+                } else if isModifierEvent && engine.isTransmitting && !doublePushLatched {
                     // Stop transmission if required modifiers were released early
                     let expectedMods = currentKeybind.modifierFlags & PTTKeybind.relevantModifierMask
                     let actualMods = modifierFlags & PTTKeybind.relevantModifierMask
