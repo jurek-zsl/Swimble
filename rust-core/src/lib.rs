@@ -174,12 +174,20 @@ pub struct ServerConnectionInfo {
     pub using_udp_tunnel: bool,
     pub tcp_ping_ms: f32,
     pub udp_ping_ms: f32,
+    /// Packet statistics reported by the server: what it received from us.
     pub good_packets: u32,
     pub late_packets: u32,
     pub lost_packets: u32,
     pub resync_packets: u32,
+    /// Local statistics: what this client received from the server.
+    pub local_good_packets: u32,
+    pub local_late_packets: u32,
+    pub local_lost_packets: u32,
+    pub local_resync_packets: u32,
     pub udp_packets_sent: u32,
     pub tcp_packets_sent: u32,
+    /// Server policy: false when the server forbids clients from recording.
+    pub recording_allowed: bool,
 }
 
 #[derive(uniffi::Record, Clone, Debug, PartialEq)]
@@ -244,6 +252,21 @@ pub struct UserStatsInfo {
     pub idlesecs: u32,
 }
 
+/// Why a connection attempt or an established connection failed.
+#[derive(uniffi::Enum, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ConnectionErrorKind {
+    /// Host name could not be resolved or no endpoint was reachable.
+    Unreachable,
+    /// TCP/TLS handshake failed or timed out.
+    Tls,
+    /// The server did not finish authentication/synchronization in time.
+    HandshakeTimeout,
+    /// The server rejected the connection (see message for the reason).
+    Rejected,
+    /// Reading from or writing to the socket failed or stalled.
+    Io,
+}
+
 #[uniffi::export(callback_interface)]
 pub trait MumbleEventHandler: Send + Sync {
     fn on_server_identity_challenge(&self, challenge: ServerIdentityChallenge);
@@ -263,6 +286,42 @@ pub trait MumbleEventHandler: Send + Sync {
     fn on_registered_users_updated(&self, users: Vec<RegisteredUser>);
     fn on_ban_list_updated(&self, bans: Vec<BanEntryInfo>);
     fn on_user_stats_received(&self, stats: UserStatsInfo);
+    /// A connection attempt or session ended abnormally.
+    fn on_connection_error(&self, kind: ConnectionErrorKind, message: String);
+    /// A control command could not be queued for sending (queue full or no connection).
+    fn on_command_failed(&self, command: String, reason: String);
+}
+
+/// Forwards events only while `generation` still equals the generation this
+/// connection was created with, so tasks of a replaced or closed connection can
+/// never update the UI for a newer session.
+pub(crate) struct GatedHandler {
+    pub inner: std::sync::Arc<dyn MumbleEventHandler>,
+    pub current: std::sync::Arc<std::sync::atomic::AtomicU64>,
+    pub mine: u64,
+}
+
+impl GatedHandler {
+    fn live(&self) -> bool {
+        self.current.load(std::sync::atomic::Ordering::SeqCst) == self.mine
+    }
+}
+
+impl MumbleEventHandler for GatedHandler {
+    fn on_server_identity_challenge(&self, c: ServerIdentityChallenge) { if self.live() { self.inner.on_server_identity_challenge(c) } }
+    fn on_channel_acl_received(&self, a: ChannelAcl) { if self.live() { self.inner.on_channel_acl_received(a) } }
+    fn on_connection_status_changed(&self, s: ConnectionStatus) { if self.live() { self.inner.on_connection_status_changed(s) } }
+    fn on_channels_updated(&self, c: Vec<ChannelInfo>) { if self.live() { self.inner.on_channels_updated(c) } }
+    fn on_users_updated(&self, u: Vec<UserInfo>) { if self.live() { self.inner.on_users_updated(u) } }
+    fn on_user_talking_changed(&self, s: u32, t: bool, st: TalkingState) { if self.live() { self.inner.on_user_talking_changed(s, t, st) } }
+    fn on_chat_message(&self, m: ChatMessage) { if self.live() { self.inner.on_chat_message(m) } }
+    fn on_ping_updated(&self, t: f32, u: f32, tun: bool) { if self.live() { self.inner.on_ping_updated(t, u, tun) } }
+    fn on_server_connection_info_updated(&self, i: ServerConnectionInfo) { if self.live() { self.inner.on_server_connection_info_updated(i) } }
+    fn on_registered_users_updated(&self, u: Vec<RegisteredUser>) { if self.live() { self.inner.on_registered_users_updated(u) } }
+    fn on_ban_list_updated(&self, b: Vec<BanEntryInfo>) { if self.live() { self.inner.on_ban_list_updated(b) } }
+    fn on_user_stats_received(&self, s: UserStatsInfo) { if self.live() { self.inner.on_user_stats_received(s) } }
+    fn on_connection_error(&self, k: ConnectionErrorKind, m: String) { if self.live() { self.inner.on_connection_error(k, m) } }
+    fn on_command_failed(&self, c: String, r: String) { if self.live() { self.inner.on_command_failed(c, r) } }
 }
 
 #[derive(uniffi::Record, Clone, Debug, Default)]
@@ -274,4 +333,47 @@ pub struct AudioMetrics {
     pub speaker_samples: Vec<f32>,
     pub capture_overruns: u64,
     pub playback_underruns: u64,
+}
+
+#[cfg(test)]
+mod gate_tests {
+    use super::*;
+    use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+    use std::sync::Arc;
+
+    #[derive(Default)]
+    struct Count(AtomicUsize);
+    impl MumbleEventHandler for Count {
+        fn on_server_identity_challenge(&self, _: ServerIdentityChallenge) {}
+        fn on_channel_acl_received(&self, _: ChannelAcl) {}
+        fn on_connection_status_changed(&self, _: ConnectionStatus) { self.0.fetch_add(1, Ordering::SeqCst); }
+        fn on_channels_updated(&self, _: Vec<ChannelInfo>) { self.0.fetch_add(1, Ordering::SeqCst); }
+        fn on_users_updated(&self, _: Vec<UserInfo>) {}
+        fn on_user_talking_changed(&self, _: u32, _: bool, _: TalkingState) {}
+        fn on_chat_message(&self, _: ChatMessage) { self.0.fetch_add(1, Ordering::SeqCst); }
+        fn on_ping_updated(&self, _: f32, _: f32, _: bool) {}
+        fn on_server_connection_info_updated(&self, _: ServerConnectionInfo) {}
+        fn on_registered_users_updated(&self, _: Vec<RegisteredUser>) {}
+        fn on_ban_list_updated(&self, _: Vec<BanEntryInfo>) {}
+        fn on_user_stats_received(&self, _: UserStatsInfo) {}
+        fn on_connection_error(&self, _: ConnectionErrorKind, _: String) { self.0.fetch_add(1, Ordering::SeqCst); }
+        fn on_command_failed(&self, _: String, _: String) {}
+    }
+
+    #[test]
+    fn events_of_a_replaced_connection_are_dropped() {
+        let inner = Arc::new(Count::default());
+        let current = Arc::new(AtomicU64::new(1));
+        let old = GatedHandler { inner: inner.clone(), current: current.clone(), mine: 1 };
+        old.on_connection_status_changed(ConnectionStatus::Connected);
+        assert_eq!(inner.0.load(Ordering::SeqCst), 1);
+        current.store(2, Ordering::SeqCst); // a newer connect()/disconnect() happened
+        old.on_connection_status_changed(ConnectionStatus::Disconnected);
+        old.on_channels_updated(vec![]);
+        old.on_connection_error(ConnectionErrorKind::Io, "late".into());
+        assert_eq!(inner.0.load(Ordering::SeqCst), 1, "stale session must not reach the UI");
+        let new = GatedHandler { inner: inner.clone(), current, mine: 2 };
+        new.on_channels_updated(vec![]);
+        assert_eq!(inner.0.load(Ordering::SeqCst), 2);
+    }
 }

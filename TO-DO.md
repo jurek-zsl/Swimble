@@ -86,25 +86,25 @@ Suggested first implementation sequence: **SEC-01 → SEC-02 → SEC-03 → NET-
 
 <a id="net-01"></a>
 
-- [ ] **NET-01 · P1 · Bug — Clear session-scoped state on server changes and reconnects.**
+- [x] **NET-01 · P1 · Bug — Clear session-scoped state on server changes and reconnects.**
   `ClientState.reset` leaves `user_volumes` intact. Swift keeps session-ID maps for local mute, volume, and ignored text; active voice-target selection also survives core disconnect. Those numeric IDs can identify different users/channels on the next server. Unexpected disconnect also leaves substantial UI state populated.
   **Done when:** reset ephemeral user/channel/ACL/stats/whisper/idle/move state at a defined session boundary; retain intentional preferences through certificate/server keys; re-establish self mute/deafen deliberately before microphone transmission. Sources: `state.rs`, `client.rs`, `MumbleStore.connect/disconnect/onConnectionStatusChanged`.
 
 <a id="net-02"></a>
 
-- [ ] **NET-02 · P1 · Verify — Make connection replacement cancel and isolate every old task/callback.**
+- [x] **NET-02 · P1 · Verify — Make connection replacement cancel and isolate every old task/callback.**
   `connect` signals the previous connection but reuses shared state, mixer, crypto, counters, and callback handler. Most Swift callbacks carry no connection generation; only status callbacks compare current status. Old TLS reads/UDP handlers and queued MainActor tasks need a demonstrable lifetime boundary.
   **Done when:** rapid A→B switching, repeated Connect, disconnect during DNS/TLS, and late old-server events cannot update or send through B's session. Track a generation and/or await task shutdown; cover the races with deterministic tests. Sources: `rust-core/src/client.rs`, `StoreEventHandler` and callbacks in `MumbleStore.swift`.
 
 <a id="net-03"></a>
 
-- [ ] **NET-03 · P1 · Bug — Use the established TCP peer for UDP.**
+- [x] **NET-03 · P1 · Bug — Use the established TCP peer for UDP.**
   After TLS succeeds, CryptSetup performs another DNS lookup and chooses its first address. That address may differ from the IP that accepted TCP, breaking UDP association behind multi-address hosts, SRV targets, or address-family fallback.
   **Done when:** UDP connects to the successful TCP peer address/port and all relevant address families are tested. Source: `client.rs`, CryptSetup socket setup; preserve original-host certificate validation in `connection.rs`.
 
 <a id="net-04"></a>
 
-- [ ] **NET-04 · P1 · Bug — Correct ping and packet-statistics reporting.**
+- [x] **NET-04 · P1 · Bug — Correct ping and packet-statistics reporting.**
   UDP replies call `on_ping_updated(0.0, udp_ms, false)`, resetting the displayed TCP value. TCP Ping processing can subsequently replace the UDP value with zero. Outgoing heartbeats contain only a timestamp; local OCB receive good/late/lost/resync counters and ping moments are not maintained/reported like upstream.
   **Done when:** independent measurements do not erase each other; local versus server-reported directions are explicit; heartbeat statistics reflect actual traffic; monotonic timing and fallback transitions have tests. Sources: `client.rs`, `crypt_ocb2.rs`, `ServerConnectionInfo` in `lib.rs`; compare upstream [ServerHandler.cpp](https://github.com/mumble-voip/mumble/blob/v1.6.0-alpha2/src/mumble/ServerHandler.cpp).
 
@@ -113,10 +113,11 @@ Suggested first implementation sequence: **SEC-01 → SEC-02 → SEC-03 → NET-
 - [ ] **NET-05 · P1 · Improve — Propagate connection and command errors explicitly.**
   Early DNS/TCP/TLS failures are largely printed and collapsed into `Failed`; `send_proto` silently drops commands on a full/closed queue. Voice uses `try_send` too, including stream terminators. UI operations can claim success before delivery or Murmur acceptance.
   **Done when:** expose structured connection/reject/permission/queue failures; control operations report queued/rejected/failed state; preserve or deliberately recover from lost terminators; no unbounded queue replacement. Sources: `client.rs`, `lib.rs`, `MumbleStore.swift`.
+  **Status:** connection failures now carry a structured kind (`on_connection_error`: unreachable / TLS / handshake timeout / rejected / I/O) and a reason; a rejected session ends as `Failed`; dropped commands report `on_command_failed`; voice stream terminators are no longer dropped on a full queue. Still open: per-operation queued/rejected/failed state in the UI, and surfacing `on_connection_error` kinds in the Connect dialog.
 
 <a id="net-06"></a>
 
-- [ ] **NET-06 · P1 · Improve — Couple writer failure and write deadlines to connection shutdown.**
+- [x] **NET-06 · P1 · Improve — Couple writer failure and write deadlines to connection shutdown.**
   The writer breaks on error without directly ending the reader/session, and raw writes have no timeout. Reads have frame deadlines, but a stalled writer or pre-sync server can leave connection progress unclear.
   **Done when:** writer failure wakes the session immediately; writes and authentication/synchronization have bounded deadlines and cancellation; a responsive Ping stream alone cannot leave Connect pending forever. Sources: `client.rs`, `framing.rs`.
 
@@ -142,7 +143,7 @@ Suggested first implementation sequence: **SEC-01 → SEC-02 → SEC-03 → NET-
 
 <a id="pro-01"></a>
 
-- [ ] **PRO-01 · P1 · Bug — Honor server recording policy.**
+- [x] **PRO-01 · P1 · Bug — Honor server recording policy.**
   ServerConfig's `recording_allowed` is decoded but ignored. Recording controls and `start_recording` do not consult it, while upstream explicitly enables/disables recording from this field.
   **Done when:** bridge the policy, disable recording when forbidden, and stop an active recording if policy changes; show a useful reason. Sources: `client.rs`, `lib.rs`, `MumbleStore.toggleAudioRecording`, `App.swift`; upstream [msgServerConfig](https://github.com/mumble-voip/mumble/blob/v1.5.939/src/mumble/Messages.cpp).
 
@@ -234,7 +235,7 @@ Suggested first implementation sequence: **SEC-01 → SEC-02 → SEC-03 → NET-
 
 <a id="aud-03"></a>
 
-- [ ] **AUD-03 · P1 · Bug — Apply local mute/volume changes immediately to buffered audio.**
+- [x] **AUD-03 · P1 · Bug — Apply local mute/volume changes immediately to buffered audio.**
   `set_user_local_volume` changes the state map, while the mixer's user gain is updated only when another voice packet arrives. Already-buffered audio can continue with the old volume, including after Local Mute.
   **Done when:** the next rendered block observes local gain changes, including the tail of an ended stream, without waiting for a new packet. Sources: `client.rs`, `audio_mixer.rs`, local-volume controls in `MumbleStore.swift`.
 

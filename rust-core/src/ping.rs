@@ -6,6 +6,43 @@ use tokio::net::{TcpStream, UdpSocket};
 use tokio::runtime::Runtime;
 use tokio::time::timeout;
 
+/// Bounded-memory running mean/variance (exponential once 32 samples are in).
+#[derive(Default, Clone, Copy, Debug)]
+pub struct RollingStat {
+    n: u32,
+    mean: f32,
+    var: f32,
+}
+
+impl RollingStat {
+    pub fn push(&mut self, x: f32) {
+        if !x.is_finite() {
+            return;
+        }
+        self.n = (self.n + 1).min(32);
+        let a = 1.0 / self.n as f32;
+        let d = x - self.mean;
+        self.mean += a * d;
+        self.var = (1.0 - a) * (self.var + a * d * d);
+    }
+    pub fn mean(&self) -> f32 {
+        self.mean
+    }
+    pub fn variance(&self) -> f32 {
+        self.var
+    }
+    pub fn samples(&self) -> u32 {
+        self.n
+    }
+}
+
+/// TCP and UDP latency are independent measurements; neither erases the other.
+#[derive(Default, Debug)]
+pub struct PingStats {
+    pub tcp: RollingStat,
+    pub udp: RollingStat,
+}
+
 pub fn get_tokio_runtime() -> &'static Runtime {
     static RUNTIME: OnceLock<Runtime> = OnceLock::new();
     RUNTIME.get_or_init(|| {
@@ -258,5 +295,33 @@ mod tests {
         );
         let info = res.unwrap();
         assert!(info.latency_ms > 0.0);
+    }
+}
+
+#[cfg(test)]
+mod stat_tests {
+    use super::*;
+    #[test]
+    fn tcp_and_udp_measurements_are_independent() {
+        let mut p = PingStats::default();
+        p.tcp.push(20.0);
+        p.udp.push(40.0);
+        p.udp.push(40.0);
+        assert_eq!(p.tcp.mean(), 20.0);
+        assert_eq!(p.udp.mean(), 40.0);
+        assert_eq!(p.udp.variance(), 0.0);
+        assert_eq!(p.tcp.samples(), 1);
+    }
+    #[test]
+    fn rolling_stat_ignores_non_finite_and_stays_bounded() {
+        let mut r = RollingStat::default();
+        r.push(f32::NAN);
+        assert_eq!(r.samples(), 0);
+        for i in 0..1000 {
+            r.push(10.0 + (i % 2) as f32);
+        }
+        assert_eq!(r.samples(), 32);
+        assert!((r.mean() - 10.5).abs() < 0.2);
+        assert!(r.variance() > 0.0 && r.variance() < 1.0);
     }
 }

@@ -25,6 +25,18 @@ private final class StoreEventHandler: MumbleEventHandler, @unchecked Sendable {
     func onRegisteredUsersUpdated(users: [RegisteredUser]) { store?.onRegisteredUsersUpdated(users: users) }
     func onBanListUpdated(bans: [BanEntryInfo]) { store?.onBanListUpdated(bans: bans) }
     func onUserStatsReceived(stats: UserStatsInfo) { store?.onUserStatsReceived(stats: stats) }
+    func onConnectionError(kind: ConnectionErrorKind, message: String) { store?.onConnectionError(kind: kind, message: message) }
+    func onCommandFailed(command: String, reason: String) { store?.onCommandFailed(command: command, reason: reason) }
+}
+
+/// Identifies the current connection attempt/session. Callbacks capture the value
+/// on the Rust callback thread and are discarded on the main actor if a newer
+/// connect or disconnect has happened in between (late events from an old server).
+final class ConnectionEpoch: @unchecked Sendable {
+    private let lock = NSLock()
+    private var current: UInt64 = 0
+    var value: UInt64 { lock.lock(); defer { lock.unlock() }; return current }
+    func bump() { lock.lock(); current &+= 1; lock.unlock() }
 }
 
 /// Active modal sheet displayed in the application
@@ -159,6 +171,9 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
 
     // Ignored Users for Chat
     public var ignoredTextMessageUsers: Set<UInt32> = []
+    nonisolated let connectionEpoch = ConnectionEpoch()
+    public var lastConnectionError: String? = nil
+    private var lastCommandFailureLog = Date.distantPast
 
     // Active Modal Sheet
     public var activeModal: ActiveModal? = nil
@@ -360,6 +375,10 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
         // Synchronize this server's tokens (and only these) before connecting
         syncAccessTokensToClient()
 
+        // New session boundary: drop the previous session's IDs and ignore its late callbacks.
+        connectionEpoch.bump()
+        resetSessionScopedState()
+
         client.connect(
             host: bookmark.host,
             port: bookmark.port,
@@ -371,6 +390,27 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
         )
 
 
+    }
+
+    /// Numeric session/channel IDs only mean something inside one connection, so every
+    /// map keyed by them is dropped at a session boundary (a new server reuses the IDs).
+    private func resetSessionScopedState() {
+        userVolumes.removeAll()
+        userLocalMutes.removeAll()
+        ignoredTextMessageUsers.removeAll()
+        whisperTargetConfig = nil
+        isWhispering = false
+        audioEngine.activeVoiceTargetId = nil
+        channelUserCounts.removeAll()
+        pendingUserMoves.removeAll()
+        previousUserChannelMap.removeAll()
+        previousUserNames.removeAll()
+        previousUserMuteMap.removeAll()
+        previousUserDeafMap.removeAll()
+        previousUserPriorityMap.removeAll()
+        currentUserStats = nil
+        connectionInfo = nil
+        lastConnectionError = nil
     }
 
     public func shutdown() {
@@ -389,6 +429,8 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
         self.reconnectTimer = nil
         if recorder.isRecording { recorder.stopRecording(); client.setRecordingState(recording: false) }
         let clearComment = SettingsState.shared.clearUserCommentsOnExit && connectionStatus == .connected
+        connectionEpoch.bump()
+        resetSessionScopedState()
         audioEngine.stop()
         if clearComment { client.clearCommentAndDisconnect() } else { client.disconnect() }
         self.connectionStatus = .disconnected
@@ -680,7 +722,20 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
         recorder.durationSeconds
     }
 
+    /// Server policy (ServerConfig.recording_allowed). Until the server says otherwise, recording is allowed.
+    public var recordingAllowed: Bool {
+        connectionInfo?.recordingAllowed ?? true
+    }
+
+    public var recordingBlockedReason: String? {
+        recordingAllowed ? nil : "This server doesn't allow recording."
+    }
+
     public func toggleAudioRecording() {
+        if !recorder.isRecording, let reason = recordingBlockedReason {
+            logSystemMessage("Can't start recording: \(reason)")
+            return
+        }
         if recorder.isRecording {
             if let savedUrl = recorder.stopRecording() {
                 client.setRecordingState(recording: false)
@@ -1071,15 +1126,17 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
     }
 
     nonisolated public func onChannelAclReceived(acl: ChannelAcl) {
+        let epoch = connectionEpoch.value
         Task { @MainActor [weak self] in
-            guard let self, self.aclChannelId == acl.channelId else { return }
+            guard let self, epoch == self.connectionEpoch.value, self.aclChannelId == acl.channelId else { return }
             self.channelAcl = acl
         }
     }
 
     nonisolated public func onServerIdentityChallenge(challenge: ServerIdentityChallenge) {
+        let epoch = connectionEpoch.value
         Task { @MainActor [weak self] in
-            guard let self, let bookmark = self.activeBookmark,
+            guard let self, epoch == self.connectionEpoch.value, let bookmark = self.activeBookmark,
                   bookmark.host == challenge.host, bookmark.port == challenge.port else { return }
             self.reconnectTimer?.invalidate()
             self.serverIdentityChallenge = challenge
@@ -1207,8 +1264,9 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
     // MARK: - UniFFI Event Handler Callbacks
 
     nonisolated public func onConnectionStatusChanged(status: ConnectionStatus) {
+        let epoch = connectionEpoch.value
         Task { @MainActor [weak self] in
-            guard let self = self else { return }
+            guard let self = self, epoch == self.connectionEpoch.value else { return }
             guard self.client.getConnectionStatus() == status else { return }
             let wasConnected = self.connectionStatus == .connected
             self.connectionStatus = status
@@ -1217,13 +1275,23 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
                 if let bookmark = self.activeBookmark {
                     UserDefaults.standard.set(bookmark.id.uuidString, forKey: "Swimble_LastConnectedBookmarkId")
                 }
+                // A new server session starts unmuted/undeafened. Keep the microphone closed and
+                // re-apply what the user had chosen before any audio can be transmitted.
+                self.audioEngine.isMuted = true
+                if self.isSelfDeafened {
+                    self.client.setSelfDeaf(deafened: true)
+                } else if self.isSelfMuted {
+                    self.client.setSelfMute(muted: true)
+                }
                 do { try self.audioEngine.start() } catch {
                     self.logSystemMessage("Audio could not start: \(error.localizedDescription)")
                 }
                 self.mySessionId = self.client.getMySession()
                 self.refreshChannelPermissions()
                 if let me = self.users.first(where: { $0.sessionId == self.mySessionId }) {
-                    self.audioEngine.isMuted = me.isSelfMuted || me.isMuted || me.isSuppressed || me.isDeafened || me.isSelfDeafened || !self.canSpeak(in: me.channelId)
+                    self.audioEngine.isMuted = self.isSelfMuted || self.isSelfDeafened || me.isSelfMuted || me.isMuted || me.isSuppressed || me.isDeafened || me.isSelfDeafened || !self.canSpeak(in: me.channelId)
+                } else {
+                    self.audioEngine.isMuted = self.isSelfMuted || self.isSelfDeafened
                 }
                 self.syncAccessTokensToClient()
                 EventNotificationManager.shared.dispatch(
@@ -1236,6 +1304,13 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
                 self.audioEngine.stop()
                 self.registeredUsers = []
                 self.banList = []
+                // The session is over (also when the server dropped us): don't keep showing its
+                // users/channels, and don't carry its numeric IDs into the next connection.
+                self.channels = []
+                self.channelTree = []
+                self.users = []
+                self.mySessionId = nil
+                self.resetSessionScopedState()
                 self.previouslyLockedChannelIds.removeAll()
                 EventNotificationManager.shared.dispatch(
                     eventName: "Disconnected",
@@ -1255,8 +1330,9 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
     }
 
     nonisolated public func onChannelsUpdated(channels: [ChannelInfo]) {
+        let epoch = connectionEpoch.value
         Task { @MainActor [weak self] in
-            guard let self = self else { return }
+            guard let self = self, epoch == self.connectionEpoch.value else { return }
             for ch in channels {
                 if !ch.canEnter {
                     self.previouslyLockedChannelIds.insert(ch.id)
@@ -1265,7 +1341,7 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
             self.channels = channels
             self.refreshChannelPermissions()
             if let me = self.users.first(where: { $0.sessionId == self.mySessionId }) {
-                self.audioEngine.isMuted = me.isSelfMuted || me.isMuted || me.isSuppressed || me.isDeafened || me.isSelfDeafened || !self.canSpeak(in: me.channelId)
+                self.audioEngine.isMuted = self.isSelfMuted || self.isSelfDeafened || me.isSelfMuted || me.isMuted || me.isSuppressed || me.isDeafened || me.isSelfDeafened || !self.canSpeak(in: me.channelId)
             }
             if self.selectedChannelId == nil, let first = channels.first {
                 self.selectedChannelId = first.id
@@ -1282,8 +1358,9 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
     }
 
     nonisolated public func onUsersUpdated(users: [UserInfo]) {
+        let epoch = connectionEpoch.value
         Task { @MainActor [weak self] in
-            guard let self = self else { return }
+            guard let self = self, epoch == self.connectionEpoch.value else { return }
             let oldSessions = Set(self.users.map { $0.sessionId })
             let newSessions = Set(users.map { $0.sessionId })
             let myId = self.mySessionId ?? 0
@@ -1424,7 +1501,7 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
             if let me = users.first(where: { $0.sessionId == myId }) {
                 self.isSelfMuted = me.isSelfMuted
                 self.isSelfDeafened = me.isSelfDeafened
-                self.audioEngine.isMuted = me.isSelfMuted || me.isMuted || me.isSuppressed || me.isDeafened || me.isSelfDeafened
+                self.audioEngine.isMuted = self.isSelfMuted || self.isSelfDeafened || me.isSelfMuted || me.isMuted || me.isSuppressed || me.isDeafened || me.isSelfDeafened
                     || !self.canSpeak(in: me.channelId)
             }
             self.rebuildTree()
@@ -1432,8 +1509,9 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
     }
 
     nonisolated public func onUserTalkingChanged(sessionId: UInt32, isTalking: Bool, talkingState: TalkingState) {
+        let epoch = connectionEpoch.value
         Task { @MainActor [weak self] in
-            guard let self = self else { return }
+            guard let self = self, epoch == self.connectionEpoch.value else { return }
             if let idx = self.users.firstIndex(where: { $0.sessionId == sessionId }) {
                 let wasWhispering = self.users[idx].talkingState == .whisper
                 self.users[idx].isTalking = isTalking
@@ -1448,8 +1526,9 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
     }
 
     nonisolated public func onChatMessage(message: ChatMessage) {
+        let epoch = connectionEpoch.value
         Task { @MainActor [weak self] in
-            guard let self = self else { return }
+            guard let self = self, epoch == self.connectionEpoch.value else { return }
             if self.ignoredTextMessageUsers.contains(message.senderSession) { return }
             if message.senderSession == self.mySessionId {
                 if let last = self.chatMessages.last,
@@ -1493,8 +1572,9 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
     }
 
     nonisolated public func onPingUpdated(tcpMs: Float, udpMs: Float, usingUdpTunnel: Bool) {
+        let epoch = connectionEpoch.value
         Task { @MainActor [weak self] in
-            guard let self = self else { return }
+            guard let self = self, epoch == self.connectionEpoch.value else { return }
             self.tcpPingMs = tcpMs
             self.udpPingMs = udpMs
             self.usingUdpTunnel = usingUdpTunnel
@@ -1502,9 +1582,16 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
     }
 
     nonisolated public func onServerConnectionInfoUpdated(info: ServerConnectionInfo) {
+        let epoch = connectionEpoch.value
         Task { @MainActor [weak self] in
-            guard let self = self else { return }
+            guard let self = self, epoch == self.connectionEpoch.value else { return }
             self.connectionInfo = info
+            if !info.recordingAllowed && self.recorder.isRecording {
+                // The server changed its policy mid-session: stop and keep what was recorded so far.
+                let saved = self.recorder.stopRecording()
+                self.client.setRecordingState(recording: false)
+                self.logSystemMessage("Recording stopped: the server no longer allows recording." + (saved.map { " Saved \($0.lastPathComponent)." } ?? ""))
+            }
             let trimmed = info.welcomeText.trimmingCharacters(in: .whitespacesAndNewlines)
             if !trimmed.isEmpty {
                 let alreadyHasWelcome = self.chatMessages.contains { $0.senderSession == 0 && $0.senderName == "Server" && $0.htmlBody.trimmingCharacters(in: .whitespacesAndNewlines) == trimmed }
@@ -1524,22 +1611,46 @@ public final class MumbleStore: MumbleEventHandler, @unchecked Sendable {
     }
 
     nonisolated public func onRegisteredUsersUpdated(users: [RegisteredUser]) {
+        let epoch = connectionEpoch.value
         Task { @MainActor [weak self] in
-            guard let self = self else { return }
+            guard let self = self, epoch == self.connectionEpoch.value else { return }
             self.registeredUsers = users
         }
     }
 
     nonisolated public func onBanListUpdated(bans: [BanEntryInfo]) {
+        let epoch = connectionEpoch.value
         Task { @MainActor [weak self] in
-            guard let self = self else { return }
+            guard let self = self, epoch == self.connectionEpoch.value else { return }
             self.banList = bans
         }
     }
 
-    nonisolated public func onUserStatsReceived(stats: UserStatsInfo) {
+    nonisolated public func onConnectionError(kind: ConnectionErrorKind, message: String) {
+        let epoch = connectionEpoch.value
         Task { @MainActor [weak self] in
-            guard let self = self else { return }
+            guard let self = self, epoch == self.connectionEpoch.value else { return }
+            // The reason is also logged once by the status handler (via disconnectReason()).
+            self.lastConnectionError = message
+        }
+    }
+
+    nonisolated public func onCommandFailed(command: String, reason: String) {
+        let epoch = connectionEpoch.value
+        Task { @MainActor [weak self] in
+            guard let self = self, epoch == self.connectionEpoch.value else { return }
+            if reason == "not connected" && self.connectionStatus != .connected { return }
+            // Don't flood the chat when many commands fail together (e.g. a full queue).
+            guard Date().timeIntervalSince(self.lastCommandFailureLog) > 2 else { return }
+            self.lastCommandFailureLog = Date()
+            self.logSystemMessage("Couldn't send \(command): \(reason).")
+        }
+    }
+
+    nonisolated public func onUserStatsReceived(stats: UserStatsInfo) {
+        let epoch = connectionEpoch.value
+        Task { @MainActor [weak self] in
+            guard let self = self, epoch == self.connectionEpoch.value else { return }
             self.currentUserStats = stats
             if self.activeModal != .userStats {
                 self.activeModal = .userStats

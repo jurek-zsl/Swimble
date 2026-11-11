@@ -50,8 +50,13 @@ impl ClientState {
                 late_packets: 0,
                 lost_packets: 0,
                 resync_packets: 0,
+                local_good_packets: 0,
+                local_late_packets: 0,
+                local_lost_packets: 0,
+                local_resync_packets: 0,
                 udp_packets_sent: 0,
                 tcp_packets_sent: 0,
+                recording_allowed: true,
             },
             registered_users: Vec::new(),
             ban_list: Vec::new(),
@@ -66,6 +71,8 @@ impl ClientState {
         self.my_session = None;
         self.channels.clear();
         self.users.clear();
+        // Session IDs are only meaningful within one connection.
+        self.user_volumes.clear();
         self.registered_users.clear();
         self.ban_list.clear();
         self.user_stats.clear();
@@ -293,5 +300,22 @@ mod tests {
         state.reset();
         assert!(!state.is_synced);
         assert_eq!(state.channels.len(), 0);
+    }
+}
+
+#[cfg(test)]
+mod reset_tests {
+    use super::*;
+    #[test]
+    fn reset_drops_session_scoped_state() {
+        // NET-01: numeric session IDs must not leak into the next server.
+        let mut st = ClientState::new();
+        st.user_volumes.insert(7, 0.2);
+        st.my_session = Some(3);
+        st.server_info.recording_allowed = false;
+        st.reset();
+        assert!(st.user_volumes.is_empty());
+        assert_eq!(st.my_session, None);
+        assert!(st.server_info.recording_allowed, "policy defaults to allowed until the server says otherwise");
     }
 }

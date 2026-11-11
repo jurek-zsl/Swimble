@@ -679,6 +679,11 @@ public protocol MumbleClientProtocol: AnyObject, Sendable {
 
     func connect(host: String, port: UInt16, username: String, password: String?, clientCertPem: String?, clientKeyPem: String?, trustedFingerprint: String?)
 
+    /**
+     * Increments each time a connection starts or ends (for diagnostics/tests).
+     */
+    func connectionGeneration()  -> UInt64
+
     func createChannel(parentId: UInt32, name: String, description: String, position: Int32, isTemporary: Bool)
 
     func disconnect()
@@ -725,6 +730,11 @@ public protocol MumbleClientProtocol: AnyObject, Sendable {
     func pushMicPcm(samples: [Float], target: UInt8?)
 
     func reconnectAllowed()  -> Bool
+
+    /**
+     * Whether the server currently allows clients to record.
+     */
+    func recordingAllowed()  -> Bool
 
     func registerUser(sessionId: UInt32?)
 
@@ -982,6 +992,18 @@ open func connect(host: String, port: UInt16, username: String, password: String
 }
 }
 
+    /**
+     * Increments each time a connection starts or ends (for diagnostics/tests).
+     */
+open func connectionGeneration() -> UInt64  {
+    return try!  FfiConverterUInt64.lift(try! rustCall() {
+        uniffiCallStatus in
+    uniffi_mumble_core_fn_method_mumbleclient_connection_generation(
+            self.uniffiCloneHandle(),uniffiCallStatus
+    )
+})
+}
+
 open func createChannel(parentId: UInt32, name: String, description: String, position: Int32, isTemporary: Bool)  {try! rustCall() {
         uniffiCallStatus in
     uniffi_mumble_core_fn_method_mumbleclient_create_channel(
@@ -1190,6 +1212,18 @@ open func reconnectAllowed() -> Bool  {
     return try!  FfiConverterBool.lift(try! rustCall() {
         uniffiCallStatus in
     uniffi_mumble_core_fn_method_mumbleclient_reconnect_allowed(
+            self.uniffiCloneHandle(),uniffiCallStatus
+    )
+})
+}
+
+    /**
+     * Whether the server currently allows clients to record.
+     */
+open func recordingAllowed() -> Bool  {
+    return try!  FfiConverterBool.lift(try! rustCall() {
+        uniffiCallStatus in
+    uniffi_mumble_core_fn_method_mumbleclient_recording_allowed(
             self.uniffiCloneHandle(),uniffiCallStatus
     )
 })
@@ -2334,16 +2368,39 @@ public struct ServerConnectionInfo: Equatable, Hashable {
     public var usingUdpTunnel: Bool
     public var tcpPingMs: Float
     public var udpPingMs: Float
+    /**
+     * Packet statistics reported by the server: what it received from us.
+     */
     public var goodPackets: UInt32
     public var latePackets: UInt32
     public var lostPackets: UInt32
     public var resyncPackets: UInt32
+    /**
+     * Local statistics: what this client received from the server.
+     */
+    public var localGoodPackets: UInt32
+    public var localLatePackets: UInt32
+    public var localLostPackets: UInt32
+    public var localResyncPackets: UInt32
     public var udpPacketsSent: UInt32
     public var tcpPacketsSent: UInt32
+    /**
+     * Server policy: false when the server forbids clients from recording.
+     */
+    public var recordingAllowed: Bool
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(serverVersion: String, serverOs: String, serverOsVersion: String, welcomeText: String, tlsCipher: String, maxBandwidthKbps: UInt32, maxUsers: UInt32, usingUdpTunnel: Bool, tcpPingMs: Float, udpPingMs: Float, goodPackets: UInt32, latePackets: UInt32, lostPackets: UInt32, resyncPackets: UInt32, udpPacketsSent: UInt32, tcpPacketsSent: UInt32) {
+    public init(serverVersion: String, serverOs: String, serverOsVersion: String, welcomeText: String, tlsCipher: String, maxBandwidthKbps: UInt32, maxUsers: UInt32, usingUdpTunnel: Bool, tcpPingMs: Float, udpPingMs: Float,
+        /**
+         * Packet statistics reported by the server: what it received from us.
+         */goodPackets: UInt32, latePackets: UInt32, lostPackets: UInt32, resyncPackets: UInt32,
+        /**
+         * Local statistics: what this client received from the server.
+         */localGoodPackets: UInt32, localLatePackets: UInt32, localLostPackets: UInt32, localResyncPackets: UInt32, udpPacketsSent: UInt32, tcpPacketsSent: UInt32,
+        /**
+         * Server policy: false when the server forbids clients from recording.
+         */recordingAllowed: Bool) {
         self.serverVersion = serverVersion
         self.serverOs = serverOs
         self.serverOsVersion = serverOsVersion
@@ -2358,8 +2415,13 @@ public struct ServerConnectionInfo: Equatable, Hashable {
         self.latePackets = latePackets
         self.lostPackets = lostPackets
         self.resyncPackets = resyncPackets
+        self.localGoodPackets = localGoodPackets
+        self.localLatePackets = localLatePackets
+        self.localLostPackets = localLostPackets
+        self.localResyncPackets = localResyncPackets
         self.udpPacketsSent = udpPacketsSent
         self.tcpPacketsSent = tcpPacketsSent
+        self.recordingAllowed = recordingAllowed
     }
 
 
@@ -2392,8 +2454,13 @@ public struct FfiConverterTypeServerConnectionInfo: FfiConverterRustBuffer {
                 latePackets: FfiConverterUInt32.read(from: &buf),
                 lostPackets: FfiConverterUInt32.read(from: &buf),
                 resyncPackets: FfiConverterUInt32.read(from: &buf),
+                localGoodPackets: FfiConverterUInt32.read(from: &buf),
+                localLatePackets: FfiConverterUInt32.read(from: &buf),
+                localLostPackets: FfiConverterUInt32.read(from: &buf),
+                localResyncPackets: FfiConverterUInt32.read(from: &buf),
                 udpPacketsSent: FfiConverterUInt32.read(from: &buf),
-                tcpPacketsSent: FfiConverterUInt32.read(from: &buf)
+                tcpPacketsSent: FfiConverterUInt32.read(from: &buf),
+                recordingAllowed: FfiConverterBool.read(from: &buf)
         )
     }
 
@@ -2412,8 +2479,13 @@ public struct FfiConverterTypeServerConnectionInfo: FfiConverterRustBuffer {
         FfiConverterUInt32.write(value.latePackets, into: &buf)
         FfiConverterUInt32.write(value.lostPackets, into: &buf)
         FfiConverterUInt32.write(value.resyncPackets, into: &buf)
+        FfiConverterUInt32.write(value.localGoodPackets, into: &buf)
+        FfiConverterUInt32.write(value.localLatePackets, into: &buf)
+        FfiConverterUInt32.write(value.localLostPackets, into: &buf)
+        FfiConverterUInt32.write(value.localResyncPackets, into: &buf)
         FfiConverterUInt32.write(value.udpPacketsSent, into: &buf)
         FfiConverterUInt32.write(value.tcpPacketsSent, into: &buf)
+        FfiConverterBool.write(value.recordingAllowed, into: &buf)
     }
 }
 
@@ -2883,6 +2955,111 @@ public func FfiConverterTypeVoiceTargetConfig_lower(_ value: VoiceTargetConfig) 
 }
 
 
+/**
+ * Why a connection attempt or an established connection failed.
+ */
+
+public enum ConnectionErrorKind: Equatable, Hashable {
+
+    /**
+     * Host name could not be resolved or no endpoint was reachable.
+     */
+    case unreachable
+    /**
+     * TCP/TLS handshake failed or timed out.
+     */
+    case tls
+    /**
+     * The server did not finish authentication/synchronization in time.
+     */
+    case handshakeTimeout
+    /**
+     * The server rejected the connection (see message for the reason).
+     */
+    case rejected
+    /**
+     * Reading from or writing to the socket failed or stalled.
+     */
+    case io
+
+
+
+
+
+}
+
+#if compiler(>=6)
+extension ConnectionErrorKind: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeConnectionErrorKind: FfiConverterRustBuffer {
+    typealias SwiftType = ConnectionErrorKind
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ConnectionErrorKind {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+
+        case 1: return .unreachable
+
+        case 2: return .tls
+
+        case 3: return .handshakeTimeout
+
+        case 4: return .rejected
+
+        case 5: return .io
+
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: ConnectionErrorKind, into buf: inout [UInt8]) {
+        switch value {
+
+
+        case .unreachable:
+            writeInt(&buf, Int32(1))
+
+
+        case .tls:
+            writeInt(&buf, Int32(2))
+
+
+        case .handshakeTimeout:
+            writeInt(&buf, Int32(3))
+
+
+        case .rejected:
+            writeInt(&buf, Int32(4))
+
+
+        case .io:
+            writeInt(&buf, Int32(5))
+
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeConnectionErrorKind_lift(_ buf: RustBuffer) throws -> ConnectionErrorKind {
+    return try FfiConverterTypeConnectionErrorKind.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeConnectionErrorKind_lower(_ value: ConnectionErrorKind) -> RustBuffer {
+    return FfiConverterTypeConnectionErrorKind.lower(value)
+}
+
+
+
 
 public enum ConnectionStatus: Equatable, Hashable {
 
@@ -3172,6 +3349,16 @@ public protocol MumbleEventHandler: AnyObject, Sendable {
     func onBanListUpdated(bans: [BanEntryInfo])
 
     func onUserStatsReceived(stats: UserStatsInfo)
+
+    /**
+     * A connection attempt or session ended abnormally.
+     */
+    func onConnectionError(kind: ConnectionErrorKind, message: String)
+
+    /**
+     * A control command could not be queued for sending (queue full or no connection).
+     */
+    func onCommandFailed(command: String, reason: String)
 
 }
 
@@ -3483,6 +3670,58 @@ fileprivate struct UniffiCallbackInterfaceMumbleEventHandler {
                 }
                 return uniffiObj.onUserStatsReceived(
                      stats: try FfiConverterTypeUserStatsInfo_lift(stats)
+                )
+            }
+
+
+            let writeReturn = { () }
+            uniffiTraitInterfaceCall(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn
+            )
+        },
+        onConnectionError: { (
+            uniffiHandle: UInt64,
+            kind: RustBuffer,
+            message: RustBuffer,
+            uniffiOutReturn: UnsafeMutableRawPointer,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let makeCall = {
+                () throws -> () in
+                guard let uniffiObj = try? FfiConverterCallbackInterfaceMumbleEventHandler.handleMap.get(handle: uniffiHandle) else {
+                    throw UniffiInternalError.unexpectedStaleHandle
+                }
+                return uniffiObj.onConnectionError(
+                     kind: try FfiConverterTypeConnectionErrorKind_lift(kind),
+                     message: try FfiConverterString.lift(message)
+                )
+            }
+
+
+            let writeReturn = { () }
+            uniffiTraitInterfaceCall(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn
+            )
+        },
+        onCommandFailed: { (
+            uniffiHandle: UInt64,
+            command: RustBuffer,
+            reason: RustBuffer,
+            uniffiOutReturn: UnsafeMutableRawPointer,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let makeCall = {
+                () throws -> () in
+                guard let uniffiObj = try? FfiConverterCallbackInterfaceMumbleEventHandler.handleMap.get(handle: uniffiHandle) else {
+                    throw UniffiInternalError.unexpectedStaleHandle
+                }
+                return uniffiObj.onCommandFailed(
+                     command: try FfiConverterString.lift(command),
+                     reason: try FfiConverterString.lift(reason)
                 )
             }
 
@@ -4097,6 +4336,9 @@ private let initializationResult: InitializationResult = {
     if (uniffi_mumble_core_checksum_method_mumbleclient_connect() != 45249) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_mumble_core_checksum_method_mumbleclient_connection_generation() != 58163) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_mumble_core_checksum_method_mumbleclient_create_channel() != 52355) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -4161,6 +4403,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_mumble_core_checksum_method_mumbleclient_reconnect_allowed() != 6676) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_mumble_core_checksum_method_mumbleclient_recording_allowed() != 9909) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_mumble_core_checksum_method_mumbleclient_register_user() != 9871) {
@@ -4305,6 +4550,12 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_mumble_core_checksum_method_mumbleeventhandler_on_user_stats_received() != 56807) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_mumble_core_checksum_method_mumbleeventhandler_on_connection_error() != 53341) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_mumble_core_checksum_method_mumbleeventhandler_on_command_failed() != 8737) {
         return InitializationResult.apiChecksumMismatch
     }
 

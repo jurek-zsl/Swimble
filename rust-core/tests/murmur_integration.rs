@@ -113,6 +113,14 @@ impl MumbleEventHandler for TestHandler {
     fn on_user_stats_received(&self, stats: UserStatsInfo) {
         println!("TestHandler: user stats received: {:?}", stats);
     }
+
+    fn on_connection_error(&self, kind: mumble_core::ConnectionErrorKind, message: String) {
+        println!("TestHandler: connection error {kind:?}: {message}");
+    }
+
+    fn on_command_failed(&self, command: String, reason: String) {
+        println!("TestHandler: command failed {command}: {reason}");
+    }
 }
 
 #[tokio::test]
@@ -952,4 +960,24 @@ async fn assert_recording_gate(client: &Arc<MumbleClient>, rate: u32, loopback: 
         mumble_core::audio_io::swimble_audio_active(handle, false);
         mumble_core::audio_io::swimble_audio_release(handle);
     }
+}
+
+/// PRO-01 against a real Murmur configured with `allowrecording=false`
+/// (docker run -p 64739:64738 -e MUMBLE_CONFIG_ALLOWRECORDING=false ...).
+#[tokio::test]
+#[ignore = "Requires a Murmur with recording disabled on 127.0.0.1:64739"]
+async fn live_server_forbidding_recording_is_honoured() {
+    let handler = TestHandler::new(Arc::new(Notify::new()), Arc::new(Notify::new()), Arc::new(Notify::new()));
+    let client = MumbleClient::new(Box::new(handler));
+    let identity = generate_client_identity(format!("NoRec{}", std::process::id()));
+    let failure = Arc::new(Mutex::new(None));
+    let _ = mumble_core::connection::connect_tls("127.0.0.1", 64739, None, None, "127.0.0.1", 64739, None, Arc::clone(&failure)).await;
+    let fingerprint = failure.lock().unwrap().take().expect("self-signed challenge").fingerprint;
+    client.connect("127.0.0.1".into(), 64739, format!("NoRec{}", std::process::id()), None,
+        Some(identity.cert_pem), Some(identity.key_pem), Some(fingerprint));
+    wait_for(|| client.get_connection_status() == ConnectionStatus::Connected).await;
+    wait_for(|| !client.recording_allowed()).await;
+    let dir = tempfile::tempdir().unwrap();
+    assert!(!client.start_recording(dir.path().join("x.wav").to_string_lossy().into()));
+    client.disconnect();
 }

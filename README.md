@@ -87,7 +87,7 @@ Public server browsing uses Mumist.eu with a Mumble.info fallback. Directory act
 
 ## Contributing and to-do list
 
-Contributions are welcome. The checklist below contains all **63 tasks** from the [Mumble/Murmur compatibility audit](TO-DO.md), grouped by area. Each task links to its evidence, affected files, and completion criteria. The audit compares Mumble/Murmur 1.5.939 and 1.6.1001 RC 2; universal-binary support merged afterward is already reflected in the backlog.
+Contributions are welcome. The checklist below contains all **63 tasks** (**10 done** as of v1.3.0, ticked below) from the [Mumble/Murmur compatibility audit](TO-DO.md), grouped by area. Each task links to its evidence, affected files, and completion criteria. The audit compares Mumble/Murmur 1.5.939 and 1.6.1001 RC 2; universal-binary support merged afterward is already reflected in the backlog.
 
 **Priorities:** P1 covers privacy, identity, audio correctness, and connection reliability; P2 covers compatibility, usability, and release quality; P3 covers optional parity. Items marked **Verify** need reproduction or test evidence before being treated as confirmed bugs. Optional features need a product decision before implementation.
 
@@ -97,16 +97,16 @@ To start, choose a task, check [existing issues](https://github.com/jurek-zsl/Sw
 | --- | --- |
 | Documentation | [REL-04: build prerequisites and verification limits](TO-DO.md#rel-04) |
 | Test reliability | [TEST-05: local fixtures and meaningful assertions](TO-DO.md#test-05) |
-| Rust networking | [NET-03: use the connected TCP peer for UDP](TO-DO.md#net-03) |
-| Swift privacy controls | [SEC-02: enforce remote-image blocking](TO-DO.md#sec-02) |
+| Rust networking | [NET-07: harden parsers and per-session resource limits](TO-DO.md#net-07) |
+| Swift privacy controls | [SEC-04: synchronize identity replacement across windows](TO-DO.md#sec-04) |
 
-For priority work, start with **SEC-01 → SEC-02 → SEC-03 → NET-01 → NET-02 → PRO-01 → AUD-01 → UX-01**. Follow [the architecture rules](AGENTS.md): Mumble networking and processing belong in Rust; native UI, Keychain, input, and hardware I/O belong in Swift. Rust FFI changes require regenerated UniFFI bindings. Edit `MacClient/project.yml` and regenerate with XcodeGen for project changes. Protocol changes need integration tests against a disposable local Murmur server.
+For priority work, start with **AUD-01 → UX-01 → NET-05 (finish) → NET-07 → SEC-04** (SEC-01/02/03, NET-01–04/06, PRO-01 and AUD-03 are done). Follow [the architecture rules](AGENTS.md): Mumble networking and processing belong in Rust; native UI, Keychain, input, and hardware I/O belong in Swift. Rust FFI changes require regenerated UniFFI bindings. Edit `MacClient/project.yml` and regenerate with XcodeGen for project changes. Protocol changes need integration tests against a disposable local Murmur server.
 
 ### Privacy, credentials, and identity
 
-- [ ] [SEC-01 · P1 · Bug — Isolate access tokens by server and move them to Keychain.](TO-DO.md#sec-01)
-- [ ] [SEC-02 · P1 · Bug — Make “Block External Remote Images” enforceable.](TO-DO.md#sec-02)
-- [ ] [SEC-03 · P1 · Bug — Treat corrupt stored identities as errors, not missing identities.](TO-DO.md#sec-03)
+- [x] [SEC-01 · P1 · Bug — Isolate access tokens by server and move them to Keychain.](TO-DO.md#sec-01)
+- [x] [SEC-02 · P1 · Bug — Make “Block External Remote Images” enforceable.](TO-DO.md#sec-02)
+- [x] [SEC-03 · P1 · Bug — Treat corrupt stored identities as errors, not missing identities.](TO-DO.md#sec-03)
 - [ ] [SEC-04 · P1 · Bug — Synchronize identity replacement across server windows.](TO-DO.md#sec-04)
 - [ ] [SEC-05 · P2 · Improve — Validate PKCS#12 identities before installing them.](TO-DO.md#sec-05)
 - [ ] [SEC-06 · P2 · Improve — Provide complete certificate inspection and backup recovery.](TO-DO.md#sec-06)
@@ -114,19 +114,19 @@ For priority work, start with **SEC-01 → SEC-02 → SEC-03 → NET-01 → NET-
 
 ### Connection and Rust core reliability
 
-- [ ] [NET-01 · P1 · Bug — Clear session-scoped state on server changes and reconnects.](TO-DO.md#net-01)
-- [ ] [NET-02 · P1 · Verify — Make connection replacement cancel and isolate every old task/callback.](TO-DO.md#net-02)
-- [ ] [NET-03 · P1 · Bug — Use the established TCP peer for UDP.](TO-DO.md#net-03)
-- [ ] [NET-04 · P1 · Bug — Correct ping and packet-statistics reporting.](TO-DO.md#net-04)
-- [ ] [NET-05 · P1 · Improve — Propagate connection and command errors explicitly.](TO-DO.md#net-05)
-- [ ] [NET-06 · P1 · Improve — Couple writer failure and write deadlines to connection shutdown.](TO-DO.md#net-06)
+- [x] [NET-01 · P1 · Bug — Clear session-scoped state on server changes and reconnects.](TO-DO.md#net-01)
+- [x] [NET-02 · P1 · Verify — Make connection replacement cancel and isolate every old task/callback.](TO-DO.md#net-02)
+- [x] [NET-03 · P1 · Bug — Use the established TCP peer for UDP.](TO-DO.md#net-03)
+- [x] [NET-04 · P1 · Bug — Correct ping and packet-statistics reporting.](TO-DO.md#net-04)
+- [ ] [NET-05 · P1 · Improve — Propagate connection and command errors explicitly.](TO-DO.md#net-05) *(partly done in 1.3.0: structured connection errors and failed-command reports; per-operation UI state remains)*
+- [x] [NET-06 · P1 · Improve — Couple writer failure and write deadlines to connection shutdown.](TO-DO.md#net-06)
 - [ ] [NET-07 · P1 · Improve — Harden parsers and per-session resource limits.](TO-DO.md#net-07)
 - [ ] [NET-08 · P2 · Verify — Complete real-network recovery behavior.](TO-DO.md#net-08)
 - [ ] [NET-09 · P2 · Missing — Add proxy support if full connection parity is required.](TO-DO.md#net-09)
 
 ### Mumble/Murmur protocol and administration parity
 
-- [ ] [PRO-01 · P1 · Bug — Honor server recording policy.](TO-DO.md#pro-01)
+- [x] [PRO-01 · P1 · Bug — Honor server recording policy.](TO-DO.md#pro-01)
 - [ ] [PRO-02 · P2 · Missing — Respect server HTML and text/image length limits.](TO-DO.md#pro-02)
 - [ ] [PRO-03 · P2 · Missing — Handle SuggestConfig and codec negotiation.](TO-DO.md#pro-03)
 - [ ] [PRO-04 · P2 · Missing — Add listener volume adjustment and restoration.](TO-DO.md#pro-04)
@@ -144,7 +144,7 @@ For priority work, start with **SEC-01 → SEC-02 → SEC-03 → NET-01 → NET-
 
 - [ ] [AUD-01 · P1 · Bug — Adapt packet duration as well as bitrate to bandwidth limits.](TO-DO.md#aud-01)
 - [ ] [AUD-02 · P1 · Verify — Make jitter recovery robust to variable durations and stream gaps.](TO-DO.md#aud-02)
-- [ ] [AUD-03 · P1 · Bug — Apply local mute/volume changes immediately to buffered audio.](TO-DO.md#aud-03)
+- [x] [AUD-03 · P1 · Bug — Apply local mute/volume changes immediately to buffered audio.](TO-DO.md#aud-03)
 - [ ] [AUD-04 · P1 · Verify — Define target transitions and competing transmission inputs.](TO-DO.md#aud-04)
 - [ ] [AUD-05 · P1 · Bug — Detect actual user activity for idle actions.](TO-DO.md#aud-05)
 - [ ] [AUD-06 · P1 · Improve — Support receive-only audio and explain hardware failures.](TO-DO.md#aud-06)

@@ -175,6 +175,8 @@ struct SwimbleApp: App {
                 Button(activeStore?.isRecordingAudio == true ? "Stop Recording" : "Start Recording") {
                     activeStore?.toggleAudioRecording()
                 }
+                .disabled(activeStore?.recordingAllowed == false && activeStore?.isRecordingAudio != true)
+                .help(activeStore?.recordingBlockedReason ?? "")
                 .keyboardShortcut("r", modifiers: [.command, .shift])
 
                 Divider()
@@ -322,6 +324,8 @@ struct SwimbleApp: App {
                     Button(store.isRecordingAudio ? "Stop Recording" : "Start Recording") {
                         store.toggleAudioRecording()
                     }
+                    .disabled(!store.recordingAllowed && !store.isRecordingAudio)
+                    .help(store.recordingBlockedReason ?? "")
 
                     Divider()
 

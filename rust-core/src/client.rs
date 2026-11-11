@@ -1,5 +1,5 @@
 use prost::Message;
-use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::io::AsyncWriteExt;
@@ -23,8 +23,8 @@ use crate::voice_packet::{
     encode_udp_ping_versioned,
 };
 use crate::{
-    BanEntryInfo, ChannelInfo, ChatMessage, ConnectionStatus, MumbleEventHandler, PacketStats,
-    RegisteredUser, ServerConnectionInfo, UserInfo, UserStatsInfo, VoiceTargetConfig,
+    BanEntryInfo, ChannelInfo, ChatMessage, ConnectionErrorKind, ConnectionStatus, GatedHandler,
+    MumbleEventHandler, PacketStats, RegisteredUser, ServerConnectionInfo, UserInfo, UserStatsInfo, VoiceTargetConfig,
 };
 
 fn is_ipv4_mapped(addr: &[u8]) -> bool {
@@ -98,6 +98,72 @@ impl TokioRunner {
     }
 }
 
+/// Bounded write: a stalled peer must not wedge the writer (or Connect) forever.
+const DEFAULT_WRITE_TIMEOUT_MS: u64 = 10_000;
+/// Authentication + initial synchronization must finish within this window,
+/// regardless of any Ping traffic the server sends meanwhile.
+const DEFAULT_HANDSHAKE_TIMEOUT_MS: u64 = 30_000;
+
+async fn write_packet_bounded<W: AsyncWriteExt + Unpin>(
+    writer: &mut W,
+    type_id: u16,
+    payload: &[u8],
+    limit: Duration,
+) -> std::io::Result<()> {
+    tokio::time::timeout(limit, write_raw_packet(writer, type_id, payload))
+        .await
+        .unwrap_or_else(|_| Err(std::io::Error::new(std::io::ErrorKind::TimedOut, "write timed out")))
+}
+
+fn classify_connect_error(e: &std::io::Error) -> ConnectionErrorKind {
+    use std::io::ErrorKind::*;
+    match e.kind() {
+        ConnectionRefused | NotFound | AddrNotAvailable | NotConnected | ConnectionReset
+        | ConnectionAborted | HostUnreachable | NetworkUnreachable | NetworkDown => {
+            ConnectionErrorKind::Unreachable
+        }
+        _ => ConnectionErrorKind::Tls,
+    }
+}
+
+/// Records a failure for this connection (only if it is still the current one)
+/// and tells the UI why, instead of collapsing everything into `Failed`.
+fn report_failure(
+    generation: &AtomicU64,
+    mine: u64,
+    state: &RwLock<ClientState>,
+    handler: &Arc<dyn MumbleEventHandler>,
+    kind: ConnectionErrorKind,
+    message: String,
+) {
+    if generation.load(Ordering::SeqCst) != mine {
+        return;
+    }
+    eprintln!("Mumble connection failure ({kind:?}): {message}");
+    {
+        let mut st = state.write().unwrap();
+        st.connection_status = ConnectionStatus::Failed;
+        st.disconnect_reason = message.clone();
+    }
+    handler.on_connection_error(kind, message);
+    handler.on_connection_status_changed(ConnectionStatus::Failed);
+}
+
+fn command_name(type_id: u16) -> String {
+    match type_id {
+        x if x == TYPE_USER_STATE => "user state change".into(),
+        x if x == TYPE_TEXT_MESSAGE => "text message".into(),
+        x if x == TYPE_CHANNEL_STATE => "channel change".into(),
+        x if x == TYPE_CHANNEL_REMOVE => "channel removal".into(),
+        x if x == TYPE_USER_REMOVE => "kick/ban".into(),
+        x if x == TYPE_ACL => "ACL update".into(),
+        x if x == TYPE_BAN_LIST => "ban list update".into(),
+        x if x == TYPE_USER_LIST => "registered-user update".into(),
+        x if x == TYPE_VOICE_TARGET => "voice target".into(),
+        other => format!("request (type {other})"),
+    }
+}
+
 pub enum OutgoingCommand {
     Proto(u16, Vec<u8>),
     Disconnect,
@@ -127,6 +193,11 @@ pub struct MumbleClient {
     os_version: RwLock<String>,
     pub(crate) audio_port: Arc<crate::audio_io::AudioPort>,
     audio_worker_started: AtomicBool,
+    /// Incremented on every connect/disconnect. Tasks and callbacks of an older
+    /// connection compare against it and go silent once it no longer matches.
+    generation: Arc<AtomicU64>,
+    handshake_timeout_ms: AtomicU64,
+    write_timeout_ms: AtomicU64,
 }
 
 #[uniffi::export]
@@ -163,6 +234,9 @@ impl MumbleClient {
             os_version: RwLock::new(String::new()),
             audio_port: crate::audio_io::AudioPort::new(),
             audio_worker_started: AtomicBool::new(false),
+            generation: Arc::new(AtomicU64::new(0)),
+            handshake_timeout_ms: AtomicU64::new(DEFAULT_HANDSHAKE_TIMEOUT_MS),
+            write_timeout_ms: AtomicU64::new(DEFAULT_WRITE_TIMEOUT_MS),
         })
     }
 
@@ -177,6 +251,8 @@ impl MumbleClient {
         trusted_fingerprint: Option<String>,
     ) {
         self.disconnect();
+        let my_gen = self.generation.fetch_add(1, Ordering::SeqCst) + 1;
+        *self.active_voice_target_id.write().unwrap() = 0;
 
         {
             let mut state = self.state.write().unwrap();
@@ -204,7 +280,17 @@ impl MumbleClient {
             .store(false, Ordering::Relaxed);
 
         let state_arc = Arc::clone(&self.state);
-        let handler_arc = Arc::clone(&self.handler);
+        let handler_arc: Arc<dyn MumbleEventHandler> = Arc::new(GatedHandler {
+            inner: Arc::clone(&self.handler),
+            current: Arc::clone(&self.generation),
+            mine: my_gen,
+        });
+        let generation_arc = Arc::clone(&self.generation);
+        let handshake_timeout = Duration::from_millis(self.handshake_timeout_ms.load(Ordering::Relaxed));
+        let write_timeout = Duration::from_millis(self.write_timeout_ms.load(Ordering::Relaxed));
+        let audio_port_arc = Arc::clone(&self.audio_port);
+        let ping_stats = Arc::new(Mutex::new(crate::ping::PingStats::default()));
+        let clock = Instant::now();
         let runner_arc = Arc::clone(&self.runner);
         let mixer_arc = Arc::clone(&self.audio_mixer);
         let crypt_arc = Arc::clone(&self.crypt_state);
@@ -227,6 +313,11 @@ impl MumbleClient {
                 _ = shutdown_rx.changed() => return,
                 endpoints = crate::dns::resolve_mumble_endpoints(&host, port) => endpoints,
             };
+            if endpoints.is_empty() {
+                report_failure(&generation_arc, my_gen, &state_arc, &handler_arc, ConnectionErrorKind::Unreachable,
+                    format!("Could not resolve {host}"));
+                return;
+            }
             let mut last_tls_error = None;
             let mut connected_stream = None;
             let mut connected_host = host.clone();
@@ -272,14 +363,12 @@ impl MumbleClient {
                 Some(s) => s,
                 None => {
                     let err = last_tls_error.unwrap_or_else(|| std::io::Error::new(std::io::ErrorKind::NotConnected, "No reachable endpoint"));
-                    eprintln!("Mumble TLS connection error: {:?}", err);
-                    state_arc.write().unwrap().connection_status = ConnectionStatus::Failed;
-                    handler_arc.on_connection_status_changed(ConnectionStatus::Failed);
+                    report_failure(&generation_arc, my_gen, &state_arc, &handler_arc, classify_connect_error(&err),
+                        format!("Could not connect to {host}:{port}: {err}"));
                     return;
                 }
             };
-            let host_for_udp = connected_host;
-            let port_for_udp = connected_port;
+            let _ = (connected_host, connected_port);
 
             let cipher_name = tls_stream
                 .get_ref()
@@ -289,6 +378,9 @@ impl MumbleClient {
                 .unwrap_or_else(|| "TLS_AES_256_GCM_SHA384".to_string());
             state_arc.write().unwrap().server_info.tls_cipher = cipher_name;
 
+            // UDP must go to the exact peer that accepted TCP (not a fresh DNS lookup,
+            // which may pick a different address or family).
+            let udp_peer = tls_stream.get_ref().0.peer_addr().ok();
             let (mut reader, mut writer) = tokio::io::split(tls_stream);
 
             // Send Version (packet type 0)
@@ -300,11 +392,10 @@ impl MumbleClient {
                 os_version: (!hide_os).then_some(os_version),
             };
             if let Err(e) =
-                write_raw_packet(&mut writer, TYPE_VERSION, &version.encode_to_vec()).await
+                write_packet_bounded(&mut writer, TYPE_VERSION, &version.encode_to_vec(), write_timeout).await
             {
-                eprintln!("Failed to send Version packet: {:?}", e);
-                state_arc.write().unwrap().connection_status = ConnectionStatus::Failed;
-                handler_arc.on_connection_status_changed(ConnectionStatus::Failed);
+                report_failure(&generation_arc, my_gen, &state_arc, &handler_arc, ConnectionErrorKind::Io,
+                    format!("Failed to send version to server: {e}"));
                 return;
             }
 
@@ -318,16 +409,20 @@ impl MumbleClient {
                 client_type: Some(0),
             };
             if let Err(e) =
-                write_raw_packet(&mut writer, TYPE_AUTHENTICATE, &auth.encode_to_vec()).await
+                write_packet_bounded(&mut writer, TYPE_AUTHENTICATE, &auth.encode_to_vec(), write_timeout).await
             {
-                eprintln!("Failed to send Authenticate packet: {:?}", e);
-                state_arc.write().unwrap().connection_status = ConnectionStatus::Failed;
-                handler_arc.on_connection_status_changed(ConnectionStatus::Failed);
+                report_failure(&generation_arc, my_gen, &state_arc, &handler_arc, ConnectionErrorKind::Io,
+                    format!("Failed to send authentication to server: {e}"));
                 return;
             }
 
             // TCP Heartbeat task: sends TCP Ping every 5 seconds
             let cmd_tx_heartbeat = cmd_tx.clone();
+            let heartbeat_stats = Arc::clone(&ping_stats);
+            let heartbeat_crypt = Arc::clone(&crypt_arc);
+            let heartbeat_tcp_sent = Arc::clone(&tcp_sent_arc);
+            let heartbeat_udp_sent = Arc::clone(&udp_sent_arc);
+            let heartbeat_clock = clock;
             let mut heartbeat_shutdown_rx = shutdown_rx.clone();
             runner_arc.spawn(async move {
                 let mut interval = tokio::time::interval(Duration::from_secs(5));
@@ -336,13 +431,27 @@ impl MumbleClient {
                 loop {
                     tokio::select! {
                         _ = interval.tick() => {
-                            let now_timestamp = SystemTime::now()
-                                .duration_since(UNIX_EPOCH)
-                                .unwrap_or_default()
-                                .as_micros() as u64;
+                            let now_timestamp = heartbeat_clock.elapsed().as_micros() as u64;
+                            let (tcp_avg, tcp_var, udp_avg, udp_var) = {
+                                let st = heartbeat_stats.lock().unwrap();
+                                (st.tcp.mean(), st.tcp.variance(), st.udp.mean(), st.udp.variance())
+                            };
+                            let (good, late, lost, resync) = match heartbeat_crypt.lock().unwrap().as_ref() {
+                                Some(c) => (c.good, c.late, c.lost, c.resync),
+                                None => (0, 0, 0, 0),
+                            };
                             let ping = proto::Ping {
                                 timestamp: Some(now_timestamp),
-                                ..Default::default()
+                                good: Some(good),
+                                late: Some(late),
+                                lost: Some(lost),
+                                resync: Some(resync),
+                                udp_packets: Some(heartbeat_udp_sent.load(Ordering::Relaxed)),
+                                tcp_packets: Some(heartbeat_tcp_sent.load(Ordering::Relaxed)),
+                                udp_ping_avg: Some(udp_avg),
+                                udp_ping_var: Some(udp_var),
+                                tcp_ping_avg: Some(tcp_avg),
+                                tcp_ping_var: Some(tcp_var),
                             };
                             let _ = cmd_tx_heartbeat.send(OutgoingCommand::Proto(TYPE_PING, ping.encode_to_vec())).await;
                         }
@@ -393,6 +502,7 @@ impl MumbleClient {
 
             // TLS Writer task
             let mut writer_shutdown_rx = shutdown_rx.clone();
+            let (writer_fail_tx, mut writer_fail_rx) = watch::channel::<Option<String>>(None);
             let tcp_sent_writer = Arc::clone(&tcp_sent_arc);
             let writer_handle = runner_arc.spawn(async move {
                 loop {
@@ -401,8 +511,10 @@ impl MumbleClient {
                             match cmd {
                                 Some(OutgoingCommand::Proto(type_id, payload)) => {
                                     tcp_sent_writer.fetch_add(1, Ordering::Relaxed);
-                                    if let Err(e) = write_raw_packet(&mut writer, type_id, &payload).await {
-                                        eprintln!("TLS write error: {:?}", e);
+                                    if let Err(e) = write_packet_bounded(&mut writer, type_id, &payload, write_timeout).await {
+                                        // Wake the session immediately instead of leaving the reader
+                                        // waiting on a connection that can no longer send.
+                                        let _ = writer_fail_tx.send(Some(format!("Connection write failed: {e}")));
                                         break;
                                     }
                                 }
@@ -485,12 +597,36 @@ impl MumbleClient {
 
             // TLS Reader loop
             let cmd_tx_blob = cmd_tx.clone();
+            let mut ended_failed = false;
+            let mut handshake_done = false;
+            let handshake_deadline = tokio::time::sleep(handshake_timeout);
+            tokio::pin!(handshake_deadline);
             loop {
                 tokio::select! {
                     _ = shutdown_rx.changed() => {
                         break;
                     }
+                    _ = writer_fail_rx.changed() => {
+                        let msg = writer_fail_rx.borrow().clone().unwrap_or_else(|| "Connection write failed".to_string());
+                        if generation_arc.load(Ordering::SeqCst) == my_gen {
+                            { let mut st = state_arc.write().unwrap(); st.disconnect_reason = msg.clone(); }
+                            handler_arc.on_connection_error(ConnectionErrorKind::Io, msg);
+                            ended_failed = !handshake_done;
+                        }
+                        break;
+                    }
+                    _ = &mut handshake_deadline, if !handshake_done => {
+                        if generation_arc.load(Ordering::SeqCst) == my_gen {
+                            let msg = format!("The server did not finish the login within {} s.", handshake_timeout.as_secs_f32().round());
+                            { let mut st = state_arc.write().unwrap(); st.disconnect_reason = msg.clone(); }
+                            handler_arc.on_connection_error(ConnectionErrorKind::HandshakeTimeout, msg);
+                            ended_failed = true;
+                        }
+                        break;
+                    }
                     packet_res = read_packet(&mut reader) => {
+                        // A packet that raced with replacement/disconnect belongs to an old session.
+                        if *shutdown_rx.borrow() || generation_arc.load(Ordering::SeqCst) != my_gen { break; }
                         let packet = match packet_res {
                             Ok(p) => p,
                             Err(e) => {
@@ -503,6 +639,7 @@ impl MumbleClient {
                         match packet.type_id {
                             TYPE_SERVER_SYNC => {
                                 if let Ok(sync) = proto::ServerSync::decode(&packet.payload[..]) {
+                                    handshake_done = true;
                                     let (info, welcome_opt) = {
                                         let mut state = state_arc.write().unwrap();
                                         state.my_session = sync.session;
@@ -971,6 +1108,17 @@ impl MumbleClient {
                                         if let Some(max_users) = cfg.max_users {
                                             state.server_info.max_users = max_users;
                                         }
+                                        if let Some(allowed) = cfg.recording_allowed {
+                                            state.server_info.recording_allowed = allowed;
+                                            if !allowed {
+                                                // Policy changed to "forbidden": stop any recording in progress.
+                                                audio_port_arc.stop_recording();
+                                                if let Some(me) = state.my_session {
+                                                    let off = proto::UserState { session: Some(me), recording: Some(false), ..Default::default() };
+                                                    let _ = cmd_tx.try_send(OutgoingCommand::Proto(TYPE_USER_STATE, off.encode_to_vec()));
+                                                }
+                                            }
+                                        }
                                         (state.server_info.clone(), new_welcome)
                                     };
                                     handler_arc.on_server_connection_info_updated(info);
@@ -994,36 +1142,39 @@ impl MumbleClient {
                             }
                             TYPE_PING => {
                                 if let Ok(ping) = proto::Ping::decode(&packet.payload[..]) {
-                                    let tcp_ms = if let Some(sent_ts) = ping.timestamp {
-                                        let now = SystemTime::now()
-                                            .duration_since(UNIX_EPOCH)
-                                            .unwrap_or_default()
-                                            .as_micros() as u64;
-                                        if now >= sent_ts {
-                                            ((now - sent_ts) as f32) / 1000.0
-                                        } else {
-                                            ping.tcp_ping_avg.unwrap_or(0.0)
-                                        }
-                                    } else {
-                                        ping.tcp_ping_avg.unwrap_or(0.0)
-                                    };
-                                    let udp_ms = ping.udp_ping_avg.unwrap_or(0.0);
                                     let using_udp = !force_tcp.load(Ordering::Relaxed) && last_udp_ping_arc.read().unwrap().elapsed() < Duration::from_secs(15);
-                                    handler_arc.on_ping_updated(tcp_ms, udp_ms, !using_udp);
-
-                                    let info = {
+                                    // Our own TCP round-trip (monotonic). The server's echo of our timestamp is the
+                                    // only source; never fall back to numbers describing a different measurement.
+                                    let tcp_sample = ping.timestamp.and_then(|sent| {
+                                        let now = clock.elapsed().as_micros() as u64;
+                                        (now >= sent).then(|| ((now - sent) as f32) / 1000.0)
+                                    });
+                                    if let Some(ms) = tcp_sample {
+                                        ping_stats.lock().unwrap().tcp.push(ms);
+                                    }
+                                    let local = match crypt_arc.lock().unwrap().as_ref() {
+                                        Some(c) => (c.good, c.late, c.lost, c.resync),
+                                        None => (0, 0, 0, 0),
+                                    };
+                                    let (info, tcp_ms, udp_ms) = {
                                         let mut state = state_arc.write().unwrap();
-                                        state.server_info.tcp_ping_ms = tcp_ms;
-                                        state.server_info.udp_ping_ms = udp_ms;
+                                        if let Some(ms) = tcp_sample { state.server_info.tcp_ping_ms = ms; }
                                         state.server_info.using_udp_tunnel = !using_udp;
+                                        // Server-reported: what the server received from us.
                                         if let Some(good) = ping.good { state.server_info.good_packets = good; }
                                         if let Some(late) = ping.late { state.server_info.late_packets = late; }
                                         if let Some(lost) = ping.lost { state.server_info.lost_packets = lost; }
                                         if let Some(resync) = ping.resync { state.server_info.resync_packets = resync; }
+                                        // Local: what we received from the server.
+                                        state.server_info.local_good_packets = local.0;
+                                        state.server_info.local_late_packets = local.1;
+                                        state.server_info.local_lost_packets = local.2;
+                                        state.server_info.local_resync_packets = local.3;
                                         state.server_info.tcp_packets_sent = tcp_sent_arc.load(Ordering::Relaxed);
                                         state.server_info.udp_packets_sent = udp_sent_arc.load(Ordering::Relaxed);
-                                        state.server_info.clone()
+                                        (state.server_info.clone(), state.server_info.tcp_ping_ms, state.server_info.udp_ping_ms)
                                     };
+                                    handler_arc.on_ping_updated(tcp_ms, udp_ms, !using_udp);
                                     handler_arc.on_server_connection_info_updated(info);
                                 }
                             }
@@ -1048,7 +1199,7 @@ impl MumbleClient {
                                             *crypt_arc.lock().unwrap() = Some(crypt);
 
                                             // Setup non-blocking UDP socket connected to Murmur server
-                                            if let Ok(peer) = tokio::net::lookup_host((host_for_udp.as_str(), port_for_udp)).await.and_then(|mut addresses| addresses.next().ok_or_else(|| std::io::Error::other("No UDP endpoint"))) {
+                                            if let Some(peer) = udp_peer {
                                               if let Ok(udp) = UdpSocket::bind(if peer.is_ipv6() { "[::]:0" } else { "0.0.0.0:0" }).await {
                                                 if udp.connect(peer).await.is_ok() {
                                                     let udp_shared = Arc::new(udp);
@@ -1061,6 +1212,7 @@ impl MumbleClient {
                                                     let mut udp_shutdown_rx = shutdown_rx.clone();
                                                     let modern_ping = modern_voice.load(Ordering::Relaxed);
                                                     let force_tcp_ping = Arc::clone(&force_tcp);
+                                                    let udp_ping_clock = clock;
 
                                                     runner_arc.spawn(async move {
                                                         let mut interval = tokio::time::interval(Duration::from_secs(5));
@@ -1068,10 +1220,7 @@ impl MumbleClient {
                                                             tokio::select! {
                                                                 _ = interval.tick() => {
                                                                     if force_tcp_ping.load(Ordering::Relaxed) { continue; }
-                                                                    let ts = SystemTime::now()
-                                                                        .duration_since(UNIX_EPOCH)
-                                                                        .unwrap_or_default()
-                                                                        .as_micros() as u64;
+                                                                    let ts = udp_ping_clock.elapsed().as_micros() as u64;
                                                                     let ping_bytes = encode_udp_ping_versioned(ts, modern_ping);
                                                                     let mut encrypted = vec![0u8; ping_bytes.len() + 4];
                                                                     let crypted = {
@@ -1104,6 +1253,10 @@ impl MumbleClient {
                                                     let self_priority_recv = Arc::clone(&self_priority_for_udp);
                                                     let mut udp_recv_shutdown_rx = shutdown_rx.clone();
                                                     let cmd_tx_resync = cmd_tx.clone();
+                                                    let udp_stats = Arc::clone(&ping_stats);
+                                                    let udp_clock = clock;
+                                                    let udp_gen = Arc::clone(&generation_arc);
+                                                    let udp_force_tcp = Arc::clone(&force_tcp);
 
                                                     runner_arc.spawn(async move {
                                                         let mut buf = [0u8; 2048];
@@ -1117,6 +1270,7 @@ impl MumbleClient {
                                                                         Ok(n) => n,
                                                                         Err(_) => break,
                                                                     };
+                                                                    if udp_gen.load(Ordering::SeqCst) != my_gen { break; }
                                                                     let decrypted = {
                                                                         if let Some(ref mut c) = *crypt_recv.lock().unwrap() {
                                                                             c.decrypt(&buf[..n], &mut plain).ok()
@@ -1139,16 +1293,20 @@ impl MumbleClient {
                                                                             // UDP Ping reply
                                                                             if let Ok(reply) = decode_udp_ping_reply(packet_data) {
                                                                                 *last_ping_recv.write().unwrap() = Instant::now();
-                                                                                let now = SystemTime::now()
-                                                                                    .duration_since(UNIX_EPOCH)
-                                                                                    .unwrap_or_default()
-                                                                                    .as_micros() as u64;
-                                                                                let udp_ms = if now >= reply.timestamp {
-                                                                                    ((now - reply.timestamp) as f32) / 1000.0
-                                                                                } else {
-                                                                                    0.0
-                                                                                };
-                                                                                handler_recv.on_ping_updated(0.0, udp_ms, false);
+                                                                                let now = udp_clock.elapsed().as_micros() as u64;
+                                                                                // Monotonic clock: a reply can never be from the future; ignore garbage.
+                                                                                if now >= reply.timestamp {
+                                                                                    let udp_ms = ((now - reply.timestamp) as f32) / 1000.0;
+                                                                                    udp_stats.lock().unwrap().udp.push(udp_ms);
+                                                                                    // Update only the UDP measurement; keep the TCP value.
+                                                                                    let (tcp_ms, tunnel) = {
+                                                                                        let mut st = state_recv.write().unwrap();
+                                                                                        st.server_info.udp_ping_ms = udp_ms;
+                                                                                        st.server_info.using_udp_tunnel = udp_force_tcp.load(Ordering::Relaxed);
+                                                                                        (st.server_info.tcp_ping_ms, st.server_info.using_udp_tunnel)
+                                                                                    };
+                                                                                    handler_recv.on_ping_updated(tcp_ms, udp_ms, tunnel);
+                                                                                }
                                                                             }
                                                                         } else if packet_data[0] == 0 || packet_type == 4 {
                                                                             // Opus Voice packet over UDP
@@ -1402,8 +1560,8 @@ impl MumbleClient {
                                         timestamp,
                                     };
                                     handler_arc.on_chat_message(chat);
-                                    state_arc.write().unwrap().connection_status = ConnectionStatus::Failed;
-                                    handler_arc.on_connection_status_changed(ConnectionStatus::Failed);
+                                    handler_arc.on_connection_error(ConnectionErrorKind::Rejected, full_reason.clone());
+                                    ended_failed = true;
                                     break;
                                 }
                             }
@@ -1582,10 +1740,10 @@ impl MumbleClient {
                 let mut state = state_arc.write().unwrap();
                 let synced = state.is_synced;
                 state.is_synced = false;
-                state.connection_status = ConnectionStatus::Disconnected;
+                state.connection_status = if ended_failed { ConnectionStatus::Failed } else { ConnectionStatus::Disconnected };
                 synced
             };
-            if was_synced {
+            if was_synced && !ended_failed {
                 let timestamp = SystemTime::now()
                     .duration_since(UNIX_EPOCH)
                     .unwrap_or_default()
@@ -1600,7 +1758,7 @@ impl MumbleClient {
                 };
                 handler_arc.on_chat_message(chat);
             }
-            handler_arc.on_connection_status_changed(ConnectionStatus::Disconnected);
+            handler_arc.on_connection_status_changed(if ended_failed { ConnectionStatus::Failed } else { ConnectionStatus::Disconnected });
         });
     }
 
@@ -1634,6 +1792,8 @@ impl MumbleClient {
     }
 
     pub fn disconnect(&self) {
+        // Silence every task/callback of the connection being closed.
+        self.generation.fetch_add(1, Ordering::SeqCst);
         self.self_priority_transmitting
             .store(false, Ordering::Relaxed);
         self.audio_mixer.lock().unwrap().reset();
@@ -1808,7 +1968,14 @@ impl MumbleClient {
         }
         Arc::into_raw(Arc::clone(&self.audio_port)) as u64
     }
+    /// Whether the server currently allows clients to record.
+    pub fn recording_allowed(&self) -> bool {
+        self.state.read().unwrap().server_info.recording_allowed
+    }
     pub fn start_recording(&self, path: String) -> bool {
+        if !self.recording_allowed() {
+            return false;
+        }
         self.audio_port.start_recording(path).is_ok()
     }
     pub fn stop_recording(&self) {
@@ -1867,8 +2034,20 @@ impl MumbleClient {
     }
 
     pub fn set_user_local_volume(&self, session_id: u32, volume_multiplier: f32) {
-        let mut state = self.state.write().unwrap();
-        state.user_volumes.insert(session_id, volume_multiplier);
+        {
+            let mut state = self.state.write().unwrap();
+            state.user_volumes.insert(session_id, volume_multiplier);
+        }
+        // Apply to audio that is already buffered, so a mute/volume change is
+        // heard at the next rendered block rather than at the next packet.
+        if let Ok(mut mixer) = self.audio_mixer.lock() {
+            mixer.set_user_local_volume(session_id, volume_multiplier);
+        }
+    }
+
+    /// Increments each time a connection starts or ends (for diagnostics/tests).
+    pub fn connection_generation(&self) -> u64 {
+        self.generation.load(Ordering::SeqCst)
     }
 
     pub fn push_mic_pcm(&self, samples: Vec<f32>, target: Option<u8>) {
@@ -1942,7 +2121,15 @@ impl MumbleClient {
                 encode_client_voice_versioned(&pkt, self.modern_voice.load(Ordering::Relaxed));
             if let Ok(guard) = self.voice_tx.read() {
                 if let Some(ref tx) = *guard {
-                    let _ = tx.try_send(encoded);
+                    // The terminator ends the speaker's stream on everyone else's
+                    // jitter buffer: if the queue is momentarily full, wait for room
+                    // instead of dropping it (ordinary audio frames may be dropped).
+                    if let Err(mpsc::error::TrySendError::Full(packet)) = tx.try_send(encoded) {
+                        let tx = tx.clone();
+                        self.runner.spawn(async move {
+                            let _ = tx.send(packet).await;
+                        });
+                    }
                 }
             }
         }
@@ -2068,6 +2255,9 @@ impl MumbleClient {
     }
 
     pub fn set_recording_state(&self, recording: bool) {
+        if recording && !self.recording_allowed() {
+            return;
+        }
         if let Some(session) = self.state.read().unwrap().my_session {
             let ustate = proto::UserState {
                 session: Some(session),
@@ -2377,12 +2567,28 @@ impl MumbleClient {
 }
 
 impl MumbleClient {
+    /// Shortens the handshake and write deadlines (used by tests; takes effect on the next connect).
+    #[doc(hidden)]
+    pub fn set_network_timeouts_ms(&self, handshake_ms: u64, write_ms: u64) {
+        self.handshake_timeout_ms.store(handshake_ms, Ordering::Relaxed);
+        self.write_timeout_ms.store(write_ms, Ordering::Relaxed);
+    }
+
     fn send_proto<M: Message>(&self, type_id: u16, msg: &M) {
         let payload = msg.encode_to_vec();
-        if let Ok(guard) = self.command_tx.read() {
-            if let Some(ref tx) = *guard {
-                let _ = tx.try_send(OutgoingCommand::Proto(type_id, payload));
-            }
+        let failure = match self.command_tx.read() {
+            Ok(guard) => match *guard {
+                Some(ref tx) => match tx.try_send(OutgoingCommand::Proto(type_id, payload)) {
+                    Ok(()) => None,
+                    Err(mpsc::error::TrySendError::Full(_)) => Some("the send queue is full"),
+                    Err(mpsc::error::TrySendError::Closed(_)) => Some("the connection is closed"),
+                },
+                None => Some("not connected"),
+            },
+            Err(_) => Some("internal error"),
+        };
+        if let Some(reason) = failure {
+            self.handler.on_command_failed(command_name(type_id), reason.to_string());
         }
     }
 }

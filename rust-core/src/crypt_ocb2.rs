@@ -27,6 +27,11 @@ pub struct CryptStateOCB2 {
     decrypt_iv: [u8; 16],
     decrypt_history: [u8; 256],
     cipher: Aes128,
+    /// Local receive statistics (what this client received), like upstream CryptState.
+    pub good: u32,
+    pub late: u32,
+    pub lost: u32,
+    pub resync: u32,
 }
 
 impl CryptStateOCB2 {
@@ -50,6 +55,10 @@ impl CryptStateOCB2 {
             decrypt_iv: div,
             decrypt_history: [0u8; 256],
             cipher,
+            good: 0,
+            late: 0,
+            lost: 0,
+            resync: 0,
         }
     }
 
@@ -60,6 +69,7 @@ impl CryptStateOCB2 {
         if let Ok(iv) = <[u8; 16]>::try_from(nonce) {
             self.decrypt_iv = iv;
             self.decrypt_history.fill(0);
+            self.resync = self.resync.wrapping_add(1);
             true
         } else {
             false
@@ -110,6 +120,8 @@ impl CryptStateOCB2 {
         let ivbyte = src[0];
         let save_iv = self.decrypt_iv;
         let mut restore = false;
+        let mut lost_now: i32 = 0;
+        let mut late_now = false;
 
         if self.decrypt_iv[0].wrapping_add(1) == ivbyte {
             // In order
@@ -139,6 +151,7 @@ impl CryptStateOCB2 {
                 // Late packet, no wraparound
                 self.decrypt_iv[0] = ivbyte;
                 restore = true;
+                late_now = true;
             } else if ivbyte > self.decrypt_iv[0] && diff > -30 && diff < 0 {
                 // Last was e.g. 0x02, here comes 0xff from last round
                 self.decrypt_iv[0] = ivbyte;
@@ -150,11 +163,14 @@ impl CryptStateOCB2 {
                     }
                 }
                 restore = true;
+                late_now = true;
             } else if ivbyte > self.decrypt_iv[0] && diff > 0 {
                 // Lost a few packets, no wraparound
+                lost_now = ivbyte as i32 - save_iv[0] as i32 - 1;
                 self.decrypt_iv[0] = ivbyte;
             } else if ivbyte < self.decrypt_iv[0] && diff > 0 {
                 // Lost packets with wraparound
+                lost_now = 256 - save_iv[0] as i32 + ivbyte as i32 - 1;
                 self.decrypt_iv[0] = ivbyte;
                 for i in 1..16 {
                     self.decrypt_iv[i] = self.decrypt_iv[i].wrapping_add(1);
@@ -193,6 +209,14 @@ impl CryptStateOCB2 {
         self.decrypt_history[self.decrypt_iv[0] as usize] = self.decrypt_iv[1];
         if restore {
             self.decrypt_iv = save_iv;
+        }
+        self.good = self.good.wrapping_add(1);
+        if late_now {
+            self.late = self.late.wrapping_add(1);
+            self.lost = self.lost.saturating_sub(1);
+        }
+        if lost_now > 0 {
+            self.lost = self.lost.wrapping_add(lost_now as u32);
         }
 
         Ok(plain_len)
@@ -477,5 +501,30 @@ mod regression_tests {
             &nonce,
             &mut decoded_tag
         ));
+    }
+
+    #[test]
+    fn local_packet_counters_track_good_late_and_lost() {
+        let key = [7u8; 16];
+        let a = [1u8; 16];
+        let b = [2u8; 16];
+        let mut tx = CryptStateOCB2::new(&key, &a, &b);
+        let mut rx = CryptStateOCB2::new(&key, &b, &a);
+        let mut out = [0u8; 64];
+        let mut plain = [0u8; 64];
+        let mut pkts = Vec::new();
+        for _ in 0..6 {
+            let n = tx.encrypt(b"hello", &mut out).unwrap();
+            pkts.push(out[..n].to_vec());
+        }
+        // deliver 0, 1, skip 2 and 3, deliver 4, then the late 2
+        for i in [0usize, 1, 4, 2] {
+            rx.decrypt(&pkts[i], &mut plain).unwrap();
+        }
+        assert_eq!(rx.good, 4);
+        assert_eq!(rx.lost, 1, "3 never arrived; 2 arrived late and is no longer lost");
+        assert_eq!(rx.late, 1);
+        assert!(rx.set_decrypt_nonce(&[9u8; 16]));
+        assert_eq!(rx.resync, 1);
     }
 }

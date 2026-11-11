@@ -18,6 +18,31 @@ final class ClientRegressionTests: XCTestCase {
         XCTAssertEqual(KeychainHelper.loadAccessTokens(serverKey: b), [])
     }
 
+    func testConnectionEpochDiscardsCallbacksCapturedBeforeABump() {
+        let epoch = ConnectionEpoch()
+        let captured = epoch.value
+        XCTAssertEqual(captured, epoch.value)
+        epoch.bump() // a newer connect()/disconnect()
+        XCTAssertNotEqual(captured, epoch.value, "a callback captured before the bump must be treated as stale")
+    }
+
+    @MainActor func testDisconnectDropsSessionScopedState() {
+        let store = MumbleStore()
+        store.userVolumes[5] = 0.2
+        store.userLocalMutes[5] = true
+        store.ignoredTextMessageUsers = [5, 6]
+        store.isWhispering = true
+        let before = store.connectionEpoch.value
+        store.disconnect()
+        XCTAssertTrue(store.userVolumes.isEmpty)
+        XCTAssertTrue(store.userLocalMutes.isEmpty)
+        XCTAssertTrue(store.ignoredTextMessageUsers.isEmpty)
+        XCTAssertFalse(store.isWhispering)
+        XCTAssertNotEqual(before, store.connectionEpoch.value)
+        XCTAssertTrue(store.recordingAllowed, "recording is allowed until a server says otherwise")
+        XCTAssertNil(store.recordingBlockedReason)
+    }
+
     func testURLPortsAreValidatedWithoutTrapping() {
         for port in ["0", "65536", "70000", "999999999"] {
             XCTAssertNil(MumbleURLParser.parse(string: "mumble://localhost:\(port)"))
@@ -82,6 +107,8 @@ private final class AudioTestEvents: MumbleEventHandler, @unchecked Sendable {
     func onRegisteredUsersUpdated(users: [RegisteredUser]) {}
     func onBanListUpdated(bans: [BanEntryInfo]) {}
     func onUserStatsReceived(stats: UserStatsInfo) {}
+    func onConnectionError(kind: ConnectionErrorKind, message: String) {}
+    func onCommandFailed(command: String, reason: String) {}
 }
 
 final class AudioHardwareRegressionTests: XCTestCase {

@@ -21,6 +21,8 @@ pub struct UserAudioState {
     last_arrival: Option<(u64, Instant)>,
     position: Option<[f32; 3]>,
     volume: f32,
+    local_volume: f32,
+    volume_adjustment: f32,
     priority: bool,
     primed: bool,
     queued_at: Instant,
@@ -44,6 +46,8 @@ impl UserAudioState {
             last_arrival: None,
             position: None,
             volume: 1.0,
+            local_volume: 1.0,
+            volume_adjustment: 1.0,
             priority: false,
             primed: false,
             queued_at: Instant::now(),
@@ -240,7 +244,9 @@ impl AudioMixer {
         user.position = packet
             .positional_data
             .filter(|p| p.iter().all(|x| x.is_finite()));
-        user.volume = (volume * packet.volume_adjustment).clamp(0.0, 4.0);
+        user.local_volume = volume;
+        user.volume_adjustment = packet.volume_adjustment;
+        user.volume = (user.local_volume * user.volume_adjustment).clamp(0.0, 4.0);
         user.priority = priority;
 
         let new_state = if is_terminator {
@@ -329,6 +335,20 @@ impl AudioMixer {
                 self.link.is_some()
             ),
         }
+    }
+
+    /// Applies a local volume/mute change to already-buffered audio: the next
+    /// rendered block uses it, without waiting for another voice packet.
+    pub fn set_user_local_volume(&mut self, session_id: u32, volume: f32) {
+        if let Some(user) = self.users.get_mut(&session_id) {
+            user.local_volume = volume;
+            user.volume = (user.local_volume * user.volume_adjustment).clamp(0.0, 4.0);
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn user_volume(&self, session_id: u32) -> Option<f32> {
+        self.users.get(&session_id).map(|u| u.volume)
     }
 
     pub fn reset(&mut self) {
@@ -488,6 +508,26 @@ mod tests {
         u.jitter_queue.extend(std::iter::repeat_n(sample, 960));
         u.primed = true;
         u
+    }
+    #[test]
+    fn local_mute_applies_to_buffered_audio_without_a_new_packet() {
+        // AUD-03: audio already queued must obey a mute issued afterwards.
+        let (mut m, mut c) = fixture();
+        m.users.insert(1, speaker(1, 0.4));
+        m.set_user_local_volume(1, 0.0);
+        assert_eq!(m.user_volume(1), Some(0.0));
+        m.render(480, false);
+        for _ in 0..960 {
+            assert_eq!(c.pop().unwrap(), 0.0);
+        }
+        // Unmuting is equally immediate, and keeps the packet's own adjustment.
+        m.users.get_mut(&1).unwrap().jitter_queue.extend(std::iter::repeat_n(0.4, 960));
+        m.users.get_mut(&1).unwrap().volume_adjustment = 0.5;
+        m.set_user_local_volume(1, 1.0);
+        m.render(480, false);
+        for _ in 0..960 {
+            assert!((c.pop().unwrap() - 0.2).abs() < 1e-6);
+        }
     }
     #[test]
     fn overlapping_speakers_are_summed_not_concatenated() {
