@@ -435,6 +435,21 @@ public struct ServerConnectSheet: View {
     }
 
     private func connectToCurrent() {
+        if selectedBookmark == nil {
+            // Nothing saved/selected yet: create the server from the typed form.
+            let host = formHost.trimmingCharacters(in: .whitespacesAndNewlines)
+            let user = formUsername.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !host.isEmpty, !user.isEmpty else { return }
+            var bm = ServerBookmark(
+                name: formName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? host : formName,
+                host: host,
+                port: UInt16(formPort) ?? 64738,
+                username: user
+            )
+            bm.password = formPassword.isEmpty ? nil : formPassword
+            store.addBookmark(bm)
+            selectBookmark(bm)
+        }
         saveCurrentForm()
         if let bm = selectedBookmark {
             store.connect(bookmark: bm)
