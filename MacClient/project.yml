@@ -26,8 +26,8 @@ targets:
         CFBundleDisplayName: "Swimble"
         CFBundleIconName: "Swimble"
         CFBundleIconFile: "Swimble"
-        CFBundleShortVersionString: "1.3.0"
-        CFBundleVersion: "6"
+        CFBundleShortVersionString: "1.3.1"
+        CFBundleVersion: "7"
         NSMicrophoneUsageDescription: "Swimble requires microphone access for voice chat."
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: true
