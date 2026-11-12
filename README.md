@@ -14,7 +14,7 @@
 
 Download the DMG, open it, and drag **Swimble** to **Applications**. The installer includes Opus, its license, a background image, and an Applications shortcut. Homebrew is not required to run the application.
 
-Published builds currently use ad hoc signing and are not Apple-notarized. Each release includes a SHA-256 checksum. The packaging pipeline supports Developer ID signing and notarization when the maintainer's signing credentials are available; see [release instructions](scripts/RELEASING.md).
+Published builds (1.3.1 and later) are signed with a Developer ID and notarized by Apple, with the ticket stapled, so they open without Gatekeeper warnings. Each release includes a SHA-256 checksum. Signing and notarization are described in the [release instructions](scripts/RELEASING.md).
 
 ## Capabilities
 

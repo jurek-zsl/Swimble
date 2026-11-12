@@ -410,7 +410,7 @@ Suggested first implementation sequence: **SEC-01 → SEC-02 → SEC-03 → NET-
 <a id="rel-02"></a>
 
 - [ ] **REL-02 · P2 · Improve — Make signing/notarization a verified release gate when credentials are available.**
-  The pipeline already supports Developer ID and notarization; README says published builds are currently ad hoc signed. Do not list signing support as unimplemented.
+  The pipeline already supports Developer ID and notarization; Releases from 1.3.1 onward are signed and notarized. Do not list signing support as unimplemented.
   **Done when:** publish a signed/notarized release through the existing path and verify Gatekeeper, stapling, plugin loading, microphone/accessibility behavior, DMG layout, checksum, and bundled CLI on a clean machine. Sources: `scripts/RELEASING.md`, `package_dmg.py`, `Swimble.entitlements`.
 
 <a id="rel-03"></a>
